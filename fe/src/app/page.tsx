@@ -1,103 +1,201 @@
-import Image from "next/image";
+"use client"
 
-export default function Home() {
+import { useState, useEffect } from "react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { CheckCircle, XCircle, BookOpen } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+
+interface Sentence {
+  japanese: string
+  english: string
+  romaji: string
+}
+
+const sentences: Sentence[] = [
+  {
+    japanese: "今日は天気がいいですね。",
+    english: "The weather is nice today.",
+    romaji: "Kyou wa tenki ga ii desu ne.",
+  },
+  {
+    japanese: "私は学生です。",
+    english: "I am a student.",
+    romaji: "Watashi wa gakusei desu.",
+  },
+  {
+    japanese: "この本はとても面白いです。",
+    english: "This book is very interesting.",
+    romaji: "Kono hon wa totemo omoshiroi desu.",
+  },
+  {
+    japanese: "駅はどこですか？",
+    english: "Where is the station?",
+    romaji: "Eki wa doko desu ka?",
+  },
+  {
+    japanese: "日本語を勉強しています。",
+    english: "I am studying Japanese.",
+    romaji: "Nihongo wo benkyou shite imasu.",
+  },
+  {
+    japanese: "お疲れ様でした。",
+    english: "Thank you for your hard work.",
+    romaji: "Otsukaresama deshita.",
+  },
+  {
+    japanese: "明日は雨が降るでしょう。",
+    english: "It will probably rain tomorrow.",
+    romaji: "Ashita wa ame ga furu deshou.",
+  },
+  {
+    japanese: "コーヒーを飲みませんか？",
+    english: "Would you like to drink coffee?",
+    romaji: "Koohii wo nomimasen ka?",
+  },
+  {
+    japanese: "時間がありません。",
+    english: "I don't have time.",
+    romaji: "Jikan ga arimasen.",
+  },
+  {
+    japanese: "家族と一緒に住んでいます。",
+    english: "I live with my family.",
+    romaji: "Kazoku to issho ni sunde imasu.",
+  },
+]
+
+export default function JapaneseTranslator() {
+  const [currentSentence, setCurrentSentence] = useState<Sentence>(sentences[0])
+  const [userTranslation, setUserTranslation] = useState("")
+  const [feedback, setFeedback] = useState<"correct" | "incorrect" | null>(null)
+  const [showAnswer, setShowAnswer] = useState(false)
+  const [usedSentences, setUsedSentences] = useState<number[]>([])
+
+  const getRandomSentence = () => {
+    let availableSentences = sentences.filter((_, index) => !usedSentences.includes(index))
+
+    if (availableSentences.length === 0) {
+      setUsedSentences([])
+      availableSentences = sentences
+    }
+
+    const randomIndex = Math.floor(Math.random() * availableSentences.length)
+    const selectedSentence = availableSentences[randomIndex]
+    const originalIndex = sentences.indexOf(selectedSentence)
+
+    setUsedSentences((prev) => [...prev, originalIndex])
+    setCurrentSentence(selectedSentence)
+  }
+
+  const checkTranslation = () => {
+    const userAnswer = userTranslation.toLowerCase().trim()
+    const correctAnswer = currentSentence.english.toLowerCase().trim()
+
+    // Simple similarity check - in a real app, you'd use more sophisticated NLP
+    const similarity = calculateSimilarity(userAnswer, correctAnswer)
+    const isCorrect = similarity > 0.7 // 70% similarity threshold
+
+    setFeedback(isCorrect ? "correct" : "incorrect")
+
+    setShowAnswer(true)
+  }
+
+  const calculateSimilarity = (str1: string, str2: string): number => {
+    const words1 = str1.split(" ")
+    const words2 = str2.split(" ")
+    const commonWords = words1.filter((word) => words2.includes(word))
+    return commonWords.length / Math.max(words1.length, words2.length)
+  }
+
+  const nextSentence = () => {
+    setUserTranslation("")
+    setFeedback(null)
+    setShowAnswer(false)
+    getRandomSentence()
+  }
+
+  useEffect(() => {
+    getRandomSentence()
+  }, [])
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <div className="max-w-2xl mx-auto">
+        <div className="text-center mb-8">
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <BookOpen className="h-8 w-8 text-indigo-600" />
+            <h1 className="text-3xl font-bold text-gray-900">Japanese to English Translator</h1>
+          </div>
+          <p className="text-gray-600">Practice your English skills by translating Japanese sentences</p>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+        <div className="grid gap-6 mb-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Translate this sentence</CardTitle>
+              <CardDescription>Translate the Japanese sentence below into English</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-gray-900 mb-2">{currentSentence.japanese}</div>
+                <div className="text-sm">{currentSentence.romaji}</div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="translation">Your English translation:</Label>
+                <Input
+                  id="translation"
+                  value={userTranslation}
+                  onChange={(e) => setUserTranslation(e.target.value)}
+                  placeholder="Enter your translation here..."
+                  disabled={showAnswer}
+                  onKeyPress={(e) => {
+                    if (e.key === "Enter" && userTranslation.trim() && !showAnswer) {
+                      checkTranslation()
+                    }
+                  }}
+                />
+              </div>
+
+              {feedback && (
+                <Alert className={feedback === "correct" ? "border-green-500 bg-green-50" : "border-red-500 bg-red-50"}>
+                  <div className="flex items-center gap-2">
+                    {feedback === "correct" ? (
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <XCircle className="h-4 w-4 text-red-600" />
+                    )}
+                    <AlertDescription className={feedback === "correct" ? "text-green-800" : "text-red-800"}>
+                      {feedback === "correct" ? "Correct! Well done!" : "Not quite right. Try again!"}
+                    </AlertDescription>
+                  </div>
+                </Alert>
+              )}
+
+              {showAnswer && (
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="font-semibold text-blue-900 mb-1">Correct Answer:</div>
+                  <div className="text-blue-800">{currentSentence.english}</div>
+                </div>
+              )}
+            </CardContent>
+            <CardFooter className="flex gap-2">
+              {!showAnswer ? (
+                <Button onClick={checkTranslation} disabled={!userTranslation.trim()} className="flex-1">
+                  Check Translation
+                </Button>
+              ) : (
+                <Button onClick={nextSentence} className="flex-1">
+                  Next Sentence
+                </Button>
+              )}
+            </CardFooter>
+          </Card>
+        </div>
+      </div>
     </div>
-  );
+  )
 }
