@@ -141,7 +141,7 @@ export default function JapaneseTranslator() {
             <CardContent className="space-y-4">
               <div className="text-center">
                 <div className="text-3xl font-bold text-gray-900 mb-2">{currentSentence.japanese}</div>
-                <div className="text-sm">{currentSentence.romaji}</div>
+                <div className="text-sm text-gray-600">{currentSentence.romaji}</div>
               </div>
 
               <div className="space-y-2">
@@ -184,7 +184,7 @@ export default function JapaneseTranslator() {
             </CardContent>
             <CardFooter className="flex gap-2">
               {!showAnswer ? (
-                <Button onClick={checkTranslation} disabled={!userTranslation.trim()} className="flex-1">
+                <Button onClick={checkTranslation} disabled={!userTranslation.trim()} className="flex-1 bg-gray-500 hover:bg-black text-white">
                   Check Translation
                 </Button>
               ) : (
