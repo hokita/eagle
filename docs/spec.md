@@ -15,25 +15,25 @@ This app helps users improve their English skills by providing a platform for la
 
 ### `sentences` Table
 
-| Column Name | Type     | Constraints | Description                 |
-| ----------- | -------- | ----------- | --------------------------- |
-| id          | INTEGER  | PRIMARY KEY | Unique ID                   |
-| japanese    | TEXT     | NOT NULL    | Japanese sentence           |
-| english     | TEXT     | NOT NULL    | Correct English translation |
-| page        | TEXT     | NOT NULL    | Page number                 |
-| created_at  | DATETIME | NOT NULL    | Timestamp                   |
-| updated_at  | DATETIME | NOT NULL    | Timestamp                   |
+| Column Name | Type         | Constraints                                                     | Description                 |
+| ----------- | ------------ | --------------------------------------------------------------- | --------------------------- |
+| id          | INT UNSIGNED | PRIMARY KEY, AUTO_INCREMENT                                     | Unique ID                   |
+| japanese    | TEXT         | NOT NULL                                                        | Japanese sentence           |
+| english     | TEXT         | NOT NULL                                                        | Correct English translation |
+| page        | INT UNSIGNED | NOT NULL                                                        | Page number                 |
+| created_at  | DATETIME     | NOT NULL, DEFAULT CURRENT_TIMESTAMP                             | Timestamp                   |
+| updated_at  | DATETIME     | NOT NULL, DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | Timestamp                   |
 
 ### `answer_histories` Table
 
-| Column Name      | Type     | Constraints | Description                                                          |
-| ---------------- | -------- | ----------- | -------------------------------------------------------------------- |
-| id               | INTEGER  | PRIMARY KEY | Unique ID                                                            |
-| sentence_id      | INTEGER  | FOREIGN KEY | Reference to `sentence.id`                                           |
-| is_correct       | BOOLEAN  | NOT NULL    | Whether the answer is correct                                        |
-| incorrect_answer | TEXT     | NOT NULL    | The user’s English answer. If correct, this will be an empty string. |
-| created_at       | DATETIME | NOT NULL    | Timestamp                                                            |
-| updated_at       | DATETIME | NOT NULL    | Timestamp                                                            |
+| Column Name      | Type         | Constraints                                                     | Description                                                          |
+| ---------------- | ------------ | --------------------------------------------------------------- | -------------------------------------------------------------------- |
+| id               | INT UNSIGNED | PRIMARY KEY, AUTO_INCREMENT                                     | Unique ID                                                            |
+| sentence_id      | INT UNSIGNED | NOT NULL, FOREIGN KEY REFERENCES sentences(id)                  | Reference to `sentences.id`                                          |
+| is_correct       | BOOLEAN      | NOT NULL                                                        | Whether the answer is correct                                        |
+| incorrect_answer | TEXT         | NOT NULL                                                        | The user’s English answer. If correct, this will be an empty string. |
+| created_at       | DATETIME     | NOT NULL, DEFAULT CURRENT_TIMESTAMP                             | Timestamp                                                            |
+| updated_at       | DATETIME     | NOT NULL, DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | Timestamp                                                            |
 
 ---
 
