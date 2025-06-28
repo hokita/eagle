@@ -16,106 +16,123 @@ import { CheckCircle, XCircle, BookOpen } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 interface Sentence {
+  id: number
   japanese: string
   english: string
+  page: string
+  created_at: string
+  updated_at: string
 }
 
-const sentences: Sentence[] = [
-  {
-    japanese: '今日は天気がいいですね。',
-    english: 'The weather is nice today.',
-  },
-  {
-    japanese: '私は学生です。',
-    english: 'I am a student.',
-  },
-  {
-    japanese: 'この本はとても面白いです。',
-    english: 'This book is very interesting.',
-  },
-  {
-    japanese: '駅はどこですか？',
-    english: 'Where is the station?',
-  },
-  {
-    japanese: '日本語を勉強しています。',
-    english: 'I am studying Japanese.',
-  },
-  {
-    japanese: 'お疲れ様でした。',
-    english: 'Thank you for your hard work.',
-  },
-  {
-    japanese: '明日は雨が降るでしょう。',
-    english: 'It will probably rain tomorrow.',
-  },
-  {
-    japanese: 'コーヒーを飲みませんか？',
-    english: 'Would you like to drink coffee?',
-  },
-  {
-    japanese: '時間がありません。',
-    english: "I don't have time.",
-  },
-  {
-    japanese: '家族と一緒に住んでいます。',
-    english: 'I live with my family.',
-  },
-]
+interface AnswerHistory {
+  id: number
+  incorrect_answer: string
+  created_at: string
+}
+
+interface CheckAnswerResponse {
+  is_correct: boolean
+  correct_answer: string
+  histories: AnswerHistory[]
+}
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
 
 export default function JapaneseTranslator() {
-  const [currentSentence, setCurrentSentence] = useState<Sentence>(sentences[0])
+  const [currentSentence, setCurrentSentence] = useState<Sentence | null>(null)
   const [userTranslation, setUserTranslation] = useState('')
   const [feedback, setFeedback] = useState<'correct' | 'incorrect' | null>(null)
   const [showAnswer, setShowAnswer] = useState(false)
-  const [usedSentences, setUsedSentences] = useState<number[]>([])
+  const [loading, setLoading] = useState(true)
+  const [histories, setHistories] = useState<AnswerHistory[]>([])
+  const [error, setError] = useState<string | null>(null)
 
-  const getRandomSentence = () => {
-    let availableSentences = sentences.filter((_, index) => !usedSentences.includes(index))
-
-    if (availableSentences.length === 0) {
-      setUsedSentences([])
-      availableSentences = sentences
+  const getRandomSentence = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const response = await fetch(`${API_BASE_URL}/api/sentence/random`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch sentence')
+      }
+      const sentence: Sentence = await response.json()
+      setCurrentSentence(sentence)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load sentence')
+    } finally {
+      setLoading(false)
     }
-
-    const randomIndex = Math.floor(Math.random() * availableSentences.length)
-    const selectedSentence = availableSentences[randomIndex]
-    const originalIndex = sentences.indexOf(selectedSentence)
-
-    setUsedSentences(prev => [...prev, originalIndex])
-    setCurrentSentence(selectedSentence)
   }
 
-  const checkTranslation = () => {
-    const userAnswer = userTranslation.toLowerCase().trim()
-    const correctAnswer = currentSentence.english.toLowerCase().trim()
+  const checkTranslation = async () => {
+    if (!currentSentence) return
 
-    // Simple similarity check - in a real app, you'd use more sophisticated NLP
-    const similarity = calculateSimilarity(userAnswer, correctAnswer)
-    const isCorrect = similarity > 0.7 // 70% similarity threshold
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/answer/check`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sentence_id: currentSentence.id,
+          user_answer: userTranslation,
+        }),
+      })
 
-    setFeedback(isCorrect ? 'correct' : 'incorrect')
+      if (!response.ok) {
+        throw new Error('Failed to check answer')
+      }
 
-    setShowAnswer(true)
-  }
-
-  const calculateSimilarity = (str1: string, str2: string): number => {
-    const words1 = str1.split(' ')
-    const words2 = str2.split(' ')
-    const commonWords = words1.filter(word => words2.includes(word))
-    return commonWords.length / Math.max(words1.length, words2.length)
+      const result: CheckAnswerResponse = await response.json()
+      setFeedback(result.is_correct ? 'correct' : 'incorrect')
+      setHistories(result.histories)
+      setShowAnswer(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to check answer')
+    }
   }
 
   const nextSentence = () => {
     setUserTranslation('')
     setFeedback(null)
     setShowAnswer(false)
+    setHistories([])
+    setError(null)
     getRandomSentence()
   }
 
   useEffect(() => {
     getRandomSentence()
   }, [])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !currentSentence) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 flex items-center justify-center">
+        <Card className="max-w-md">
+          <CardHeader>
+            <CardTitle className="text-red-600">Error</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-gray-700 mb-4">{error || 'Failed to load content'}</p>
+            <Button onClick={() => getRandomSentence()} className="w-full">
+              Try Again
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
@@ -182,9 +199,26 @@ export default function JapaneseTranslator() {
               )}
 
               {showAnswer && (
-                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="font-semibold text-blue-900 mb-1">Correct Answer:</div>
-                  <div className="text-blue-800">{currentSentence.english}</div>
+                <div className="space-y-4">
+                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="font-semibold text-blue-900 mb-1">Correct Answer:</div>
+                    <div className="text-blue-800">{currentSentence.english}</div>
+                  </div>
+
+                  {histories.length > 0 && (
+                    <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                      <div className="font-semibold text-yellow-900 mb-2">
+                        Previous Incorrect Answers:
+                      </div>
+                      <ul className="text-yellow-800 space-y-1">
+                        {histories.map(history => (
+                          <li key={history.id} className="text-sm">
+                            &ldquo;{history.incorrect_answer}&rdquo;
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
