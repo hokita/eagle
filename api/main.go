@@ -6,6 +6,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 )
@@ -154,7 +155,11 @@ func main() {
 	http.HandleFunc("/api/sentence/random", getRandomSentence)
 	http.HandleFunc("/api/answer/check", checkAnswer)
 
-	port := ":8080"
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	port = ":" + port
 	fmt.Printf("Server starting on port %s\n", port)
 	log.Fatal(http.ListenAndServe(port, nil))
 }
