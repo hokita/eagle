@@ -8,7 +8,7 @@ import {
   CardDescription,
   CardFooter,
   CardHeader,
-  CardTitle
+  CardTitle,
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -23,44 +23,44 @@ interface Sentence {
 const sentences: Sentence[] = [
   {
     japanese: '今日は天気がいいですね。',
-    english: 'The weather is nice today.'
+    english: 'The weather is nice today.',
   },
   {
     japanese: '私は学生です。',
-    english: 'I am a student.'
+    english: 'I am a student.',
   },
   {
     japanese: 'この本はとても面白いです。',
-    english: 'This book is very interesting.'
+    english: 'This book is very interesting.',
   },
   {
     japanese: '駅はどこですか？',
-    english: 'Where is the station?'
+    english: 'Where is the station?',
   },
   {
     japanese: '日本語を勉強しています。',
-    english: 'I am studying Japanese.'
+    english: 'I am studying Japanese.',
   },
   {
     japanese: 'お疲れ様でした。',
-    english: 'Thank you for your hard work.'
+    english: 'Thank you for your hard work.',
   },
   {
     japanese: '明日は雨が降るでしょう。',
-    english: 'It will probably rain tomorrow.'
+    english: 'It will probably rain tomorrow.',
   },
   {
     japanese: 'コーヒーを飲みませんか？',
-    english: 'Would you like to drink coffee?'
+    english: 'Would you like to drink coffee?',
   },
   {
     japanese: '時間がありません。',
-    english: "I don't have time."
+    english: "I don't have time.",
   },
   {
     japanese: '家族と一緒に住んでいます。',
-    english: 'I live with my family.'
-  }
+    english: 'I live with my family.',
+  },
 ]
 
 export default function JapaneseTranslator() {
