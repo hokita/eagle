@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -9,6 +10,9 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/joho/godotenv"
 )
 
 type Sentence struct {
@@ -64,15 +68,35 @@ var mockSentences = []Sentence{
 	},
 }
 
-var mockHistories = map[int][]AnswerHistory{
-	1: {
-		{ID: 1001, IncorrectAnswer: "I have no time.", CreatedAt: "2024-06-27T15:21:30Z"},
-		{ID: 1020, IncorrectAnswer: "There is no time.", CreatedAt: "2024-06-28T09:55:12Z"},
-		{ID: 1050, IncorrectAnswer: "I don't have times.", CreatedAt: "2024-06-28T10:08:41Z"},
-	},
-	2: {
-		{ID: 2001, IncorrectAnswer: "Today is hot.", CreatedAt: "2024-06-27T16:30:00Z"},
-	},
+var db *sql.DB
+
+func initDB() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
+	dbUser := os.Getenv("DB_USER")
+	dbName := os.Getenv("DB_NAME")
+	dbPassword := os.Getenv("DB_PASSWORD")
+	dbEndpoint := os.Getenv("DB_ENDPOINT")
+
+	if dbUser == "" || dbName == "" || dbPassword == "" || dbEndpoint == "" {
+		log.Fatal("Database configuration missing. Please set DB_USER, DB_NAME, DB_PASSWORD, and DB_ENDPOINT in .env file.")
+	}
+
+	dsn := fmt.Sprintf("%s:%s@tcp(%s)/%s", dbUser, dbPassword, dbEndpoint, dbName)
+
+	db, err = sql.Open("mysql", dsn)
+	if err != nil {
+		log.Fatal("Failed to open database connection:", err)
+	}
+
+	if err = db.Ping(); err != nil {
+		log.Fatal("Failed to connect to database:", err)
+	}
+
+	fmt.Println("Successfully connected to MySQL database")
 }
 
 func enableCORS(w http.ResponseWriter) {
@@ -83,33 +107,59 @@ func enableCORS(w http.ResponseWriter) {
 
 func getRandomSentence(w http.ResponseWriter, r *http.Request) {
 	enableCORS(w)
-	
+
 	if r.Method == "OPTIONS" {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	
+
 	if r.Method != "GET" {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
+	query := "SELECT id, japanese, english, page, created_at, updated_at FROM sentences"
+	rows, err := db.Query(query)
+	if err != nil {
+		log.Printf("Database query error: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var sentences []Sentence
+	for rows.Next() {
+		var sentence Sentence
+		err := rows.Scan(&sentence.ID, &sentence.Japanese, &sentence.English, &sentence.Page, &sentence.CreatedAt, &sentence.UpdatedAt)
+		if err != nil {
+			log.Printf("Database scan error: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		sentences = append(sentences, sentence)
+	}
+
+	if len(sentences) == 0 {
+		http.Error(w, "No sentences found", http.StatusNotFound)
+		return
+	}
+
 	rand.Seed(time.Now().UnixNano())
-	randomIndex := rand.Intn(len(mockSentences))
-	sentence := mockSentences[randomIndex]
+	randomIndex := rand.Intn(len(sentences))
+	selectedSentence := sentences[randomIndex]
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(sentence)
+	json.NewEncoder(w).Encode(selectedSentence)
 }
 
 func checkAnswer(w http.ResponseWriter, r *http.Request) {
 	enableCORS(w)
-	
+
 	if r.Method == "OPTIONS" {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	
+
 	if r.Method != "POST" {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -121,29 +171,72 @@ func checkAnswer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var targetSentence *Sentence
-	for _, sentence := range mockSentences {
-		if sentence.ID == req.SentenceID {
-			targetSentence = &sentence
-			break
+	query := `
+		SELECT 
+			s.english,
+			COALESCE(ah.id, 0) as history_id,
+			COALESCE(ah.incorrect_answer, '') as incorrect_answer,
+			COALESCE(ah.created_at, '') as history_created_at
+		FROM sentences s
+		LEFT JOIN answer_histories ah ON s.id = ah.sentence_id AND ah.is_correct = false
+		WHERE s.id = ?
+		ORDER BY ah.created_at DESC
+	`
+
+	rows, err := db.Query(query, req.SentenceID)
+	if err != nil {
+		log.Printf("Database error: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var correctAnswer string
+	histories := make([]AnswerHistory, 0)
+	sentenceFound := false
+
+	for rows.Next() {
+		var historyID int
+		var incorrectAnswer, historyCreatedAt string
+
+		err := rows.Scan(&correctAnswer, &historyID, &incorrectAnswer, &historyCreatedAt)
+		if err != nil {
+			log.Printf("Failed to scan row: %v", err)
+			continue
+		}
+
+		sentenceFound = true
+
+		if historyID > 0 {
+			histories = append(histories, AnswerHistory{
+				ID:              historyID,
+				IncorrectAnswer: incorrectAnswer,
+				CreatedAt:       historyCreatedAt,
+			})
 		}
 	}
 
-	if targetSentence == nil {
+	if !sentenceFound {
 		http.Error(w, "Sentence not found", http.StatusNotFound)
 		return
 	}
 
-	isCorrect := strings.TrimSpace(strings.ToLower(req.UserAnswer)) == strings.TrimSpace(strings.ToLower(targetSentence.English))
+	isCorrect := strings.TrimSpace(strings.ToLower(req.UserAnswer)) == strings.TrimSpace(strings.ToLower(correctAnswer))
 
-	histories := mockHistories[req.SentenceID]
-	if histories == nil {
-		histories = []AnswerHistory{}
+	incorrectAnswer := ""
+	if !isCorrect {
+		incorrectAnswer = req.UserAnswer
+	}
+
+	insertQuery := "INSERT INTO answer_histories (sentence_id, is_correct, incorrect_answer) VALUES (?, ?, ?)"
+	_, err = db.Exec(insertQuery, req.SentenceID, isCorrect, incorrectAnswer)
+	if err != nil {
+		log.Printf("Failed to insert answer history: %v", err)
 	}
 
 	response := CheckAnswerResponse{
 		IsCorrect:     isCorrect,
-		CorrectAnswer: targetSentence.English,
+		CorrectAnswer: correctAnswer,
 		Histories:     histories,
 	}
 
@@ -152,6 +245,9 @@ func checkAnswer(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	initDB()
+	defer db.Close()
+
 	http.HandleFunc("/api/sentence/random", getRandomSentence)
 	http.HandleFunc("/api/answer/check", checkAnswer)
 
