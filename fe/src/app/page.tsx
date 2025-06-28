@@ -18,59 +18,48 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 interface Sentence {
   japanese: string
   english: string
-  romaji: string
 }
 
 const sentences: Sentence[] = [
   {
     japanese: '今日は天気がいいですね。',
-    english: 'The weather is nice today.',
-    romaji: 'Kyou wa tenki ga ii desu ne.'
+    english: 'The weather is nice today.'
   },
   {
     japanese: '私は学生です。',
-    english: 'I am a student.',
-    romaji: 'Watashi wa gakusei desu.'
+    english: 'I am a student.'
   },
   {
     japanese: 'この本はとても面白いです。',
-    english: 'This book is very interesting.',
-    romaji: 'Kono hon wa totemo omoshiroi desu.'
+    english: 'This book is very interesting.'
   },
   {
     japanese: '駅はどこですか？',
-    english: 'Where is the station?',
-    romaji: 'Eki wa doko desu ka?'
+    english: 'Where is the station?'
   },
   {
     japanese: '日本語を勉強しています。',
-    english: 'I am studying Japanese.',
-    romaji: 'Nihongo wo benkyou shite imasu.'
+    english: 'I am studying Japanese.'
   },
   {
     japanese: 'お疲れ様でした。',
-    english: 'Thank you for your hard work.',
-    romaji: 'Otsukaresama deshita.'
+    english: 'Thank you for your hard work.'
   },
   {
     japanese: '明日は雨が降るでしょう。',
-    english: 'It will probably rain tomorrow.',
-    romaji: 'Ashita wa ame ga furu deshou.'
+    english: 'It will probably rain tomorrow.'
   },
   {
     japanese: 'コーヒーを飲みませんか？',
-    english: 'Would you like to drink coffee?',
-    romaji: 'Koohii wo nomimasen ka?'
+    english: 'Would you like to drink coffee?'
   },
   {
     japanese: '時間がありません。',
-    english: "I don't have time.",
-    romaji: 'Jikan ga arimasen.'
+    english: "I don't have time."
   },
   {
     japanese: '家族と一緒に住んでいます。',
-    english: 'I live with my family.',
-    romaji: 'Kazoku to issho ni sunde imasu.'
+    english: 'I live with my family.'
   }
 ]
 
@@ -134,11 +123,8 @@ export default function JapaneseTranslator() {
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-4">
             <BookOpen className="h-8 w-8 text-indigo-600" />
-            <h1 className="text-3xl font-bold text-gray-900">Japanese to English Translator</h1>
+            <h1 className="text-3xl font-bold text-gray-900">Eagle</h1>
           </div>
-          <p className="text-gray-600">
-            Practice your English skills by translating Japanese sentences
-          </p>
         </div>
 
         <div className="grid gap-6 mb-6">
@@ -152,7 +138,6 @@ export default function JapaneseTranslator() {
                 <div className="text-3xl font-bold text-gray-900 mb-2">
                   {currentSentence.japanese}
                 </div>
-                <div className="text-sm text-gray-600">{currentSentence.romaji}</div>
               </div>
 
               <div className="space-y-2">
