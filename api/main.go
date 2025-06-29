@@ -71,9 +71,10 @@ var mockSentences = []Sentence{
 var db *sql.DB
 
 func initDB() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
+	if os.Getenv("ENV") != "production" {
+		if err := godotenv.Load(); err != nil {
+			log.Println("Warning: could not load .env file:", err)
+		}
 	}
 
 	dbUser := os.Getenv("DB_USER")
@@ -82,11 +83,12 @@ func initDB() {
 	dbEndpoint := os.Getenv("DB_ENDPOINT")
 
 	if dbUser == "" || dbName == "" || dbPassword == "" || dbEndpoint == "" {
-		log.Fatal("Database configuration missing. Please set DB_USER, DB_NAME, DB_PASSWORD, and DB_ENDPOINT in .env file.")
+		log.Fatal("Database configuration missing. Please set DB_USER, DB_NAME, DB_PASSWORD, and DB_ENDPOINT.")
 	}
 
 	dsn := fmt.Sprintf("%s:%s@tcp(%s)/%s", dbUser, dbPassword, dbEndpoint, dbName)
 
+	var err error
 	db, err = sql.Open("mysql", dsn)
 	if err != nil {
 		log.Fatal("Failed to open database connection:", err)
