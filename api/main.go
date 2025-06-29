@@ -246,12 +246,28 @@ func checkAnswer(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+func readinessHandler(w http.ResponseWriter, r *http.Request) {
+	if err := db.Ping(); err != nil {
+		http.Error(w, "Database not ready", http.StatusServiceUnavailable)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintln(w, "OK")
+}
+
+func livenessHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintln(w, "OK")
+}
+
 func main() {
 	initDB()
 	defer db.Close()
 
 	http.HandleFunc("/api/sentence/random", getRandomSentence)
 	http.HandleFunc("/api/answer/check", checkAnswer)
+	http.HandleFunc("/api/readiness", readinessHandler)
+	http.HandleFunc("/api/liveness", livenessHandler)
 
 	port := os.Getenv("PORT")
 	if port == "" {
