@@ -12,8 +12,9 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { CheckCircle, XCircle, BookOpen } from 'lucide-react'
+import { CheckCircle, XCircle } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import Image from 'next/image'
 
 interface Sentence {
   id: number
@@ -139,7 +140,7 @@ export default function JapaneseTranslator() {
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-4">
-            <BookOpen className="h-8 w-8 text-indigo-600" />
+            <Image src="/eagle-thumbnail.png" alt="Eagle logo" width={32} height={32} />
             <h1 className="text-3xl font-bold text-gray-900">Eagle</h1>
           </div>
         </div>
