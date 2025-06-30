@@ -47,6 +47,8 @@ export default function JapaneseTranslator() {
   const [loading, setLoading] = useState(true)
   const [histories, setHistories] = useState<AnswerHistory[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [correctCount, setCorrectCount] = useState(0)
+  const [incorrectCount, setIncorrectCount] = useState(0)
 
   const getRandomSentence = async () => {
     try {
@@ -88,6 +90,13 @@ export default function JapaneseTranslator() {
       setFeedback(result.is_correct ? 'correct' : 'incorrect')
       setHistories(result.histories)
       setShowAnswer(true)
+
+      // Update counters
+      if (result.is_correct) {
+        setCorrectCount(prev => prev + 1)
+      } else {
+        setIncorrectCount(prev => prev + 1)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to check answer')
     }
@@ -99,6 +108,8 @@ export default function JapaneseTranslator() {
     setShowAnswer(false)
     setHistories([])
     setError(null)
+    setCorrectCount(0)
+    setIncorrectCount(0)
     getRandomSentence()
   }
 
@@ -155,6 +166,16 @@ export default function JapaneseTranslator() {
               <div className="text-center">
                 <div className="text-3xl font-bold text-gray-900 mb-2">
                   {currentSentence.japanese}
+                </div>
+                <div className="flex justify-center gap-4 text-sm text-gray-600 mt-2">
+                  <div className="flex items-center gap-1">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <span>Correct: {correctCount}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <XCircle className="h-4 w-4 text-red-500" />
+                    <span>Incorrect: {incorrectCount}</span>
+                  </div>
                 </div>
               </div>
 
