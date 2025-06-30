@@ -21,6 +21,8 @@ interface Sentence {
   japanese: string
   english: string
   page: string
+  correct_count: number
+  incorrect_count: number
   created_at: string
   updated_at: string
 }
@@ -60,6 +62,8 @@ export default function JapaneseTranslator() {
       }
       const sentence: Sentence = await response.json()
       setCurrentSentence(sentence)
+      setCorrectCount(sentence.correct_count)
+      setIncorrectCount(sentence.incorrect_count)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load sentence')
     } finally {

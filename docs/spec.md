@@ -57,14 +57,16 @@ _No request body_
 
 **Response:**
 
-| Field      | Type    | Description                 |
-| ---------- | ------- | --------------------------- |
-| id         | INTEGER | Sentence unique ID          |
-| japanese   | TEXT    | Japanese sentence           |
-| english    | TEXT    | Correct English translation |
-| page       | TEXT    | Page number                 |
-| created_at | STRING  | ISO 8601 Timestamp          |
-| updated_at | STRING  | ISO 8601 Timestamp          |
+| Field           | Type    | Description                 |
+| --------------- | ------- | --------------------------- |
+| id              | INTEGER | Sentence unique ID          |
+| japanese        | TEXT    | Japanese sentence           |
+| english         | TEXT    | Correct English translation |
+| page            | TEXT    | Page number                 |
+| correct_count   | INTEGER | Correct answer count        |
+| incorrect_count | INTEGER | Incorrect answer count      |
+| created_at      | STRING  | ISO 8601 Timestamp          |
+| updated_at      | STRING  | ISO 8601 Timestamp          |
 
 ```json
 {
@@ -72,6 +74,8 @@ _No request body_
     "japanese": "時間がありません。",
     "english": "I don't have time.",
     "page": "12",
+    "correct_count": 5,
+    "incorrect_count": 2,
     "created_at": "2024-06-28T10:00:00Z",
     "updated_at": "2024-06-28T10:00:00Z"
 }

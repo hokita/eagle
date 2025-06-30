@@ -16,12 +16,14 @@ import (
 )
 
 type Sentence struct {
-	ID        int    `json:"id"`
-	Japanese  string `json:"japanese"`
-	English   string `json:"english"`
-	Page      string `json:"page"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
+	ID             int    `json:"id"`
+	Japanese       string `json:"japanese"`
+	English        string `json:"english"`
+	Page           string `json:"page"`
+	CorrectCount   int    `json:"correct_count"`
+	IncorrectCount int    `json:"incorrect_count"`
+	CreatedAt      string `json:"created_at"`
+	UpdatedAt      string `json:"updated_at"`
 }
 
 type AnswerHistory struct {
@@ -120,7 +122,15 @@ func getRandomSentence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	query := "SELECT id, japanese, english, page, created_at, updated_at FROM sentences"
+	query := `
+        SELECT 
+            s.id, s.japanese, s.english, s.page, s.created_at, s.updated_at,
+            SUM(CASE WHEN ah.is_correct = 1 THEN 1 ELSE 0 END) as correct_count,
+            SUM(CASE WHEN ah.is_correct = 0 THEN 1 ELSE 0 END) as incorrect_count
+        FROM sentences s
+        LEFT JOIN answer_histories ah ON s.id = ah.sentence_id
+        GROUP BY s.id
+    `
 	rows, err := db.Query(query)
 	if err != nil {
 		log.Printf("Database query error: %v", err)
@@ -132,7 +142,10 @@ func getRandomSentence(w http.ResponseWriter, r *http.Request) {
 	var sentences []Sentence
 	for rows.Next() {
 		var sentence Sentence
-		err := rows.Scan(&sentence.ID, &sentence.Japanese, &sentence.English, &sentence.Page, &sentence.CreatedAt, &sentence.UpdatedAt)
+		err := rows.Scan(
+			&sentence.ID, &sentence.Japanese, &sentence.English, &sentence.Page, &sentence.CreatedAt, &sentence.UpdatedAt,
+			&sentence.CorrectCount, &sentence.IncorrectCount,
+		)
 		if err != nil {
 			log.Printf("Database scan error: %v", err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
