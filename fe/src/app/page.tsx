@@ -10,7 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { CheckCircle, XCircle } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -160,14 +160,14 @@ export default function JapaneseTranslator() {
 
               <div className="space-y-2">
                 <Label htmlFor="translation">Your English translation:</Label>
-                <Input
+                <Textarea
                   id="translation"
                   value={userTranslation}
                   onChange={e => setUserTranslation(e.target.value)}
                   placeholder="Enter your translation here..."
                   disabled={showAnswer}
-                  onKeyPress={e => {
-                    if (e.key === 'Enter' && userTranslation.trim() && !showAnswer) {
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && e.ctrlKey && userTranslation.trim() && !showAnswer) {
                       checkTranslation()
                     }
                   }}
