@@ -21,6 +21,7 @@ This app helps users improve their English skills by providing a platform for la
 | japanese    | TEXT         | NOT NULL                                                        | Japanese sentence           |
 | english     | TEXT         | NOT NULL                                                        | Correct English translation |
 | page        | INT UNSIGNED | NOT NULL                                                        | Page number                 |
+| is_reported | BOOLEAN      | NOT NULL, DEFAULT FALSE                                         | Reported flag               |
 | created_at  | DATETIME     | NOT NULL, DEFAULT CURRENT_TIMESTAMP                             | Timestamp                   |
 | updated_at  | DATETIME     | NOT NULL, DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | Timestamp                   |
 
@@ -43,6 +44,7 @@ This app helps users improve their English skills by providing a platform for la
 | ------ | -------------------- | -------------------------------- |
 | GET    | /api/sentence/random | Get a random Japanese sentence   |
 | POST   | /api/answer/check    | Check user's English translation |
+| POST   | /api/sentence/report | Report a sentence                |
 
 ---
 
@@ -133,3 +135,22 @@ _No request body_
     ]
 }
 ```
+
+### Report a Sentence
+
+**POST** `/api/sentence/report`
+
+**Request:**
+
+| Field       | Type    | Description        |
+| ----------- | ------- | ------------------ |
+| sentence_id | INTEGER | Sentence unique ID |
+
+```json
+{
+    "sentence_id": 1
+}
+```
+
+**Response:**
+_No response body_

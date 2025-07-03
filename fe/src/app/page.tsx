@@ -52,6 +52,26 @@ export default function JapaneseTranslator() {
   const [correctCount, setCorrectCount] = useState(0)
   const [incorrectCount, setIncorrectCount] = useState(0)
 
+  const reportSentence = async (sentenceId: number) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/sentence/report`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ sentence_id: sentenceId }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to report sentence')
+      }
+
+      nextSentence()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to report sentence')
+    }
+  }
+
   const getRandomSentence = async () => {
     try {
       setLoading(true)
@@ -262,6 +282,17 @@ export default function JapaneseTranslator() {
                   Next Sentence
                 </Button>
               )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (currentSentence) {
+                    reportSentence(currentSentence.id)
+                  }
+                }}
+              >
+                Report
+              </Button>
             </CardFooter>
           </Card>
         </div>
