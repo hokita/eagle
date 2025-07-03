@@ -51,6 +51,7 @@ export default function JapaneseTranslator() {
   const [error, setError] = useState<string | null>(null)
   const [correctCount, setCorrectCount] = useState(0)
   const [incorrectCount, setIncorrectCount] = useState(0)
+  const [isReported, setIsReported] = useState(false)
 
   const reportSentence = async (sentenceId: number) => {
     try {
@@ -66,7 +67,7 @@ export default function JapaneseTranslator() {
         throw new Error('Failed to report sentence')
       }
 
-      nextSentence()
+      setIsReported(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to report sentence')
     }
@@ -134,6 +135,7 @@ export default function JapaneseTranslator() {
     setError(null)
     setCorrectCount(0)
     setIncorrectCount(0)
+    setIsReported(false)
     getRandomSentence()
   }
 
@@ -282,17 +284,20 @@ export default function JapaneseTranslator() {
                   Next Sentence
                 </Button>
               )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  if (currentSentence) {
-                    reportSentence(currentSentence.id)
-                  }
-                }}
-              >
-                Report
-              </Button>
+              {showAnswer && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (currentSentence) {
+                      reportSentence(currentSentence.id)
+                    }
+                  }}
+                  disabled={isReported}
+                >
+                  {isReported ? 'Reported' : 'Report'}
+                </Button>
+              )}
             </CardFooter>
           </Card>
         </div>
