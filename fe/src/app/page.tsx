@@ -95,6 +95,9 @@ export default function JapaneseTranslator() {
   const checkTranslation = async () => {
     if (!currentSentence) return
 
+    const trimmedUserTranslation = userTranslation.trim()
+    setUserTranslation(trimmedUserTranslation)
+
     try {
       const response = await fetch(`${API_BASE_URL}/api/answer/check`, {
         method: 'POST',
@@ -103,7 +106,7 @@ export default function JapaneseTranslator() {
         },
         body: JSON.stringify({
           sentence_id: currentSentence.id,
-          user_answer: userTranslation,
+          user_answer: trimmedUserTranslation,
         }),
       })
 
