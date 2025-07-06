@@ -136,6 +136,7 @@ func getRandomSentence(w http.ResponseWriter, r *http.Request) {
         LEFT JOIN answer_histories ah ON s.id = ah.sentence_id
 		WHERE s.is_reported = false
         GROUP BY s.id
+        HAVING correct_count - incorrect_count < 2
     `
 	rows, err := db.Query(query)
 	if err != nil {
