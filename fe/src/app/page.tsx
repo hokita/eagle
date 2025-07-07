@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -12,7 +13,7 @@ import {
 } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { CheckCircle, XCircle } from 'lucide-react'
+import { CheckCircle, XCircle, Mic, MicOff } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import Image from 'next/image'
 
@@ -52,6 +53,56 @@ export default function JapaneseTranslator() {
   const [correctCount, setCorrectCount] = useState(0)
   const [incorrectCount, setIncorrectCount] = useState(0)
   const [isReported, setIsReported] = useState(false)
+  const {
+    transcript,
+    listening,
+    resetTranscript,
+    browserSupportsSpeechRecognition,
+  } = useSpeechRecognition()
+
+  const [isMounted, setIsMounted] = useState(false)
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (transcript) {
+      let formatted = transcript.charAt(0).toUpperCase() + transcript.slice(1)
+      // If the user has stopped speaking, add a period.
+      if (!listening && formatted.length > 0 && !formatted.endsWith('.') && !formatted.endsWith('?')) {
+        const questionWords = [
+          'who',
+          'what',
+          'where',
+          'when',
+          'why',
+          'how',
+          'is',
+          'are',
+          'am',
+          'do',
+          'does',
+          'did',
+          'can',
+          'could',
+          'will',
+          'would',
+          'should',
+          'have',
+          'has',
+          'had',
+        ]
+        const firstWord = formatted.split(' ')[0].toLowerCase()
+        if (questionWords.includes(firstWord)) {
+          formatted += '?'
+        } else {
+          formatted += '.'
+        }
+      }
+      setUserTranslation(formatted)
+    }
+  }, [transcript, listening])
 
   const reportSentence = async (sentenceId: number) => {
     try {
@@ -139,6 +190,7 @@ export default function JapaneseTranslator() {
     setCorrectCount(0)
     setIncorrectCount(0)
     setIsReported(false)
+    resetTranscript()
     getRandomSentence()
   }
 
@@ -210,18 +262,42 @@ export default function JapaneseTranslator() {
 
               <div className="space-y-2">
                 <Label htmlFor="translation">Your English translation:</Label>
-                <Textarea
-                  id="translation"
-                  value={userTranslation}
-                  onChange={e => setUserTranslation(e.target.value)}
-                  placeholder="Enter your translation here..."
-                  disabled={showAnswer}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && e.ctrlKey && userTranslation.trim() && !showAnswer) {
-                      checkTranslation()
-                    }
-                  }}
-                />
+                <div className="relative">
+                  <Textarea
+                    id="translation"
+                    value={userTranslation}
+                    onChange={e => {
+                      setUserTranslation(e.target.value)
+                      if (e.target.value === '') {
+                        resetTranscript()
+                      }
+                    }}
+                    placeholder="Enter your translation here..."
+                    disabled={showAnswer}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && e.ctrlKey && userTranslation.trim() && !showAnswer) {
+                        checkTranslation()
+                      }
+                    }}
+                    className="pr-10"
+                  />
+                  {isMounted && browserSupportsSpeechRecognition && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={`absolute top-1/2 right-2 -translate-y-1/2 ${
+                        listening ? 'text-red-500' : 'text-gray-500'
+                      }`}
+                      onClick={() =>
+                        listening
+                          ? SpeechRecognition.stopListening()
+                          : SpeechRecognition.startListening({ continuous: true, language: 'en-US' })
+                      }
+                    >
+                      {listening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {feedback && (
