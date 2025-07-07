@@ -92,11 +92,14 @@ export default function JapaneseTranslator() {
     }
   }
 
+  const capitalizeFirstLetter = (text: string) => {
+    return text.charAt(0).toUpperCase() + text.slice(1)
+  }
+
   const checkTranslation = async () => {
     if (!currentSentence) return
 
     const trimmedUserTranslation = userTranslation.trim()
-    setUserTranslation(trimmedUserTranslation)
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/answer/check`, {
@@ -225,7 +228,12 @@ export default function JapaneseTranslator() {
                     onChange={e => setUserTranslation(e.target.value)}
                     placeholder="Enter your translation here..."
                     disabled={showAnswer}
-                    autoCapitalize="sentences"
+                    onBlur={e => {
+                      if (e.target.value.trim() && !showAnswer) {
+                        const capitalizedTranslation = capitalizeFirstLetter(e.target.value.trim())
+                        setUserTranslation(capitalizedTranslation)
+                      }
+                    }}
                     onKeyDown={e => {
                       if (e.key === 'Enter' && e.ctrlKey && userTranslation.trim() && !showAnswer) {
                         checkTranslation()
