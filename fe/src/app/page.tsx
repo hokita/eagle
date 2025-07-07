@@ -225,6 +225,7 @@ export default function JapaneseTranslator() {
                     onChange={e => setUserTranslation(e.target.value)}
                     placeholder="Enter your translation here..."
                     disabled={showAnswer}
+                    autoCapitalize="sentences"
                     onKeyDown={e => {
                       if (e.key === 'Enter' && e.ctrlKey && userTranslation.trim() && !showAnswer) {
                         checkTranslation()
