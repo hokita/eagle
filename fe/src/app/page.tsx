@@ -208,51 +208,77 @@ export default function JapaneseTranslator() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="translation">Your English translation:</Label>
-                <Textarea
-                  id="translation"
-                  value={userTranslation}
-                  onChange={e => setUserTranslation(e.target.value)}
-                  placeholder="Enter your translation here..."
-                  disabled={showAnswer}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && e.ctrlKey && userTranslation.trim() && !showAnswer) {
-                      checkTranslation()
-                    }
-                  }}
-                />
-              </div>
-
-              {feedback && (
-                <Alert
-                  className={
-                    feedback === 'correct'
-                      ? 'border-green-500 bg-green-50'
-                      : 'border-red-500 bg-red-50'
+              <form
+                onSubmit={e => {
+                  e.preventDefault()
+                  if (userTranslation.trim() && !showAnswer) {
+                    checkTranslation()
                   }
-                >
-                  <div className="flex items-center gap-2">
-                    {feedback === 'correct' ? (
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <XCircle className="h-4 w-4 text-red-600" />
-                    )}
-                    <AlertDescription
-                      className={feedback === 'correct' ? 'text-green-800' : 'text-red-800'}
-                    >
-                      {feedback === 'correct'
-                        ? 'Correct! Well done!'
-                        : 'Not quite right. Try again!'}
-                    </AlertDescription>
-                  </div>
-                </Alert>
-              )}
+                }}
+                className="space-y-4"
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="translation">Your English translation:</Label>
+                  <Textarea
+                    id="translation"
+                    value={userTranslation}
+                    onChange={e => setUserTranslation(e.target.value)}
+                    placeholder="Enter your translation here..."
+                    disabled={showAnswer}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && e.ctrlKey && userTranslation.trim() && !showAnswer) {
+                        checkTranslation()
+                      }
+                    }}
+                    aria-label="Your English translation"
+                    aria-required="true"
+                  />
+                </div>
+
+                {feedback && (
+                  <Alert
+                    className={
+                      feedback === 'correct'
+                        ? 'border-green-500 bg-green-50'
+                        : 'border-red-500 bg-red-50'
+                    }
+                  >
+                    <div className="flex items-center gap-2">
+                      {feedback === 'correct' ? (
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <XCircle className="h-4 w-4 text-red-600" />
+                      )}
+                      <AlertDescription
+                        className={
+                          feedback === 'correct' ? 'text-green-800' : 'text-red-800'
+                        }
+                      >
+                        {feedback === 'correct'
+                          ? 'Correct! Well done!'
+                          : 'Not quite right. Try again!'}
+                      </AlertDescription>
+                    </div>
+                  </Alert>
+                )}
+
+                {!showAnswer && (
+                  <Button
+                    type="submit"
+                    disabled={!userTranslation.trim()}
+                    className="w-full bg-gray-500 hover:bg-black text-white"
+                  >
+                    Check Translation
+                  </Button>
+                )}
+              </form>
 
               {showAnswer && (
                 <div className="space-y-4">
                   <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <div className="font-semibold text-blue-900 mb-1">Correct Answer:</div>
+                    <div className="font-semibold text-blue-900 mb-1">
+                      Correct Answer:
+                    </div>
                     <div className="text-blue-800">{currentSentence.english}</div>
                   </div>
 
@@ -274,34 +300,27 @@ export default function JapaneseTranslator() {
               )}
             </CardContent>
             <CardFooter className="flex gap-2">
-              {!showAnswer ? (
-                <Button
-                  onClick={checkTranslation}
-                  disabled={!userTranslation.trim()}
-                  className="flex-1 bg-gray-500 hover:bg-black text-white"
-                >
-                  Check Translation
-                </Button>
-              ) : (
-                <Button onClick={nextSentence} className="flex-1">
-                  Next Sentence
-                </Button>
-              )}
               {showAnswer && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    if (currentSentence) {
-                      reportSentence(currentSentence.id)
-                    }
-                  }}
-                  disabled={isReported}
-                >
-                  {isReported ? 'Reported' : 'Report'}
-                </Button>
+                <>
+                  <Button onClick={nextSentence} className="flex-1">
+                    Next Sentence
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (currentSentence) {
+                        reportSentence(currentSentence.id)
+                      }
+                    }}
+                    disabled={isReported}
+                  >
+                    {isReported ? 'Reported' : 'Report'}
+                  </Button>
+                </>
               )}
             </CardFooter>
+            
           </Card>
         </div>
       </div>
