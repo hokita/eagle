@@ -85,7 +85,7 @@ export default function JapaneseTranslator() {
           setIsSpeaking(false)
         }
         
-        utterance.onerror = (event) => {
+        utterance.onerror = () => {
           setIsSpeaking(false)
         }
         
