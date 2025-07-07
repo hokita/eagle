@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { CheckCircle, XCircle } from 'lucide-react'
+import { CheckCircle, XCircle, Volume2 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import Image from 'next/image'
 
@@ -52,6 +52,59 @@ export default function JapaneseTranslator() {
   const [correctCount, setCorrectCount] = useState(0)
   const [incorrectCount, setIncorrectCount] = useState(0)
   const [isReported, setIsReported] = useState(false)
+  const [isSpeaking, setIsSpeaking] = useState(false)
+
+  const speakJapanese = (text: string) => {
+    if ('speechSynthesis' in window) {
+      speechSynthesis.cancel()
+      setIsSpeaking(true)
+      
+      const speak = () => {
+        const utterance = new SpeechSynthesisUtterance(text)
+        
+        // Try to find a Japanese voice
+        const voices = speechSynthesis.getVoices()
+        const japaneseVoice = voices.find(voice => 
+          voice.lang.startsWith('ja') || voice.lang.includes('JP')
+        )
+        
+        if (japaneseVoice) {
+          utterance.voice = japaneseVoice
+        }
+        
+        utterance.lang = 'ja-JP'
+        utterance.rate = 0.8
+        utterance.pitch = 1
+        utterance.volume = 1
+        
+        utterance.onstart = () => {
+          setIsSpeaking(true)
+        }
+        
+        utterance.onend = () => {
+          setIsSpeaking(false)
+        }
+        
+        utterance.onerror = (event) => {
+          setIsSpeaking(false)
+        }
+        
+        speechSynthesis.speak(utterance)
+        
+        // Safari workaround: Force reset if no speech after 500ms
+        setTimeout(() => {
+          if (!speechSynthesis.speaking && !speechSynthesis.pending) {
+            setIsSpeaking(false)
+          }
+        }, 500)
+      }
+      
+      // Wait for voices to load
+      setTimeout(() => {
+        speak()
+      }, 100)
+    }
+  }
 
   const reportSentence = async (sentenceId: number) => {
     try {
@@ -142,6 +195,8 @@ export default function JapaneseTranslator() {
     setCorrectCount(0)
     setIncorrectCount(0)
     setIsReported(false)
+    setIsSpeaking(false)
+    speechSynthesis.cancel()
     getRandomSentence()
   }
 
@@ -196,8 +251,19 @@ export default function JapaneseTranslator() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="text-center">
-                <div className="text-3xl font-bold text-gray-900 mb-2">
-                  {currentSentence.japanese}
+                <div className="flex items-center justify-center gap-3 mb-2">
+                  <div className="text-3xl font-bold text-gray-900">
+                    {currentSentence.japanese}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => speakJapanese(currentSentence.japanese)}
+                    disabled={isSpeaking}
+                    className="flex items-center px-2 py-1"
+                  >
+                    <Volume2 className="h-3 w-3" />
+                  </Button>
                 </div>
                 <div className="flex justify-center gap-4 text-sm text-gray-600 mt-2">
                   <div className="flex items-center gap-1">
