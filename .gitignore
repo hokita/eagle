@@ -5,3 +5,6 @@ sentences.csv
 dml_master*.sql
 
 .claude/settings.local.json
+
+api/eagle
+api/cmd/seed/seed
