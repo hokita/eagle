@@ -104,10 +104,16 @@ writes via the Admin SDK, which bypasses rules.
   config (public values) is injected at build time via `NEXT_PUBLIC_FIREBASE_*`.
 - **Backend**: auth **middleware** wraps every `/api/**` handler (except
   `/api/liveness`). It verifies the Firebase ID token with the Firebase Admin
-  SDK for Go (`firebase.google.com/go/v4`), extracts `uid`, and injects it into
-  the request context. Missing/invalid token → `401`. Token verification needs
-  only the project id and Google's public certs (fetched over HTTPS) — no extra
-  IAM role.
+  SDK for Go (`firebase.google.com/go/v4`), extracts `uid` and the token's
+  `email` claim, and injects `uid` into the request context. Missing/invalid
+  token → `401`. Token verification needs only the project id and Google's
+  public certs (fetched over HTTPS) — no extra IAM role.
+- **Single-user allowlist**: matches the `corgi` project's convention
+  (`backend/src/middleware/auth.ts`) of one exact `ALLOWED_EMAIL` env var
+  (not a list). After token verification, the middleware rejects any email
+  that doesn't match with `401` — the same status as a missing/invalid token,
+  so the response never reveals *why* auth failed. The API refuses to start if
+  `ALLOWED_EMAIL` is unset.
 
 ## Endpoint translations (response bodies unchanged; all now require auth)
 
@@ -281,8 +287,8 @@ is discarded there are no foreign keys to preserve, so regenerated IDs are safe.
 - Migrating existing `answer_histories` (per-user counts start at zero).
 - Server-side rendering (the app is client-only).
 - The random-field query optimization (only if the dataset grows large).
-- Restricting *which* Google accounts may sign in (any Google account works;
-  add an allowlist later if needed).
+- Supporting more than one allowed account (single `ALLOWED_EMAIL`, not a
+  list — add multi-user support later if ever needed).
 
 ## Rollout order (informs the implementation plan)
 

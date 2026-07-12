@@ -17,6 +17,7 @@
 - Answer correctness = `strings.EqualFold(strings.TrimSpace(userAnswer), strings.TrimSpace(english))` (case-insensitive, trimmed) — identical to today.
 - The random filter keeps sentences where `correct_count - incorrect_count < 2` and `is_reported == false`.
 - TDD: write the failing test first, watch it fail, implement minimally, watch it pass, commit. No auth on `/api/liveness`.
+- **Single-user email allowlist**, matching the `corgi` project's convention (`backend/src/middleware/auth.ts`): one exact `ALLOWED_EMAIL` (singular, not a list), checked after token verification. A missing/invalid token OR a verified-but-disallowed email both return **401** (not 403) — mirrors corgi's `authMiddleware`, which intentionally doesn't reveal *why* auth failed.
 - Frontend Firebase Auth changes and all GCP infra / CI-CD are **out of scope for this plan** — they are covered by separate plans (`...-frontend-auth.md`, `...-infra-deploy.md`).
 
 ## File structure (after this plan)
@@ -39,19 +40,21 @@ Deleted: `api/main_test.go` (old server/MySQL integration tests), `api/.env` (My
 
 ---
 
-### Task 1: Auth middleware + TokenVerifier interface
+### Task 1: Auth middleware + TokenVerifier interface — DONE (amended in review)
+
+> Implemented with an email allowlist added after code review (crit comment: "is it only allow hideee.0202@gmail.com?"). Investigated `corgi`'s `backend/src/middleware/auth.ts` and matched its convention: a single `ALLOWED_EMAIL` (not a list) checked after token verification, with disallowed email rejected as **401** (not 403) so the response doesn't reveal *why* auth failed. `TokenVerifier.Verify` now returns `(uid, email, error)` instead of `(uid, error)` — this changes the signature Task 4's `firebaseVerifier` must implement below.
 
 **Files:**
 - Create: `api/auth.go`
 - Test: `api/auth_test.go`
 
 **Interfaces:**
-- Produces: `TokenVerifier` interface (`Verify(ctx context.Context, idToken string) (string, error)`); `requireAuth(v TokenVerifier, next http.HandlerFunc) http.HandlerFunc`; `withUID(ctx, uid) context.Context`; `uidFromContext(ctx) (string, bool)`.
+- Produces: `TokenVerifier` interface (`Verify(ctx context.Context, idToken string) (uid string, email string, err error)`); `requireAuth(v TokenVerifier, allowedEmail string, next http.HandlerFunc) http.HandlerFunc`; `withUID(ctx, uid) context.Context`; `uidFromContext(ctx) (string, bool)`.
 - Consumes: nothing (isolated).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
-Create `api/auth_test.go`:
+`api/auth_test.go`:
 
 ```go
 package main
@@ -65,16 +68,19 @@ import (
 )
 
 type fakeVerifier struct {
-	uid string
-	err error
+	uid   string
+	email string
+	err   error
 }
 
-func (f fakeVerifier) Verify(_ context.Context, _ string) (string, error) {
-	return f.uid, f.err
+func (f fakeVerifier) Verify(_ context.Context, _ string) (string, string, error) {
+	return f.uid, f.email, f.err
 }
+
+const testAllowedEmail = "hideee.0202@gmail.com"
 
 func TestRequireAuthRejectsMissingHeader(t *testing.T) {
-	h := requireAuth(fakeVerifier{uid: "u1"}, func(w http.ResponseWriter, r *http.Request) {
+	h := requireAuth(fakeVerifier{uid: "u1", email: testAllowedEmail}, testAllowedEmail, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	rec := httptest.NewRecorder()
@@ -85,7 +91,7 @@ func TestRequireAuthRejectsMissingHeader(t *testing.T) {
 }
 
 func TestRequireAuthRejectsInvalidToken(t *testing.T) {
-	h := requireAuth(fakeVerifier{err: errors.New("bad token")}, func(w http.ResponseWriter, r *http.Request) {
+	h := requireAuth(fakeVerifier{err: errors.New("bad token")}, testAllowedEmail, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	req := httptest.NewRequest(http.MethodGet, "/api/sentence/random", nil)
@@ -99,7 +105,7 @@ func TestRequireAuthRejectsInvalidToken(t *testing.T) {
 
 func TestRequireAuthPassesUID(t *testing.T) {
 	var gotUID string
-	h := requireAuth(fakeVerifier{uid: "user-123"}, func(w http.ResponseWriter, r *http.Request) {
+	h := requireAuth(fakeVerifier{uid: "user-123", email: testAllowedEmail}, testAllowedEmail, func(w http.ResponseWriter, r *http.Request) {
 		gotUID, _ = uidFromContext(r.Context())
 		w.WriteHeader(http.StatusOK)
 	})
@@ -114,16 +120,41 @@ func TestRequireAuthPassesUID(t *testing.T) {
 		t.Fatalf("expected uid user-123, got %q", gotUID)
 	}
 }
+
+func TestRequireAuthRejectsDisallowedEmail(t *testing.T) {
+	h := requireAuth(fakeVerifier{uid: "u1", email: "someone-else@gmail.com"}, testAllowedEmail, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	req := httptest.NewRequest(http.MethodGet, "/api/sentence/random", nil)
+	req.Header.Set("Authorization", "Bearer validtoken")
+	rec := httptest.NewRecorder()
+	h(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 (matches corgi's authMiddleware), got %d", rec.Code)
+	}
+}
+
+func TestRequireAuthRejectsEmptyEmail(t *testing.T) {
+	h := requireAuth(fakeVerifier{uid: "u1", email: ""}, testAllowedEmail, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	req := httptest.NewRequest(http.MethodGet, "/api/sentence/random", nil)
+	req.Header.Set("Authorization", "Bearer validtoken")
+	rec := httptest.NewRecorder()
+	h(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rec.Code)
+	}
+}
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
-Run: `cd api && go test -run TestRequireAuth ./...`
-Expected: FAIL (compile error — `requireAuth`, `uidFromContext` undefined).
+Ran: `cd api && go test -run TestRequireAuth ./...` → FAIL (compile error — signature mismatch after adding the email parameter).
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
-Create `api/auth.go`:
+`api/auth.go`:
 
 ```go
 package main
@@ -134,9 +165,10 @@ import (
 	"strings"
 )
 
-// TokenVerifier verifies a bearer credential and returns the caller's uid.
+// TokenVerifier verifies a bearer credential and returns the caller's uid and
+// verified email address.
 type TokenVerifier interface {
-	Verify(ctx context.Context, idToken string) (string, error)
+	Verify(ctx context.Context, idToken string) (uid string, email string, err error)
 }
 
 type ctxKey string
@@ -153,8 +185,15 @@ func uidFromContext(ctx context.Context) (string, bool) {
 }
 
 // requireAuth wraps a handler, requiring a valid "Authorization: Bearer <token>"
-// header. On success it injects the verified uid into the request context.
-func requireAuth(v TokenVerifier, next http.HandlerFunc) http.HandlerFunc {
+// header whose verified email matches allowedEmail. On success it injects the
+// verified uid into the request context.
+//
+// This is a single-user allowlist (one exact email, not a list) matching the
+// ALLOWED_EMAIL convention used by the corgi project. A disallowed or missing
+// email is rejected with 401 (not 403), matching corgi's authMiddleware, so
+// the response doesn't reveal whether the token was invalid or just the
+// wrong account.
+func requireAuth(v TokenVerifier, allowedEmail string, next http.HandlerFunc) http.HandlerFunc {
 	const prefix = "Bearer "
 	return func(w http.ResponseWriter, r *http.Request) {
 		authz := r.Header.Get("Authorization")
@@ -167,8 +206,12 @@ func requireAuth(v TokenVerifier, next http.HandlerFunc) http.HandlerFunc {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		uid, err := v.Verify(r.Context(), idToken)
+		uid, email, err := v.Verify(r.Context(), idToken)
 		if err != nil {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if email == "" || email != allowedEmail {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
@@ -177,16 +220,16 @@ func requireAuth(v TokenVerifier, next http.HandlerFunc) http.HandlerFunc {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
-Run: `cd api && go test -run TestRequireAuth ./...`
-Expected: PASS (3 tests).
+Ran: `cd api && go test -run TestRequireAuth ./...` → PASS (5 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add api/auth.go api/auth_test.go
 git commit -m "feat(api): add Firebase-token auth middleware with verifier interface"
+git commit -m "feat(api): restrict auth middleware to a single ALLOWED_EMAIL (matches corgi)"
 ```
 
 ---
@@ -970,14 +1013,17 @@ func NewFirebaseVerifier(ctx context.Context, projectID string) (*firebaseVerifi
 	return &firebaseVerifier{client: client}, nil
 }
 
-func (v *firebaseVerifier) Verify(ctx context.Context, idToken string) (string, error) {
+func (v *firebaseVerifier) Verify(ctx context.Context, idToken string) (string, string, error) {
 	token, err := v.client.VerifyIDToken(ctx, idToken)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return token.UID, nil
+	email, _ := token.Claims["email"].(string)
+	return token.UID, email, nil
 }
 ```
+
+> Note: `Verify` returns `(uid, email, error)` — see the Task 1 amendment above (single-email allowlist, matching `corgi`'s `ALLOWED_EMAIL` convention). `token.Claims["email"]` is how the Firebase Admin Go SDK exposes the ID token's email claim.
 
 - [ ] **Step 3: Verify it compiles and the suite still passes**
 
@@ -1027,6 +1073,11 @@ func main() {
 		log.Fatal("GOOGLE_CLOUD_PROJECT is required")
 	}
 
+	allowedEmail := os.Getenv("ALLOWED_EMAIL")
+	if allowedEmail == "" {
+		log.Fatal("ALLOWED_EMAIL is required")
+	}
+
 	client, err := firestore.NewClient(ctx, projectID)
 	if err != nil {
 		log.Fatalf("failed to create Firestore client: %v", err)
@@ -1040,10 +1091,14 @@ func main() {
 
 	srv := NewServer(NewFirestoreRepo(client))
 
+	auth := func(h http.HandlerFunc) http.HandlerFunc {
+		return requireAuth(verifier, allowedEmail, h)
+	}
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/sentence/random", requireAuth(verifier, srv.getRandomSentence))
-	mux.HandleFunc("/api/answer/check", requireAuth(verifier, srv.checkAnswer))
-	mux.HandleFunc("/api/sentence/report", requireAuth(verifier, srv.reportSentence))
+	mux.HandleFunc("/api/sentence/random", auth(srv.getRandomSentence))
+	mux.HandleFunc("/api/answer/check", auth(srv.checkAnswer))
+	mux.HandleFunc("/api/sentence/report", auth(srv.reportSentence))
 	mux.HandleFunc("/api/liveness", livenessHandler)
 
 	port := os.Getenv("PORT")
@@ -1069,6 +1124,7 @@ gcloud emulators firestore start --host-port=localhost:8090 &
 export FIRESTORE_EMULATOR_HOST=localhost:8090
 export FIREBASE_AUTH_EMULATOR_HOST=localhost:9099
 export GOOGLE_CLOUD_PROJECT=eagle-local
+export ALLOWED_EMAIL=hideee.0202@gmail.com
 cd api && go run .
 ```
 Expected: logs `Server starting on port 8080` with no fatal error.
@@ -1223,4 +1279,5 @@ git commit -m "feat(seed): NDJSON -> Firestore sentence seeder"
 - **Frontend-auth plan** must set `NEXT_PUBLIC_API_URL=""` in production, add the Firebase web SDK sign-in gate, and attach `Authorization: Bearer <ID token>` to the three fetch calls, plus `output: "export"` + `images: { unoptimized: true }` in `next.config.ts`.
 - **CORS was removed from the backend** (production is same-origin via Hosting rewrites). Local dev (`next dev` on :3000 → API on :8080) is cross-origin, so the frontend-auth plan MUST proxy `/api/**` to the backend in dev (Next `rewrites()`), keeping `NEXT_PUBLIC_API_URL=""` everywhere. If a dev proxy is undesirable, add a dev-only CORS toggle to the API instead — but the proxy keeps prod and dev identical and is preferred.
 - **Infra/deploy plan** must declare the composite index for collection `histories` `(is_correct ASC, created_at DESC)` in `firestore.indexes.json`, grant the Cloud Run service account `roles/datastore.user`, enable the Firebase Auth Google provider, and export the live `sentences` table to `docs/sentences_export.ndjson` before running the seeder against prod.
+- **`ALLOWED_EMAIL` must be set as a Cloud Run env var** (value `hideee.0202@gmail.com`) — the API now hard-fails at startup if it's unset (`main.go` Task 5, Step 1). Matches the `corgi` project's single-user allowlist convention.
 ```
