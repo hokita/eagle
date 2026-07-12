@@ -37,7 +37,7 @@ api/
   .env.example         template listing GOOGLE_CLOUD_PROJECT, ALLOWED_EMAIL, PORT
 ```
 
-Deleted: `api/main_test.go` (old server/MySQL integration tests), `api/.env` (MySQL config, held real committed credentials).
+Deleted: `api/main_test.go` (old server/MySQL integration tests), `api/.env` (stale untracked MySQL config — never committed to git, excluded by `.gitignore`).
 
 ---
 
@@ -1114,13 +1114,20 @@ func main() {
 
 - [ ] **Step 2: Remove the obsolete MySQL env file and add a template**
 
-`api/.env` held real MySQL credentials committed to the repo — it is deleted
-outright, not replaced with a Firestore-flavored secrets file. Add a
-`.env.example` **template** instead (no real secrets), matching the pattern
-`corgi` uses at `backend/.env.example`:
+> Correction: an earlier version of this note claimed `api/.env` "held real
+> MySQL credentials committed to the repo." That was checked and is false —
+> `api/.env` was always excluded by the root `.gitignore`'s `.env` pattern and
+> was never tracked by git (`git log --all -- api/.env` is empty). It only
+> ever existed as an untracked local file with real credentials in it.
+
+`api/.env` is a stale, untracked local file with real MySQL credentials —
+delete it from disk (there is nothing to `git rm`) rather than leaving it
+around as dead config for a database that no longer exists. Add a
+`.env.example` **template** instead (no real secrets, safe to commit),
+matching the pattern `corgi` uses at `backend/.env.example`:
 
 ```bash
-git rm api/.env
+rm api/.env
 ```
 
 Create `api/.env.example`:
