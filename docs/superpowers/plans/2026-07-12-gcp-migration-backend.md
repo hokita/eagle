@@ -34,9 +34,10 @@ api/
   firestore_repo.go    firestoreRepo implementing SentenceRepository
   firestore_repo_test.go   emulator integration tests (skipped when emulator absent)
   cmd/seed/main.go     NDJSON -> Firestore sentence upserter
+  .env.example         template listing GOOGLE_CLOUD_PROJECT, ALLOWED_EMAIL, PORT
 ```
 
-Deleted: `api/main_test.go` (old server/MySQL integration tests), `api/.env` (MySQL config).
+Deleted: `api/main_test.go` (old server/MySQL integration tests), `api/.env` (MySQL config, held real committed credentials).
 
 ---
 
@@ -1044,6 +1045,7 @@ git commit -m "feat(api): Firebase Admin SDK token verifier"
 
 **Files:**
 - Modify: `api/main.go`
+- Create: `api/.env.example`
 - Delete: `api/.env`
 
 **Interfaces:**
@@ -1110,10 +1112,23 @@ func main() {
 }
 ```
 
-- [ ] **Step 2: Remove the obsolete MySQL env file**
+- [ ] **Step 2: Remove the obsolete MySQL env file and add a template**
+
+`api/.env` held real MySQL credentials committed to the repo — it is deleted
+outright, not replaced with a Firestore-flavored secrets file. Add a
+`.env.example` **template** instead (no real secrets), matching the pattern
+`corgi` uses at `backend/.env.example`:
 
 ```bash
 git rm api/.env
+```
+
+Create `api/.env.example`:
+
+```
+GOOGLE_CLOUD_PROJECT=your-gcp-project-id
+ALLOWED_EMAIL=you@gmail.com
+PORT=8080
 ```
 
 - [ ] **Step 3: Build and run against emulators (manual smoke test)**
@@ -1140,7 +1155,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add api/main.go
+git add api/main.go api/.env.example
 git commit -m "feat(api): wire Firestore + Firebase auth into HTTP server"
 ```
 
