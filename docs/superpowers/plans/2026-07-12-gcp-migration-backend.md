@@ -1289,17 +1289,193 @@ git commit -m "feat(seed): NDJSON -> Firestore sentence seeder"
 
 ---
 
+### Task 7: CORS middleware — added after a docs correction
+
+> Tasks 1–6 assumed production would be same-origin (via Hosting rewrites) and
+> that local dev could cross-origin-proxy through Next.js `rewrites()`. That
+> assumption was wrong: Next.js's static-export docs state that `rewrites()`,
+> `redirects()`, and `headers()` **error out in `next dev` too**, not just in
+> the production build, whenever `output: 'export'` is set. So Task 2's
+> removal of CORS left local dev (`next dev` on :3000 calling the API on
+> :8080) broken. Checked corgi's actual precedent (`backend/src/app.ts`) —
+> it keeps CORS via the `cors` package, driven by a `FRONTEND_URL` env var,
+> and documents an explicit dev value (`FRONTEND_URL=http://localhost:5173`
+> in `backend/.env.example`) rather than leaving it wildcard-open. This task
+> ports that pattern to Go.
+
+**Files:**
+- Create: `api/cors.go`, `api/cors_test.go`
+- Modify: `api/main.go`, `api/.env.example`
+
+**Interfaces:**
+- Consumes: nothing new (wraps any `http.HandlerFunc`).
+- Produces: `withCORS(allowedOrigin string, next http.HandlerFunc) http.HandlerFunc`.
+
+- [ ] **Step 1: Write the failing tests**
+
+Create `api/cors_test.go`:
+
+```go
+package main
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
+
+func TestWithCORSSetsWildcardWhenUnset(t *testing.T) {
+	h := withCORS("", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	rec := httptest.NewRecorder()
+	h(rec, httptest.NewRequest(http.MethodGet, "/api/sentence/random", nil))
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Fatalf("expected wildcard origin, got %q", got)
+	}
+}
+
+func TestWithCORSSetsConfiguredOrigin(t *testing.T) {
+	h := withCORS("https://eagle.example.com", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	rec := httptest.NewRecorder()
+	h(rec, httptest.NewRequest(http.MethodGet, "/api/sentence/random", nil))
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "https://eagle.example.com" {
+		t.Fatalf("expected configured origin, got %q", got)
+	}
+}
+
+func TestWithCORSHandlesPreflightWithoutCallingNext(t *testing.T) {
+	called := false
+	h := withCORS("", func(w http.ResponseWriter, r *http.Request) { called = true })
+	rec := httptest.NewRecorder()
+	h(rec, httptest.NewRequest(http.MethodOptions, "/api/sentence/random", nil))
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d", rec.Code)
+	}
+	if called {
+		t.Fatal("next handler should not be called for an OPTIONS preflight")
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Headers"); got != "Content-Type, Authorization" {
+		t.Fatalf("expected Allow-Headers to include Authorization, got %q", got)
+	}
+}
+
+func TestWithCORSPassesThroughNonPreflight(t *testing.T) {
+	called := false
+	h := withCORS("", func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusOK)
+	})
+	rec := httptest.NewRecorder()
+	h(rec, httptest.NewRequest(http.MethodGet, "/api/sentence/random", nil))
+	if !called {
+		t.Fatal("expected the wrapped handler to be called for a non-preflight request")
+	}
+}
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `cd api && go test -run TestWithCORS ./...`
+Expected: FAIL (compile error — `withCORS` undefined).
+
+- [ ] **Step 3: Write the implementation**
+
+Create `api/cors.go`:
+
+```go
+package main
+
+import "net/http"
+
+// withCORS wraps a handler with CORS headers. If allowedOrigin is empty
+// (matching corgi's dev-only behavior when FRONTEND_URL is unset), it
+// allows any origin; otherwise it restricts to exactly that origin.
+// OPTIONS preflight requests are answered directly without invoking next,
+// since a preflight has no Authorization header and must not hit auth.
+func withCORS(allowedOrigin string, next http.HandlerFunc) http.HandlerFunc {
+	origin := allowedOrigin
+	if origin == "" {
+		origin = "*"
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next(w, r)
+	}
+}
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `cd api && go test -run TestWithCORS ./...`
+Expected: PASS (4 tests).
+
+- [ ] **Step 5: Wire into `main.go` and document `FRONTEND_URL`**
+
+In `api/main.go`, read `FRONTEND_URL` (optional — unset means wildcard, matching
+corgi) and wrap CORS **outside** `requireAuth`, since a browser's preflight
+`OPTIONS` request carries no `Authorization` header and must be answered
+before auth runs:
+
+```go
+frontendURL := os.Getenv("FRONTEND_URL")
+
+auth := func(h http.HandlerFunc) http.HandlerFunc {
+	return withCORS(frontendURL, requireAuth(verifier, allowedEmail, h))
+}
+```
+
+(This replaces the existing `auth := func(h http.HandlerFunc) http.HandlerFunc { return requireAuth(verifier, allowedEmail, h) }` from Task 5.)
+
+Update `api/.env.example` to document it, matching corgi's practice of
+setting an explicit dev value rather than leaving it wildcard by default:
+
+```
+GOOGLE_CLOUD_PROJECT=your-gcp-project-id
+ALLOWED_EMAIL=you@gmail.com
+FRONTEND_URL=http://localhost:3000
+PORT=8080
+```
+
+- [ ] **Step 6: Full test + vet + manual smoke test**
+
+Run: `cd api && go vet ./... && go test -count=1 ./...`
+Expected: PASS.
+
+Manual (with both emulators running, `FRONTEND_URL` unset):
+`curl -s -H "Origin: http://localhost:3000" -X OPTIONS -D - localhost:8080/api/sentence/random -o /dev/null`
+Expected: `204`, with `Access-Control-Allow-Origin: *` and
+`Access-Control-Allow-Headers: Content-Type, Authorization` in the response headers.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add api/cors.go api/cors_test.go api/main.go api/.env.example
+git commit -m "feat(api): reinstate CORS middleware, driven by FRONTEND_URL (matches corgi)"
+```
+
+---
+
 ## Verification (whole plan)
 
 - [ ] `cd api && go vet ./... && go test ./...` passes (unit tests always; emulator tests when `FIRESTORE_EMULATOR_HOST` is set).
 - [ ] `cd api && go build . && go build ./cmd/seed` both succeed.
 - [ ] Manual: with both emulators running and 2+ seeded sentences, a request with a valid emulator ID token completes random → check → report; a request with no token returns 401.
 - [ ] `git grep -n "go-sql-driver\|godotenv\|DB_ENDPOINT"` inside `api/` returns nothing (MySQL fully removed).
+- [ ] `git grep -n "withCORS" api/main.go` shows both endpoints wrapped outside `requireAuth`.
 
 ## Notes for the next plans
 
 - **Frontend-auth plan** must set `NEXT_PUBLIC_API_URL=""` in production, add the Firebase web SDK sign-in gate, and attach `Authorization: Bearer <ID token>` to the three fetch calls, plus `output: "export"` + `images: { unoptimized: true }` in `next.config.ts`.
-- **CORS was removed from the backend** (production is same-origin via Hosting rewrites). Local dev (`next dev` on :3000 → API on :8080) is cross-origin, so the frontend-auth plan MUST proxy `/api/**` to the backend in dev (Next `rewrites()`), keeping `NEXT_PUBLIC_API_URL=""` everywhere. If a dev proxy is undesirable, add a dev-only CORS toggle to the API instead — but the proxy keeps prod and dev identical and is preferred.
-- **Infra/deploy plan** must declare the composite index for collection `histories` `(is_correct ASC, created_at DESC)` in `firestore.indexes.json`, grant the Cloud Run service account `roles/datastore.user`, enable the Firebase Auth Google provider, and export the live `sentences` table to `docs/sentences_export.ndjson` before running the seeder against prod.
+- **No dev proxy is used or needed.** Next.js `rewrites()` cannot work with `output: 'export'` (errors in `next dev` too, per Next.js's static-export docs), so local dev talks directly to the Go API cross-origin — same as the pre-migration setup (`NEXT_PUBLIC_API_URL=http://localhost:8080` in dev via `.env.local`, unchanged). CORS is handled server-side by Task 7's `withCORS` middleware. Production stays same-origin via Hosting rewrites, and the frontend-auth/infra plans should set the Cloud Run `FRONTEND_URL` env var to the deployed Hosting URL once known.
+- **Infra/deploy plan** must declare the composite index for collection `histories` `(is_correct ASC, created_at DESC)` in `firestore.indexes.json`, grant the Cloud Run service account `roles/datastore.user`, enable the Firebase Auth Google provider, export the live `sentences` table to `docs/sentences_export.ndjson` before running the seeder against prod, and set the Cloud Run `FRONTEND_URL` env var to the deployed Firebase Hosting URL.
 - **`ALLOWED_EMAIL` must be set as a Cloud Run env var** (value `hideee.0202@gmail.com`) — the API now hard-fails at startup if it's unset (`main.go` Task 5, Step 1). Matches the `corgi` project's single-user allowlist convention.
 ```

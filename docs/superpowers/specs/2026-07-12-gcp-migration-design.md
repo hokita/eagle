@@ -66,8 +66,12 @@ Firestore (Native mode)
               { is_correct, incorrect_answer, created_at }
 ```
 
-Hosting rewrites proxy `/api/**` to Cloud Run, so the app is **same-origin** and
-the hand-rolled CORS is removed. The **frontend never touches Firestore
+Hosting rewrites proxy `/api/**` to Cloud Run, so **production is same-origin**.
+CORS still exists server-side (a `FRONTEND_URL`-driven `withCORS` middleware,
+matching corgi's pattern), because local dev (`next dev` on :3000 calling the
+API directly on :8080) is cross-origin — Next.js `rewrites()` cannot be used
+for a dev proxy once `output: 'export'` is set, since it errors in `next dev`
+too, not only in the production build. The **frontend never touches Firestore
 directly** — all data flows through the authenticated API — so Firestore stays
 locked to client access (no security-rules surface to maintain); the Go API
 writes via the Admin SDK, which bypasses rules.
