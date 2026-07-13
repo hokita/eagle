@@ -188,7 +188,20 @@ git commit -m "build(fe): switch to static export (output: 'export') for Firebas
 
 ---
 
-### Task 3: Firebase web SDK initialization
+### Task 3: Firebase web SDK initialization — amended in Task 8
+
+> `getAuth(app)` performs real validation of the API key (a network-capable
+> call, not just a format check — confirmed by testing: even a well-formed
+> fake key still threw `auth/invalid-api-key`, not just an empty one). Next.js
+> prerenders client components server-side both for `next build` (static
+> export) and on first `next dev` request, so a bare top-level `getAuth(app)`
+> call crashes the build entirely once real `.env` values are empty/fake —
+> this wasn't caught until Task 8's manual verification actually ran
+> `npm run build`. The fix (below) guards `getAuth` to only run client-side;
+> every real call site (`onAuthStateChanged`, `signOut`, `signInWithPopup`)
+> only executes inside `useEffect`/event handlers, which never run during
+> server-side prerendering, so the server-side fallback value is never
+> actually used for anything.
 
 **Files:**
 - Create: `src/lib/firebase.ts`
@@ -209,7 +222,7 @@ Create `fe/src/lib/firebase.ts`:
 
 ```ts
 import { initializeApp } from 'firebase/app'
-import { getAuth } from 'firebase/auth'
+import { getAuth, type Auth } from 'firebase/auth'
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -218,12 +231,22 @@ const firebaseConfig = {
 }
 
 export const app = initializeApp(firebaseConfig)
-export const auth = getAuth(app)
+
+// getAuth() validates the API key (a real network-capable call, not just a
+// format check) and must not run during Next.js's server-side prerender of
+// this static-export app. Every real call site (onAuthStateChanged, signOut,
+// signInWithPopup) only runs client-side, inside useEffect/event handlers,
+// which never execute during prerendering — so this fallback is never
+// actually invoked with a live `Auth` on the server.
+export const auth: Auth = typeof window !== 'undefined' ? getAuth(app) : ({} as Auth)
 ```
 
 No dedicated test — this is a thin SDK-initialization wrapper with no branching
-logic, matching corgi's own untested `frontend/src/firebase.ts`. It's exercised
-indirectly by every test in Tasks 4–7 (all of which `vi.mock('@/lib/firebase', ...)`).
+logic beyond the SSR guard, matching corgi's own untested `frontend/src/firebase.ts`
+(corgi is a Vite SPA with no server-side prerendering, so it never needed this
+guard). It's exercised indirectly by every test in Tasks 4–7 (all of which
+`vi.mock('@/lib/firebase', ...)`), and by Task 8's `npm run build`/`npm run dev`
+verification, which is what actually caught this.
 
 - [ ] **Step 3: Verify it compiles**
 
@@ -1222,18 +1245,22 @@ Expected: all tests still pass (16 total: 4 api + 8 UserMenu + 1 LoginScreen +
 
 - [ ] **Step 5: Manual verification**
 
-Run: `cd fe && npm run dev`, open `http://localhost:3000`.
+Run: `cd fe && npm run build`
+Expected: succeeds and produces `fe/out/` (static export) — with the Task 3
+SSR guard in place, this succeeds even with empty `NEXT_PUBLIC_FIREBASE_*`
+placeholders (confirmed: it fails with `FirebaseError: auth/invalid-api-key`
+during prerender without the guard, both with empty and with syntactically
+plausible fake key values — this is what caught the Task 3 gap).
 
-Expected with empty `NEXT_PUBLIC_FIREBASE_*` values: the page loads without a
-white-screen crash and shows *some* rendered UI (either the login screen or a
-Firebase initialization error surfaced in the console) rather than hanging
-indefinitely — confirming `AuthGate` doesn't get stuck and the build/runtime
-wiring is correct. **Full interactive sign-in cannot be verified until the
-infra plan provisions a real Firebase project** — note this explicitly rather
-than claiming the auth flow works end-to-end.
-
-Also run: `cd fe && npm run build`
-Expected: succeeds and produces `fe/out/` (static export).
+Run: `cd fe && npm run dev`, then `curl -s -o /dev/null -w '%{http_code}'
+http://localhost:3000` (or open it in a browser).
+Expected: `200`, page loads (title "Eagle"), no server-side crash in the dev
+log. With empty Firebase config, the client-side `AuthGate` will still reach
+`onAuthStateChanged`, which — depending on the (invalid) config — may render
+the login screen or surface a console error rather than hang; either is fine
+for this check. **Full interactive sign-in cannot be verified until the infra
+plan provisions a real Firebase project** — note this explicitly rather than
+claiming the auth flow works end-to-end.
 
 Stop the dev server when done.
 
