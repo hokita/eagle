@@ -1,0 +1,87 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+vi.mock('./firebase', () => ({
+  auth: {
+    currentUser: {
+      getIdToken: vi.fn().mockResolvedValue('test-token'),
+    },
+  },
+}))
+
+import { api } from './api'
+
+const mockFetch = vi.fn()
+global.fetch = mockFetch
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
+
+function mockResponse(body: unknown, status = 200) {
+  mockFetch.mockResolvedValue({
+    ok: status < 400,
+    status,
+    json: () => Promise.resolve(body),
+  })
+}
+
+describe('api.getRandomSentence', () => {
+  it('sends GET /api/sentence/random with the Authorization header', async () => {
+    mockResponse({
+      id: 1,
+      japanese: '時間がありません。',
+      english: "I don't have time.",
+      page: '12',
+      correct_count: 0,
+      incorrect_count: 0,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    })
+    const result = await api.getRandomSentence()
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/sentence/random'),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer test-token' }),
+      })
+    )
+    expect(result.id).toBe(1)
+    expect(result.english).toBe("I don't have time.")
+  })
+})
+
+describe('api.checkAnswer', () => {
+  it('sends POST /api/answer/check with sentence_id and user_answer', async () => {
+    mockResponse({ is_correct: true, correct_answer: 'Hello', histories: [] })
+    const result = await api.checkAnswer(1, 'Hello')
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/answer/check'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ sentence_id: 1, user_answer: 'Hello' }),
+        headers: expect.objectContaining({ Authorization: 'Bearer test-token' }),
+      })
+    )
+    expect(result.is_correct).toBe(true)
+  })
+})
+
+describe('api.reportSentence', () => {
+  it('sends POST /api/sentence/report and resolves on a 204 with no body', async () => {
+    mockFetch.mockResolvedValue({ ok: true, status: 204 })
+    await expect(api.reportSentence(1)).resolves.toBeUndefined()
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/sentence/report'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ sentence_id: 1 }),
+      })
+    )
+  })
+})
+
+describe('api error handling', () => {
+  it('throws when the response is not ok', async () => {
+    mockResponse({}, 500)
+    await expect(api.getRandomSentence()).rejects.toThrow('API error: 500')
+  })
+})
