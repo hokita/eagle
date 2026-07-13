@@ -50,10 +50,11 @@ Browser
   │  Firebase Auth (Google sign-in) → ID token
   ▼
 Firebase Hosting  (static Next.js export, global CDN)
-  │   fetch /api/**  with  Authorization: Bearer <ID token>
-  │   rewrite /api/** → Cloud Run
+  │   fetch https://<cloud-run-url>/api/**  with  Authorization: Bearer <ID token>
+  │   (cross-origin — no Hosting rewrite)
   ▼
 Cloud Run  (Go API, dedicated service account)
+  │   withCORS: Access-Control-Allow-Origin restricted to FRONTEND_URL
   │   auth middleware: verify ID token → uid   (Firebase Admin SDK)
   │   Firestore Go SDK  (Application Default Credentials)
   ▼
@@ -66,15 +67,25 @@ Firestore (Native mode)
               { is_correct, incorrect_answer, created_at }
 ```
 
-Hosting rewrites proxy `/api/**` to Cloud Run, so **production is same-origin**.
-CORS still exists server-side (a `FRONTEND_URL`-driven `withCORS` middleware,
-matching corgi's pattern), because local dev (`next dev` on :3000 calling the
-API directly on :8080) is cross-origin — Next.js `rewrites()` cannot be used
-for a dev proxy once `output: 'export'` is set, since it errors in `next dev`
-too, not only in the production build. The **frontend never touches Firestore
-directly** — all data flows through the authenticated API — so Firestore stays
-locked to client access (no security-rules surface to maintain); the Go API
-writes via the Admin SDK, which bypasses rules.
+**Production is cross-origin, not same-origin.** The frontend (`eagle-*.web.app`)
+calls the Cloud Run API's real URL (`eagle-api-*.run.app`) directly — there is
+no Firebase Hosting rewrite for `/api/**`. This was a deliberate correction
+made while writing the infra plan: the original design assumed a same-origin
+Hosting rewrite, but checking `corgi`'s actual, running `firebase.json`
+showed it has **no** API rewrite at all — its frontend calls its Cloud Run
+backend's real URL directly (baked in at build time via `VITE_API_URL`) and
+relies purely on CORS. Adopting the same pattern here means **no code
+changes** were needed in the already-built backend or frontend: `withCORS`
+(driven by `FRONTEND_URL`) already supports any origin, and `api.ts`'s
+`BASE_URL` concatenation already works with either an empty string
+(same-origin) or a full URL (cross-origin) — only the *value* baked into the
+frontend build differs, which is purely an infra/CI-CD concern. This also
+avoids a same-origin rewrite's ordering problem (needing the Cloud Run
+service's name/region before `firebase.json` can be finalized). The
+**frontend never touches Firestore directly** — all data flows through the
+authenticated API — so Firestore stays locked to client access (no
+security-rules surface to maintain); the Go API writes via the Admin SDK,
+which bypasses rules.
 
 ## Firestore data model
 
@@ -247,30 +258,48 @@ is discarded there are no foreign keys to preserve, so regenerated IDs are safe.
 
 ## GCP infrastructure
 
+- New, dedicated GCP project (not shared with `corgi-8732c`) — isolated
+  billing/quotas/IAM for a personal app project.
 - Enable APIs: Cloud Run, Firestore, Artifact Registry, Firebase Hosting,
-  Identity Platform (Firebase Auth).
-- **Firebase Auth**: enable the Google sign-in provider; add the Hosting domain
-  (and `localhost` for dev) to authorized domains; configure the OAuth consent
-  screen.
-- **Firestore** Native mode in one region (align with corgi's region).
+  Identity Platform (Firebase Auth), Secret Manager.
+- **Firebase Auth**: enable the Google sign-in provider (Firebase Console —
+  neither `gcloud` nor the `firebase` CLI expose a command for this); add the
+  Hosting domain (and `localhost` for dev) to authorized domains; configure
+  the OAuth consent screen.
+- **Firestore** Native mode in `asia-northeast1` (matches corgi's region).
 - **Artifact Registry** Docker repo for the API image (replaces GHCR).
 - **Cloud Run** service for the Go API + a dedicated runtime service account
-  granted `roles/datastore.user`.
-- **Firebase Hosting** site. `firebase.json` rewrites `/api/**` → the Cloud Run
-  service. `firestore.indexes.json` declares the composite index for the history
-  query: collection `histories` `(is_correct ASC, created_at DESC)`.
-- **Workload Identity Federation**: a GCP service account + provider that lets
-  the GitHub Actions repo deploy without long-lived JSON keys.
+  granted `roles/datastore.user`. `ALLOWED_EMAIL` is stored in **Secret
+  Manager** and mounted via `--set-secrets`, matching corgi's
+  `backend.yml` — not a plain Cloud Run env var, since it's account-identifying
+  information (`FRONTEND_URL`, `GOOGLE_CLOUD_PROJECT`, `PORT` stay plain
+  `--set-env-vars`).
+- **Firebase Hosting** site, `firebase.json` pointing `public` at `fe/out`
+  with **no `/api/**` rewrite** (see "Target architecture" — production is
+  cross-origin, matching corgi). `firestore.indexes.json` declares the
+  composite index for the history query: collection `histories`
+  `(is_correct ASC, created_at DESC)`.
+- **Workload Identity Federation**: a GCP service account + provider, trust
+  condition scoped to exactly the `hokita/eagle` GitHub repo, that lets
+  GitHub Actions deploy without long-lived JSON keys.
 
 ## CI/CD (replaces the two GHCR workflows)
 
+- `ci.yml` — trigger on `pull_request`: `go vet`/`go test` for `api/**`,
+  `next lint`/`tsc --noEmit`/`npm test` for `fe/**`. Eagle has no PR-level
+  checks today; this matches corgi's `ci.yml` practice of catching breakage
+  before merge rather than only at deploy time.
 - `deploy-api.yml` — trigger on push to `main` touching `api/**`: build the Go
-  image → push to Artifact Registry → `gcloud run deploy`.
+  image → push to Artifact Registry → `gcloud run deploy` (env vars +
+  `ALLOWED_EMAIL` from Secret Manager).
 - `deploy-fe.yml` — trigger on push to `main` touching `fe/**`: `npm ci` →
-  `next build` (static export, with `NEXT_PUBLIC_FIREBASE_*` build env) →
-  `firebase deploy --only hosting`.
-- Both authenticate via WIF. The existing `build_api_docker_image.yaml` and
-  `build_fe_docker_image.yaml` are removed.
+  `next build` (static export, with `NEXT_PUBLIC_FIREBASE_*` and the real
+  Cloud Run `NEXT_PUBLIC_API_URL` baked in as build env — Firebase web config
+  is public-facing by design, matching corgi's `frontend.yml`, so these are
+  hardcoded in the workflow rather than treated as secrets) → `firebase
+  deploy --only hosting`.
+- All three authenticate via WIF where needed. The existing
+  `build_api_docker_image.yaml` and `build_fe_docker_image.yaml` are removed.
 
 ## Testing strategy
 
