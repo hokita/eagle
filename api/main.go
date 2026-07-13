@@ -35,8 +35,10 @@ func main() {
 
 	srv := NewServer(NewFirestoreRepo(client))
 
+	frontendURL := os.Getenv("FRONTEND_URL")
+
 	auth := func(h http.HandlerFunc) http.HandlerFunc {
-		return requireAuth(verifier, allowedEmail, h)
+		return withCORS(frontendURL, requireAuth(verifier, allowedEmail, h))
 	}
 
 	mux := http.NewServeMux()
