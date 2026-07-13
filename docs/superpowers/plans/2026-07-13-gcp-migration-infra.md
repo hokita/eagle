@@ -24,7 +24,8 @@
 
 ```
 GCP project: eagle-473ac1 (asia-northeast1)
-  APIs: run, firestore, artifactregistry, firebase, identitytoolkit, secretmanager
+  APIs: run, firestore, artifactregistry, firebase(+hosting/rules/installations),
+        identitytoolkit, securetoken, secretmanager, iam(+credentials), cloudresourcemanager
   Firestore: Native mode database
   Artifact Registry: eagle (Docker repo)
   IAM:
@@ -32,8 +33,8 @@ GCP project: eagle-473ac1 (asia-northeast1)
     eagle-deployer@...          GitHub Actions deploy SA (run.admin, artifactregistry.writer,
                                  iam.serviceAccountUser, firebasehosting.admin)
   Workload Identity Federation:
-    pool: github-pool
-    provider: github-provider (trust condition: repository == 'hokita/eagle')
+    pool: github-actions
+    provider: github (trust condition: repository == 'hokita/eagle')
   Secret Manager:
     ALLOWED_EMAIL
 
@@ -82,15 +83,29 @@ Expected: `billingEnabled: true` in the output.
 
 - [ ] **Step 3: [CONFIRM] Enable required APIs**
 
+> Amended after inspecting corgi's *actual live* `corgi-8732c` project via
+> `gcloud services list --enabled` (not just its GitHub files): its relevant
+> API set is broader than originally planned (`firebasehosting`, `iam`,
+> `securetoken`, `firebaserules`, `firebaseinstallations` were missing here).
+> Deliberately **not** replicating `cloudbuild.googleapis.com` (corgi's own
+> migration doc says it's leftover from an abandoned Cloud Build setup) or
+> the BigQuery/Gemini-related APIs (unrelated to Eagle's functionality).
+
 ```bash
 gcloud services enable \
   run.googleapis.com \
   firestore.googleapis.com \
   artifactregistry.googleapis.com \
   firebase.googleapis.com \
+  firebasehosting.googleapis.com \
+  firebaserules.googleapis.com \
+  firebaseinstallations.googleapis.com \
   identitytoolkit.googleapis.com \
+  securetoken.googleapis.com \
   secretmanager.googleapis.com \
+  iam.googleapis.com \
   iamcredentials.googleapis.com \
+  cloudresourcemanager.googleapis.com \
   --project=eagle-473ac1
 ```
 Expected: no errors; each API appears in `gcloud services list --enabled --project=eagle-473ac1`.
@@ -299,7 +314,22 @@ Expected: prints `hideee.0202@gmail.com` with no trailing newline.
 
 ### Task 7: Workload Identity Federation for GitHub Actions
 
-**Resources:** WIF pool + provider (trust scoped to `hokita/eagle`), deploy-time service account `eagle-deployer` with deploy permissions, GitHub repo secrets.
+> Amended after inspecting corgi's *actual live* WIF setup on `corgi-8732c`
+> (`gcloud iam workload-identity-pools providers list`, not just its GitHub
+> files — corgi's repo doesn't contain the commands that provisioned this).
+> Pool/provider names below now match corgi's (`github-actions`/`github`)
+> for consistency across both projects, and the deployer's role set is
+> corrected to match what corgi's deployer *actually* has: `storage.admin`
+> is included (empirically required for `firebase deploy --only hosting`
+> to upload built assets — Hosting deploys stage through Cloud Storage
+> internally), and the attribute mapping adds `attribute.actor` (captures
+> which GitHub user triggered a deploy, useful in Cloud Logging audit
+> trails). **Not** replicating corgi's `roles/cloudbuild.builds.editor` or
+> redundant `roles/run.developer` (superseded by `roles/run.admin`) —
+> confirmed leftover cruft from corgi's abandoned Cloud Build CI system,
+> not something Eagle ever had or needs.
+
+**Resources:** WIF pool `github-actions` + provider `github` (trust scoped to `hokita/eagle`), deploy-time service account `eagle-deployer` with deploy permissions, GitHub repo secrets.
 
 **Interfaces:**
 - Consumes: `eagle-api-runtime` SA (Task 5, for `iam.serviceAccountUser` so the deployer can attach it to Cloud Run).
@@ -308,21 +338,21 @@ Expected: prints `hideee.0202@gmail.com` with no trailing newline.
 - [ ] **Step 1: [CONFIRM] Create the workload identity pool**
 
 ```bash
-gcloud iam workload-identity-pools create github-pool \
+gcloud iam workload-identity-pools create github-actions \
   --project=eagle-473ac1 \
   --location=global \
-  --display-name="GitHub Actions pool"
+  --display-name="GitHub Actions"
 ```
 
 - [ ] **Step 2: [CONFIRM] Create the OIDC provider, scoped to this repo**
 
 ```bash
-gcloud iam workload-identity-pools providers create-oidc github-provider \
+gcloud iam workload-identity-pools providers create-oidc github \
   --project=eagle-473ac1 \
   --location=global \
-  --workload-identity-pool=github-pool \
-  --display-name="GitHub provider" \
-  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
+  --workload-identity-pool=github-actions \
+  --display-name="github" \
+  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.actor=assertion.actor" \
   --attribute-condition="assertion.repository=='hokita/eagle'" \
   --issuer-uri="https://token.actions.githubusercontent.com"
 ```
@@ -360,6 +390,10 @@ gcloud iam service-accounts add-iam-policy-binding \
 gcloud projects add-iam-policy-binding eagle-473ac1 \
   --member="serviceAccount:eagle-deployer@eagle-473ac1.iam.gserviceaccount.com" \
   --role="roles/firebasehosting.admin"
+
+gcloud projects add-iam-policy-binding eagle-473ac1 \
+  --member="serviceAccount:eagle-deployer@eagle-473ac1.iam.gserviceaccount.com" \
+  --role="roles/storage.admin"
 ```
 
 - [ ] **Step 5: [CONFIRM] Allow the WIF provider to impersonate the deployer**
@@ -369,13 +403,13 @@ gcloud iam service-accounts add-iam-policy-binding \
   eagle-deployer@eagle-473ac1.iam.gserviceaccount.com \
   --project=eagle-473ac1 \
   --role="roles/iam.workloadIdentityUser" \
-  --member="principalSet://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/github-pool/attribute.repository/hokita/eagle"
+  --member="principalSet://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/github-actions/attribute.repository/hokita/eagle"
 ```
 
 - [ ] **Step 6: [CONFIRM] Store the provider resource name and SA email as GitHub secrets**
 
 ```bash
-WIF_PROVIDER="projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
+WIF_PROVIDER="projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/github-actions/providers/github"
 gh secret set WIF_PROVIDER --repo hokita/eagle --body "$WIF_PROVIDER"
 gh secret set WIF_SERVICE_ACCOUNT --repo hokita/eagle --body "eagle-deployer@eagle-473ac1.iam.gserviceaccount.com"
 ```
