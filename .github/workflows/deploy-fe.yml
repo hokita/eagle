@@ -1,0 +1,67 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'fe/**'
+      - 'firebase.json'
+      - '.firebaserc'
+      - '.github/workflows/deploy-fe.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: fe/package-lock.json
+
+      - name: Install dependencies
+        working-directory: fe
+        run: npm ci
+
+      - name: Lint
+        working-directory: fe
+        run: npm run lint
+
+      - name: Type check
+        working-directory: fe
+        run: npx tsc --noEmit
+
+      - name: Test
+        working-directory: fe
+        run: npm test
+
+      - name: Build
+        working-directory: fe
+        env:
+          # Firebase web config is public-facing by design — security is
+          # enforced by Firebase Security Rules / backend token verification,
+          # not by keeping these values secret. Matches corgi's frontend.yml.
+          NEXT_PUBLIC_FIREBASE_API_KEY: AIzaSyDusVOo5OqqggZBWDc8tBZdEqMNLcBUDLM
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: eagle-473ac1.firebaseapp.com
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: eagle-473ac1
+          NEXT_PUBLIC_API_URL: REPLACE_WITH_REAL_CLOUD_RUN_URL
+        run: npm run build
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: eagle-473ac1
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Deploy to Firebase Hosting
+        run: npx firebase-tools@15.22.0 deploy --only hosting --project eagle-473ac1 --non-interactive

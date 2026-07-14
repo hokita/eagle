@@ -1,0 +1,53 @@
+package main
+
+import (
+	"context"
+	"errors"
+)
+
+type Sentence struct {
+	ID             int    `json:"id"`
+	Japanese       string `json:"japanese"`
+	English        string `json:"english"`
+	Page           string `json:"page"`
+	CorrectCount   int    `json:"correct_count"`
+	IncorrectCount int    `json:"incorrect_count"`
+	CreatedAt      string `json:"created_at"`
+	UpdatedAt      string `json:"updated_at"`
+}
+
+type AnswerHistory struct {
+	ID              int64  `json:"id"`
+	IncorrectAnswer string `json:"incorrect_answer"`
+	CreatedAt       string `json:"created_at"`
+}
+
+type CheckAnswerRequest struct {
+	SentenceID int    `json:"sentence_id"`
+	UserAnswer string `json:"user_answer"`
+}
+
+type CheckAnswerResponse struct {
+	IsCorrect     bool            `json:"is_correct"`
+	CorrectAnswer string          `json:"correct_answer"`
+	Histories     []AnswerHistory `json:"histories"`
+}
+
+type ReportSentenceRequest struct {
+	SentenceID int `json:"sentence_id"`
+}
+
+// ErrNotFound is returned when a sentence document does not exist.
+var ErrNotFound = errors.New("sentence not found")
+
+// ErrNoCandidate is returned when no sentence passes the random filter.
+var ErrNoCandidate = errors.New("no candidate sentence")
+
+// SentenceRepository is the data-access seam behind the HTTP handlers.
+type SentenceRepository interface {
+	RandomCandidate(ctx context.Context, uid string) (*Sentence, error)
+	CorrectAnswer(ctx context.Context, id int) (string, error)
+	ListIncorrectHistories(ctx context.Context, uid string, id int) ([]AnswerHistory, error)
+	RecordAnswer(ctx context.Context, uid string, id int, correct bool, answer string) error
+	Report(ctx context.Context, id int) error
+}

@@ -1,0 +1,9 @@
+{
+  "firestore": {
+    "indexes": "firestore.indexes.json"
+  },
+  "hosting": {
+    "public": "fe/out",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
+  }
+}
