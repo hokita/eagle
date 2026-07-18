@@ -8,3 +8,5 @@ dml_master*.sql
 
 api/eagle
 api/cmd/seed/seed
+
+.worktrees
