@@ -61,6 +61,49 @@ func TestWithCORSOmitsHeaderForUnrecognizedOrigin(t *testing.T) {
 	}
 }
 
+// Even when the origin is rejected, the response still varied on the
+// Origin request header (that's why it was rejected) — a shared cache that
+// stores this response without Vary could later replay it to a client with
+// an allowed origin, silently withholding Access-Control-Allow-Origin from
+// a legitimate request.
+func TestWithCORSSetsVaryEvenForUnrecognizedOrigin(t *testing.T) {
+	h := withCORS("https://eagle.example.com", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/sentence/random", nil)
+	req.Header.Set("Origin", "https://evil.example.com")
+	h(rec, req)
+	if got := rec.Header().Get("Vary"); got != "Origin" {
+		t.Fatalf("expected Vary: Origin even for a rejected origin, got %q", got)
+	}
+}
+
+// Reproduces the exact shape of the production failure: a preflight
+// OPTIONS request against a second configured origin (Firebase Hosting's
+// firebaseapp.com domain) must be answered with 204, the matching origin
+// reflected, and next never invoked.
+func TestWithCORSHandlesPreflightForSecondConfiguredOrigin(t *testing.T) {
+	called := false
+	h := withCORS("https://eagle.web.app,https://eagle.firebaseapp.com", func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodOptions, "/api/sentence/random", nil)
+	req.Header.Set("Origin", "https://eagle.firebaseapp.com")
+	req.Header.Set("Access-Control-Request-Method", "GET")
+	h(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d", rec.Code)
+	}
+	if called {
+		t.Fatal("next handler should not be called for an OPTIONS preflight")
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "https://eagle.firebaseapp.com" {
+		t.Fatalf("expected the second configured origin to be reflected, got %q", got)
+	}
+}
+
 func TestWithCORSHandlesPreflightWithoutCallingNext(t *testing.T) {
 	called := false
 	h := withCORS("", func(w http.ResponseWriter, r *http.Request) { called = true })

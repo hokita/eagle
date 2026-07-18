@@ -36,9 +36,14 @@ func withCORS(allowedOrigins string, next http.HandlerFunc) http.HandlerFunc {
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
+		// The response varies on Origin whether or not it's allowed — an
+		// intermediary cache that stores a rejected-origin response
+		// without Vary could later replay it to a client with an allowed
+		// origin, withholding Access-Control-Allow-Origin from a
+		// legitimate request.
+		w.Header().Set("Vary", "Origin")
 		if origin := r.Header.Get("Origin"); allowed[origin] {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Vary", "Origin")
 		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
