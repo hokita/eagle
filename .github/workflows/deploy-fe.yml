@@ -51,7 +51,7 @@ jobs:
           NEXT_PUBLIC_FIREBASE_API_KEY: AIzaSyDusVOo5OqqggZBWDc8tBZdEqMNLcBUDLM
           NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: eagle-473ac1.firebaseapp.com
           NEXT_PUBLIC_FIREBASE_PROJECT_ID: eagle-473ac1
-          NEXT_PUBLIC_API_URL: REPLACE_WITH_REAL_CLOUD_RUN_URL
+          NEXT_PUBLIC_API_URL: https://eagle-api-s64rarpnaa-an.a.run.app
         run: npm run build
 
       - name: Authenticate to Google Cloud
