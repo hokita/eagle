@@ -56,5 +56,5 @@ jobs:
             --allow-unauthenticated \
             --min-instances=0 \
             --max-instances=2 \
-            --set-env-vars="GOOGLE_CLOUD_PROJECT=eagle-473ac1,FRONTEND_URL=https://eagle-473ac1.web.app" \
+            --set-env-vars="^@^GOOGLE_CLOUD_PROJECT=eagle-473ac1@FRONTEND_URL=https://eagle-473ac1.web.app,https://eagle-473ac1.firebaseapp.com" \
             --set-secrets="ALLOWED_EMAIL=ALLOWED_EMAIL:latest"
