@@ -17,14 +17,47 @@ func TestWithCORSSetsWildcardWhenUnset(t *testing.T) {
 	}
 }
 
-func TestWithCORSSetsConfiguredOrigin(t *testing.T) {
+func TestWithCORSReflectsMatchingOrigin(t *testing.T) {
 	h := withCORS("https://eagle.example.com", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	rec := httptest.NewRecorder()
-	h(rec, httptest.NewRequest(http.MethodGet, "/api/sentence/random", nil))
+	req := httptest.NewRequest(http.MethodGet, "/api/sentence/random", nil)
+	req.Header.Set("Origin", "https://eagle.example.com")
+	h(rec, req)
 	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "https://eagle.example.com" {
 		t.Fatalf("expected configured origin, got %q", got)
+	}
+}
+
+// Firebase Hosting serves the same site on both {project}.web.app and
+// {project}.firebaseapp.com, so a single allowed origin isn't enough — a
+// visitor reaching the app via the second domain would have their preflight
+// answered with the wrong Access-Control-Allow-Origin, and the browser
+// would silently refuse to send the real request afterward.
+func TestWithCORSAllowsAnyOfMultipleConfiguredOrigins(t *testing.T) {
+	h := withCORS("https://eagle.web.app,https://eagle.firebaseapp.com", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/sentence/random", nil)
+	req.Header.Set("Origin", "https://eagle.firebaseapp.com")
+	h(rec, req)
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "https://eagle.firebaseapp.com" {
+		t.Fatalf("expected the second configured origin to be reflected, got %q", got)
+	}
+}
+
+func TestWithCORSOmitsHeaderForUnrecognizedOrigin(t *testing.T) {
+	h := withCORS("https://eagle.example.com", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/sentence/random", nil)
+	req.Header.Set("Origin", "https://evil.example.com")
+	h(rec, req)
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Fatalf("expected no Allow-Origin header for an unrecognized origin, got %q", got)
 	}
 }
 
