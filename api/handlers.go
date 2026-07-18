@@ -10,11 +10,12 @@ import (
 )
 
 type Server struct {
-	repo SentenceRepository
+	repo      SentenceRepository
+	explainer Explainer
 }
 
-func NewServer(repo SentenceRepository) *Server {
-	return &Server{repo: repo}
+func NewServer(repo SentenceRepository, explainer Explainer) *Server {
+	return &Server{repo: repo, explainer: explainer}
 }
 
 func (s *Server) getRandomSentence(w http.ResponseWriter, r *http.Request) {
@@ -94,6 +95,25 @@ func (s *Server) reportSentence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) explainAnswer(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req ExplainRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	explanation, err := s.explainer.Explain(r.Context(), req.Japanese, req.CorrectAnswer, req.UserAnswer)
+	if err != nil {
+		log.Printf("explain answer error: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, ExplainResponse{Explanation: explanation})
 }
 
 func livenessHandler(w http.ResponseWriter, r *http.Request) {

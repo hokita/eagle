@@ -37,6 +37,16 @@ type ReportSentenceRequest struct {
 	SentenceID int `json:"sentence_id"`
 }
 
+type ExplainRequest struct {
+	Japanese      string `json:"japanese"`
+	CorrectAnswer string `json:"correct_answer"`
+	UserAnswer    string `json:"user_answer"`
+}
+
+type ExplainResponse struct {
+	Explanation string `json:"explanation"`
+}
+
 // ErrNotFound is returned when a sentence document does not exist.
 var ErrNotFound = errors.New("sentence not found")
 
