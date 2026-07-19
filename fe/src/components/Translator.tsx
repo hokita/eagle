@@ -35,6 +35,9 @@ export default function Translator({ user }: Props) {
   const [incorrectCount, setIncorrectCount] = useState(0)
   const [isReported, setIsReported] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
+  const [explanation, setExplanation] = useState<string | null>(null)
+  const [explaining, setExplaining] = useState(false)
+  const [explainError, setExplainError] = useState<string | null>(null)
 
   const speakJapanese = (text: string) => {
     if ('speechSynthesis' in window) {
@@ -97,6 +100,24 @@ export default function Translator({ user }: Props) {
     }
   }
 
+  const explainAnswer = async () => {
+    if (!currentSentence) return
+    setExplaining(true)
+    setExplainError(null)
+    try {
+      const result = await api.explainAnswer(
+        currentSentence.japanese,
+        currentSentence.english,
+        userTranslation
+      )
+      setExplanation(result.explanation)
+    } catch (err) {
+      setExplainError(err instanceof Error ? err.message : 'Failed to load explanation')
+    } finally {
+      setExplaining(false)
+    }
+  }
+
   const getRandomSentence = async () => {
     try {
       setLoading(true)
@@ -148,6 +169,9 @@ export default function Translator({ user }: Props) {
     setIncorrectCount(0)
     setIsReported(false)
     setIsSpeaking(false)
+    setExplanation(null)
+    setExplaining(false)
+    setExplainError(null)
     speechSynthesis.cancel()
     getRandomSentence()
   }
@@ -324,6 +348,34 @@ export default function Translator({ user }: Props) {
                           </li>
                         ))}
                       </ul>
+                    </div>
+                  )}
+
+                  {feedback === 'incorrect' && (
+                    <div className="space-y-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={explainAnswer}
+                        disabled={explaining}
+                      >
+                        {explaining ? 'Explaining...' : 'Explain'}
+                      </Button>
+
+                      {explainError && (
+                        <Alert className="border-red-500 bg-red-50">
+                          <AlertDescription className="text-red-800">
+                            {explainError}
+                          </AlertDescription>
+                        </Alert>
+                      )}
+
+                      {explanation && (
+                        <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                          <div className="font-semibold text-purple-900 mb-1">Explanation:</div>
+                          <div className="text-purple-800 whitespace-pre-wrap">{explanation}</div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
