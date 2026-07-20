@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	geminiExplainModel = "gemini-2.5-flash"
+	geminiExplainModel = "gemini-3.1-flash-lite"
 	explainTimeout     = 20 * time.Second
 )
 
