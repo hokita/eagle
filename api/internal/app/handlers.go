@@ -9,6 +9,16 @@ import (
 	"strings"
 )
 
+const (
+	// maxExplainRequestBytes bounds the /api/answer/explain request body so
+	// an authenticated caller can't exhaust memory or inflate Gemini request
+	// size via an arbitrarily large payload.
+	maxExplainRequestBytes = 4096
+	// maxUserAnswerLength bounds the submitted translation attempt itself,
+	// independent of the overall body size limit.
+	maxUserAnswerLength = 2000
+)
+
 type Server struct {
 	repo      SentenceRepository
 	explainer Explainer
@@ -102,12 +112,34 @@ func (s *Server) explainAnswer(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxExplainRequestBytes)
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
 	var req ExplainRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decoder.Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-	explanation, err := s.explainer.Explain(r.Context(), req.Japanese, req.CorrectAnswer, req.UserAnswer)
+	userAnswer := strings.TrimSpace(req.UserAnswer)
+	if userAnswer == "" || len(userAnswer) > maxUserAnswerLength {
+		http.Error(w, "Invalid user_answer", http.StatusBadRequest)
+		return
+	}
+	// The Japanese sentence and reference answer are always loaded
+	// server-side by sentence_id, never trusted from the client — otherwise
+	// an authenticated caller could submit arbitrary text for Gemini to
+	// process under this app's own API key.
+	japanese, correctAnswer, err := s.repo.GetSentence(r.Context(), req.SentenceID)
+	if errors.Is(err, ErrNotFound) {
+		http.Error(w, "Sentence not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		log.Printf("get sentence error: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	explanation, err := s.explainer.Explain(r.Context(), japanese, correctAnswer, userAnswer)
 	if err != nil {
 		log.Printf("explain answer error: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)

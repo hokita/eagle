@@ -105,11 +105,7 @@ export default function Translator({ user }: Props) {
     setExplaining(true)
     setExplainError(null)
     try {
-      const result = await api.explainAnswer(
-        currentSentence.japanese,
-        currentSentence.english,
-        userTranslation
-      )
+      const result = await api.explainAnswer(currentSentence.id, userTranslation)
       setExplanation(result.explanation)
     } catch (err) {
       setExplainError(err instanceof Error ? err.message : 'Failed to load explanation')

@@ -120,6 +120,21 @@ func (r *firestoreRepo) CorrectAnswer(ctx context.Context, id int) (string, erro
 	return sd.English, nil
 }
 
+func (r *firestoreRepo) GetSentence(ctx context.Context, id int) (string, string, error) {
+	ds, err := r.client.Collection("sentences").Doc(strconv.Itoa(id)).Get(ctx)
+	if status.Code(err) == codes.NotFound {
+		return "", "", ErrNotFound
+	}
+	if err != nil {
+		return "", "", err
+	}
+	var sd sentenceDoc
+	if err := ds.DataTo(&sd); err != nil {
+		return "", "", err
+	}
+	return sd.Japanese, sd.English, nil
+}
+
 func (r *firestoreRepo) ListIncorrectHistories(ctx context.Context, uid string, id int) ([]AnswerHistory, error) {
 	it := r.userStats(uid).Doc(strconv.Itoa(id)).Collection("histories").
 		Where("is_correct", "==", false).

@@ -38,9 +38,8 @@ type ReportSentenceRequest struct {
 }
 
 type ExplainRequest struct {
-	Japanese      string `json:"japanese"`
-	CorrectAnswer string `json:"correct_answer"`
-	UserAnswer    string `json:"user_answer"`
+	SentenceID int    `json:"sentence_id"`
+	UserAnswer string `json:"user_answer"`
 }
 
 type ExplainResponse struct {
@@ -57,6 +56,7 @@ var ErrNoCandidate = errors.New("no candidate sentence")
 type SentenceRepository interface {
 	RandomCandidate(ctx context.Context, uid string) (*Sentence, error)
 	CorrectAnswer(ctx context.Context, id int) (string, error)
+	GetSentence(ctx context.Context, id int) (japanese, english string, err error)
 	ListIncorrectHistories(ctx context.Context, uid string, id int) ([]AnswerHistory, error)
 	RecordAnswer(ctx context.Context, uid string, id int, correct bool, answer string) error
 	Report(ctx context.Context, id int) error

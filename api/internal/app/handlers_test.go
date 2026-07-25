@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -18,13 +19,16 @@ type recordedAnswer struct {
 }
 
 type fakeRepo struct {
-	random     *Sentence
-	randomErr  error
-	correct    string
-	correctErr error
-	histories  []AnswerHistory
-	recorded   []recordedAnswer
-	reported   []int
+	random           *Sentence
+	randomErr        error
+	correct          string
+	correctErr       error
+	sentenceJapanese string
+	sentenceEnglish  string
+	sentenceErr      error
+	histories        []AnswerHistory
+	recorded         []recordedAnswer
+	reported         []int
 }
 
 func (f *fakeRepo) RandomCandidate(_ context.Context, _ string) (*Sentence, error) {
@@ -32,6 +36,9 @@ func (f *fakeRepo) RandomCandidate(_ context.Context, _ string) (*Sentence, erro
 }
 func (f *fakeRepo) CorrectAnswer(_ context.Context, _ int) (string, error) {
 	return f.correct, f.correctErr
+}
+func (f *fakeRepo) GetSentence(_ context.Context, _ int) (string, string, error) {
+	return f.sentenceJapanese, f.sentenceEnglish, f.sentenceErr
 }
 func (f *fakeRepo) ListIncorrectHistories(_ context.Context, _ string, _ int) ([]AnswerHistory, error) {
 	if f.histories == nil {
@@ -174,8 +181,9 @@ func TestMethodNotAllowed(t *testing.T) {
 
 func TestExplainAnswerOK(t *testing.T) {
 	explainer := &fakeExplainer{explanation: "Your answer is also natural; the reference is just more formal."}
-	srv := NewServer(&fakeRepo{}, explainer)
-	body := `{"japanese":"時間がありません。","correct_answer":"I don't have time.","user_answer":"I have no time."}`
+	repo := &fakeRepo{sentenceJapanese: "時間がありません。", sentenceEnglish: "I don't have time."}
+	srv := NewServer(repo, explainer)
+	body := `{"sentence_id":1,"user_answer":"I have no time."}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
 	srv.explainAnswer(rec, req)
@@ -198,10 +206,102 @@ func TestExplainAnswerOK(t *testing.T) {
 	}
 }
 
+// TestExplainAnswerIgnoresClientSuppliedSentenceData is a regression test for
+// a security finding: the japanese/correct_answer fields used to come
+// straight from the client and were sent to Gemini unverified. The server
+// now looks these up from the repository by sentence_id, and any client
+// still sending the old japanese/correct_answer fields is rejected outright
+// (DisallowUnknownFields) rather than having them silently ignored.
+func TestExplainAnswerIgnoresClientSuppliedSentenceData(t *testing.T) {
+	explainer := &fakeExplainer{explanation: "explanation"}
+	repo := &fakeRepo{sentenceJapanese: "本物の文", sentenceEnglish: "the real sentence"}
+	srv := NewServer(repo, explainer)
+	body := `{"sentence_id":1,"japanese":"injected","correct_answer":"injected","user_answer":"my answer"}`
+	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
+	rec := httptest.NewRecorder()
+	srv.explainAnswer(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for unknown fields, got %d", rec.Code)
+	}
+	if len(explainer.calledWith) != 0 {
+		t.Fatal("explainer should not be called when the request is rejected")
+	}
+}
+
+func TestExplainAnswerSentenceNotFound(t *testing.T) {
+	explainer := &fakeExplainer{}
+	repo := &fakeRepo{sentenceErr: ErrNotFound}
+	srv := NewServer(repo, explainer)
+	body := `{"sentence_id":999,"user_answer":"x"}`
+	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
+	rec := httptest.NewRecorder()
+	srv.explainAnswer(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rec.Code)
+	}
+	if len(explainer.calledWith) != 0 {
+		t.Fatal("explainer should not be called when sentence lookup fails")
+	}
+}
+
+func TestExplainAnswerEmptyUserAnswer(t *testing.T) {
+	explainer := &fakeExplainer{}
+	repo := &fakeRepo{sentenceJapanese: "x", sentenceEnglish: "y"}
+	srv := NewServer(repo, explainer)
+	body := `{"sentence_id":1,"user_answer":"   "}`
+	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
+	rec := httptest.NewRecorder()
+	srv.explainAnswer(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+	if len(explainer.calledWith) != 0 {
+		t.Fatal("explainer should not be called for an empty user_answer")
+	}
+}
+
+func TestExplainAnswerUserAnswerTooLong(t *testing.T) {
+	explainer := &fakeExplainer{}
+	repo := &fakeRepo{sentenceJapanese: "x", sentenceEnglish: "y"}
+	srv := NewServer(repo, explainer)
+	longAnswer := strings.Repeat("a", maxUserAnswerLength+1)
+	bodyBytes, err := json.Marshal(map[string]any{"sentence_id": 1, "user_answer": longAnswer})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", bytes.NewReader(bodyBytes)), "u1")
+	rec := httptest.NewRecorder()
+	srv.explainAnswer(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+	if len(explainer.calledWith) != 0 {
+		t.Fatal("explainer should not be called for an over-length user_answer")
+	}
+}
+
+func TestExplainAnswerBodyTooLarge(t *testing.T) {
+	explainer := &fakeExplainer{}
+	repo := &fakeRepo{sentenceJapanese: "x", sentenceEnglish: "y"}
+	srv := NewServer(repo, explainer)
+	huge := strings.Repeat("a", maxExplainRequestBytes+1)
+	body := `{"sentence_id":1,"user_answer":"` + huge + `"}`
+	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
+	rec := httptest.NewRecorder()
+	srv.explainAnswer(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+	if len(explainer.calledWith) != 0 {
+		t.Fatal("explainer should not be called for an oversized request body")
+	}
+}
+
 func TestExplainAnswerLLMError(t *testing.T) {
 	explainer := &fakeExplainer{err: errors.New("gemini unavailable")}
-	srv := NewServer(&fakeRepo{}, explainer)
-	body := `{"japanese":"x","correct_answer":"y","user_answer":"z"}`
+	repo := &fakeRepo{sentenceJapanese: "x", sentenceEnglish: "y"}
+	srv := NewServer(repo, explainer)
+	body := `{"sentence_id":1,"user_answer":"z"}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
 	srv.explainAnswer(rec, req)

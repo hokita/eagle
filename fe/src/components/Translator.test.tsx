@@ -85,7 +85,7 @@ describe('Explain button', () => {
     expect(screen.getByRole('button', { name: /^explain$/i })).toBeInTheDocument()
   })
 
-  it('calls api.explainAnswer with the sentence, correct answer, and user answer', async () => {
+  it('calls api.explainAnswer with the sentence id and user answer', async () => {
     mockApi.checkAnswer.mockResolvedValue({
       is_correct: false,
       correct_answer: fakeSentence.english,
@@ -95,11 +95,7 @@ describe('Explain button', () => {
     await answerIncorrectly()
     fireEvent.click(screen.getByRole('button', { name: /^explain$/i }))
     await screen.findByText('Great nuance explanation.')
-    expect(mockApi.explainAnswer).toHaveBeenCalledWith(
-      fakeSentence.japanese,
-      fakeSentence.english,
-      'I have no time.'
-    )
+    expect(mockApi.explainAnswer).toHaveBeenCalledWith(fakeSentence.id, 'I have no time.')
   })
 
   it('shows a loading state while waiting for the explanation', async () => {
