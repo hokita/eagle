@@ -7,6 +7,8 @@ import (
 	"os"
 
 	"cloud.google.com/go/firestore"
+
+	"github.com/hokita/eagle/internal/app"
 )
 
 func main() {
@@ -33,30 +35,20 @@ func main() {
 	}
 	defer client.Close()
 
-	verifier, err := NewFirebaseVerifier(ctx, projectID)
+	verifier, err := app.NewFirebaseVerifier(ctx, projectID)
 	if err != nil {
 		log.Fatalf("failed to create auth verifier: %v", err)
 	}
 
-	explainer, err := NewGeminiExplainer(ctx, geminiAPIKey)
+	explainer, err := app.NewGeminiExplainer(ctx, geminiAPIKey)
 	if err != nil {
 		log.Fatalf("failed to create Gemini explainer: %v", err)
 	}
 
-	srv := NewServer(NewFirestoreRepo(client), explainer)
+	srv := app.NewServer(app.NewFirestoreRepo(client), explainer)
 
 	frontendURL := os.Getenv("FRONTEND_URL")
-
-	auth := func(h http.HandlerFunc) http.HandlerFunc {
-		return withCORS(frontendURL, requireAuth(verifier, allowedEmail, h))
-	}
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/api/sentence/random", auth(srv.getRandomSentence))
-	mux.HandleFunc("/api/answer/check", auth(srv.checkAnswer))
-	mux.HandleFunc("/api/answer/explain", auth(srv.explainAnswer))
-	mux.HandleFunc("/api/sentence/report", auth(srv.reportSentence))
-	mux.HandleFunc("/api/liveness", livenessHandler)
+	mux := app.NewMux(srv, verifier, allowedEmail, frontendURL)
 
 	port := os.Getenv("PORT")
 	if port == "" {
