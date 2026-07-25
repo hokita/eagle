@@ -23,6 +23,10 @@ export interface CheckAnswerResponse {
   histories: AnswerHistory[]
 }
 
+export interface ExplainResponse {
+  explanation: string
+}
+
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? ''
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -53,5 +57,11 @@ export const api = {
     request<void>('/api/sentence/report', {
       method: 'POST',
       body: JSON.stringify({ sentence_id: sentenceId }),
+    }),
+
+  explainAnswer: (sentenceId: number, userAnswer: string) =>
+    request<ExplainResponse>('/api/answer/explain', {
+      method: 'POST',
+      body: JSON.stringify({ sentence_id: sentenceId, user_answer: userAnswer }),
     }),
 }

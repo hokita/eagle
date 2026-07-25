@@ -11,6 +11,18 @@ import (
 	"github.com/hokita/eagle/internal/app"
 )
 
+// stubExplanation is asserted verbatim by e2e/tests/incorrect-explain.spec.ts.
+const stubExplanation = "This is a stub explanation for e2e tests."
+
+// stubExplainer avoids real Gemini calls in e2e tests, keeping every CI run
+// free, fast, and deterministic while still exercising the full HTTP/auth
+// wiring around the Explain endpoint.
+type stubExplainer struct{}
+
+func (stubExplainer) Explain(_ context.Context, _, _, _ string) (string, error) {
+	return stubExplanation, nil
+}
+
 func main() {
 	ctx := context.Background()
 
@@ -24,11 +36,6 @@ func main() {
 		log.Fatal("ALLOWED_EMAIL is required")
 	}
 
-	geminiAPIKey := os.Getenv("GEMINI_API_KEY")
-	if geminiAPIKey == "" {
-		log.Fatal("GEMINI_API_KEY is required")
-	}
-
 	client, err := firestore.NewClient(ctx, projectID)
 	if err != nil {
 		log.Fatalf("failed to create Firestore client: %v", err)
@@ -40,12 +47,7 @@ func main() {
 		log.Fatalf("failed to create auth verifier: %v", err)
 	}
 
-	explainer, err := app.NewGeminiExplainer(ctx, geminiAPIKey)
-	if err != nil {
-		log.Fatalf("failed to create Gemini explainer: %v", err)
-	}
-
-	srv := app.NewServer(app.NewFirestoreRepo(client), explainer)
+	srv := app.NewServer(app.NewFirestoreRepo(client), stubExplainer{})
 
 	frontendURL := os.Getenv("FRONTEND_URL")
 	mux := app.NewMux(srv, verifier, allowedEmail, frontendURL)
@@ -54,6 +56,6 @@ func main() {
 	if port == "" {
 		port = "8080"
 	}
-	log.Printf("Server starting on port %s", port)
+	log.Printf("e2e server starting on port %s", port)
 	log.Fatal(http.ListenAndServe(":"+port, mux))
 }

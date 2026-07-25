@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"context"
@@ -37,6 +37,15 @@ type ReportSentenceRequest struct {
 	SentenceID int `json:"sentence_id"`
 }
 
+type ExplainRequest struct {
+	SentenceID int    `json:"sentence_id"`
+	UserAnswer string `json:"user_answer"`
+}
+
+type ExplainResponse struct {
+	Explanation string `json:"explanation"`
+}
+
 // ErrNotFound is returned when a sentence document does not exist.
 var ErrNotFound = errors.New("sentence not found")
 
@@ -47,6 +56,7 @@ var ErrNoCandidate = errors.New("no candidate sentence")
 type SentenceRepository interface {
 	RandomCandidate(ctx context.Context, uid string) (*Sentence, error)
 	CorrectAnswer(ctx context.Context, id int) (string, error)
+	GetSentence(ctx context.Context, id int) (japanese, english string, err error)
 	ListIncorrectHistories(ctx context.Context, uid string, id int) ([]AnswerHistory, error)
 	RecordAnswer(ctx context.Context, uid string, id int, correct bool, answer string) error
 	Report(ctx context.Context, id int) error

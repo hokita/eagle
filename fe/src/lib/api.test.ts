@@ -79,6 +79,25 @@ describe('api.reportSentence', () => {
   })
 })
 
+describe('api.explainAnswer', () => {
+  it('sends POST /api/answer/explain with sentence_id and user_answer', async () => {
+    mockResponse({ explanation: 'Your answer is also natural.' })
+    const result = await api.explainAnswer(1, 'I have no time.')
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/answer/explain'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          sentence_id: 1,
+          user_answer: 'I have no time.',
+        }),
+        headers: expect.objectContaining({ Authorization: 'Bearer test-token' }),
+      })
+    )
+    expect(result.explanation).toBe('Your answer is also natural.')
+  })
+})
+
 describe('api error handling', () => {
   it('throws when the response is not ok', async () => {
     mockResponse({}, 500)
