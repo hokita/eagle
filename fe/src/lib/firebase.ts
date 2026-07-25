@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app'
-import { getAuth, type Auth } from 'firebase/auth'
+import { getAuth, connectAuthEmulator, type Auth } from 'firebase/auth'
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -16,3 +16,8 @@ export const app = initializeApp(firebaseConfig)
 // which never execute during prerendering — so this fallback is never
 // actually invoked with a live `Auth` on the server.
 export const auth: Auth = typeof window !== 'undefined' ? getAuth(app) : ({} as Auth)
+
+const authEmulatorHost = process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST
+if (typeof window !== 'undefined' && authEmulatorHost) {
+  connectAuthEmulator(auth, authEmulatorHost, { disableWarnings: true })
+}
