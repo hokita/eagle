@@ -22,6 +22,11 @@ func main() {
 		log.Fatal("ALLOWED_EMAIL is required")
 	}
 
+	geminiAPIKey := os.Getenv("GEMINI_API_KEY")
+	if geminiAPIKey == "" {
+		log.Fatal("GEMINI_API_KEY is required")
+	}
+
 	client, err := firestore.NewClient(ctx, projectID)
 	if err != nil {
 		log.Fatalf("failed to create Firestore client: %v", err)
@@ -33,7 +38,12 @@ func main() {
 		log.Fatalf("failed to create auth verifier: %v", err)
 	}
 
-	srv := NewServer(NewFirestoreRepo(client))
+	explainer, err := NewGeminiExplainer(ctx, geminiAPIKey)
+	if err != nil {
+		log.Fatalf("failed to create Gemini explainer: %v", err)
+	}
+
+	srv := NewServer(NewFirestoreRepo(client), explainer)
 
 	frontendURL := os.Getenv("FRONTEND_URL")
 
@@ -44,6 +54,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/sentence/random", auth(srv.getRandomSentence))
 	mux.HandleFunc("/api/answer/check", auth(srv.checkAnswer))
+	mux.HandleFunc("/api/answer/explain", auth(srv.explainAnswer))
 	mux.HandleFunc("/api/sentence/report", auth(srv.reportSentence))
 	mux.HandleFunc("/api/liveness", livenessHandler)
 
