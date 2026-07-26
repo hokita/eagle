@@ -19,9 +19,9 @@ func main() {
 		log.Fatal("GOOGLE_CLOUD_PROJECT is required")
 	}
 
-	allowedEmail := os.Getenv("ALLOWED_EMAIL")
-	if allowedEmail == "" {
-		log.Fatal("ALLOWED_EMAIL is required")
+	allowedEmails := app.ParseAllowedEmails(os.Getenv("ALLOWED_EMAILS"))
+	if len(allowedEmails) == 0 {
+		log.Fatal("ALLOWED_EMAILS is required")
 	}
 
 	geminiAPIKey := os.Getenv("GEMINI_API_KEY")
@@ -48,7 +48,7 @@ func main() {
 	srv := app.NewServer(app.NewFirestoreRepo(client), explainer)
 
 	frontendURL := os.Getenv("FRONTEND_URL")
-	mux := app.NewMux(srv, verifier, allowedEmail, frontendURL)
+	mux := app.NewMux(srv, verifier, allowedEmails, frontendURL)
 
 	port := os.Getenv("PORT")
 	if port == "" {
