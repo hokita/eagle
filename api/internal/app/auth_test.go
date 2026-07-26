@@ -18,7 +18,7 @@ func (f fakeVerifier) Verify(_ context.Context, _ string) (string, string, error
 	return f.uid, f.email, f.err
 }
 
-const testAllowedEmail = "hideee.0202@gmail.com"
+const testAllowedEmail = "test@example.com"
 
 func TestRequireAuthRejectsMissingHeader(t *testing.T) {
 	h := requireAuth(fakeVerifier{uid: "u1", email: testAllowedEmail}, testAllowedEmail, func(w http.ResponseWriter, r *http.Request) {

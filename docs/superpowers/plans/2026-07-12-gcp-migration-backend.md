@@ -43,7 +43,7 @@ Deleted: `api/main_test.go` (old server/MySQL integration tests), `api/.env` (st
 
 ### Task 1: Auth middleware + TokenVerifier interface — DONE (amended in review)
 
-> Implemented with an email allowlist added after code review (crit comment: "is it only allow hideee.0202@gmail.com?"). Investigated `corgi`'s `backend/src/middleware/auth.ts` and matched its convention: a single `ALLOWED_EMAIL` (not a list) checked after token verification, with disallowed email rejected as **401** (not 403) so the response doesn't reveal *why* auth failed. `TokenVerifier.Verify` now returns `(uid, email, error)` instead of `(uid, error)` — this changes the signature Task 4's `firebaseVerifier` must implement below.
+> Implemented with an email allowlist added after code review (crit comment: "is it only allow test@example.com?"). Investigated `corgi`'s `backend/src/middleware/auth.ts` and matched its convention: a single `ALLOWED_EMAIL` (not a list) checked after token verification, with disallowed email rejected as **401** (not 403) so the response doesn't reveal *why* auth failed. `TokenVerifier.Verify` now returns `(uid, email, error)` instead of `(uid, error)` — this changes the signature Task 4's `firebaseVerifier` must implement below.
 
 **Files:**
 - Create: `api/auth.go`
@@ -78,7 +78,7 @@ func (f fakeVerifier) Verify(_ context.Context, _ string) (string, string, error
 	return f.uid, f.email, f.err
 }
 
-const testAllowedEmail = "hideee.0202@gmail.com"
+const testAllowedEmail = "test@example.com"
 
 func TestRequireAuthRejectsMissingHeader(t *testing.T) {
 	h := requireAuth(fakeVerifier{uid: "u1", email: testAllowedEmail}, testAllowedEmail, func(w http.ResponseWriter, r *http.Request) {
@@ -1146,7 +1146,7 @@ gcloud emulators firestore start --host-port=localhost:8090 &
 export FIRESTORE_EMULATOR_HOST=localhost:8090
 export FIREBASE_AUTH_EMULATOR_HOST=localhost:9099
 export GOOGLE_CLOUD_PROJECT=eagle-local
-export ALLOWED_EMAIL=hideee.0202@gmail.com
+export ALLOWED_EMAIL="<your-email>"  # replace with your actual Google account email
 cd api && go run .
 ```
 Expected: logs `Server starting on port 8080` with no fatal error.
@@ -1477,5 +1477,5 @@ git commit -m "feat(api): reinstate CORS middleware, driven by FRONTEND_URL (mat
 - **Frontend-auth plan** must set `NEXT_PUBLIC_API_URL=""` in production, add the Firebase web SDK sign-in gate, and attach `Authorization: Bearer <ID token>` to the three fetch calls, plus `output: "export"` + `images: { unoptimized: true }` in `next.config.ts`.
 - **No dev proxy is used or needed.** Next.js `rewrites()` cannot work with `output: 'export'` (errors in `next dev` too, per Next.js's static-export docs), so local dev talks directly to the Go API cross-origin — same as the pre-migration setup (`NEXT_PUBLIC_API_URL=http://localhost:8080` in dev via `.env.local`, unchanged). CORS is handled server-side by Task 7's `withCORS` middleware. Production stays same-origin via Hosting rewrites, and the frontend-auth/infra plans should set the Cloud Run `FRONTEND_URL` env var to the deployed Hosting URL once known.
 - **Infra/deploy plan** must declare the composite index for collection `histories` `(is_correct ASC, created_at DESC)` in `firestore.indexes.json`, grant the Cloud Run service account `roles/datastore.user`, enable the Firebase Auth Google provider, export the live `sentences` table to `docs/sentences_export.ndjson` before running the seeder against prod, and set the Cloud Run `FRONTEND_URL` env var to the deployed Firebase Hosting URL.
-- **`ALLOWED_EMAIL` must be set as a Cloud Run env var** (value `hideee.0202@gmail.com`) — the API now hard-fails at startup if it's unset (`main.go` Task 5, Step 1). Matches the `corgi` project's single-user allowlist convention.
+- **`ALLOWED_EMAIL` must be set as a Cloud Run env var** (value `<your-email>` — replace with your actual Google account email) — the API now hard-fails at startup if it's unset (`main.go` Task 5, Step 1). Matches the `corgi` project's single-user allowlist convention.
 ```
