@@ -59,6 +59,7 @@ type explainCall struct {
 	japanese      string
 	correctAnswer string
 	userAnswer    string
+	language      string
 }
 
 type fakeExplainer struct {
@@ -67,8 +68,8 @@ type fakeExplainer struct {
 	calledWith  []explainCall
 }
 
-func (f *fakeExplainer) Explain(_ context.Context, japanese, correctAnswer, userAnswer string) (string, error) {
-	f.calledWith = append(f.calledWith, explainCall{japanese, correctAnswer, userAnswer})
+func (f *fakeExplainer) Explain(_ context.Context, japanese, correctAnswer, userAnswer, language string) (string, error) {
+	f.calledWith = append(f.calledWith, explainCall{japanese, correctAnswer, userAnswer, language})
 	return f.explanation, f.err
 }
 
@@ -183,7 +184,7 @@ func TestExplainAnswerOK(t *testing.T) {
 	explainer := &fakeExplainer{explanation: "Your answer is also natural; the reference is just more formal."}
 	repo := &fakeRepo{sentenceJapanese: "時間がありません。", sentenceEnglish: "I don't have time."}
 	srv := NewServer(repo, explainer)
-	body := `{"sentence_id":1,"user_answer":"I have no time."}`
+	body := `{"sentence_id":1,"user_answer":"I have no time.","language":"en"}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
 	srv.explainAnswer(rec, req)
@@ -201,7 +202,7 @@ func TestExplainAnswerOK(t *testing.T) {
 		t.Fatalf("expected Explain called once, got %d", len(explainer.calledWith))
 	}
 	call := explainer.calledWith[0]
-	if call.japanese != "時間がありません。" || call.correctAnswer != "I don't have time." || call.userAnswer != "I have no time." {
+	if call.japanese != "時間がありません。" || call.correctAnswer != "I don't have time." || call.userAnswer != "I have no time." || call.language != "en" {
 		t.Fatalf("unexpected call args: %+v", call)
 	}
 }
@@ -232,7 +233,7 @@ func TestExplainAnswerSentenceNotFound(t *testing.T) {
 	explainer := &fakeExplainer{}
 	repo := &fakeRepo{sentenceErr: ErrNotFound}
 	srv := NewServer(repo, explainer)
-	body := `{"sentence_id":999,"user_answer":"x"}`
+	body := `{"sentence_id":999,"user_answer":"x","language":"en"}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
 	srv.explainAnswer(rec, req)
@@ -301,12 +302,60 @@ func TestExplainAnswerLLMError(t *testing.T) {
 	explainer := &fakeExplainer{err: errors.New("gemini unavailable")}
 	repo := &fakeRepo{sentenceJapanese: "x", sentenceEnglish: "y"}
 	srv := NewServer(repo, explainer)
-	body := `{"sentence_id":1,"user_answer":"z"}`
+	body := `{"sentence_id":1,"user_answer":"z","language":"en"}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
 	srv.explainAnswer(rec, req)
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500, got %d", rec.Code)
+	}
+}
+
+func TestExplainAnswerLanguageJapanese(t *testing.T) {
+	explainer := &fakeExplainer{explanation: "日本語での説明。"}
+	repo := &fakeRepo{sentenceJapanese: "時間がありません。", sentenceEnglish: "I don't have time."}
+	srv := NewServer(repo, explainer)
+	body := `{"sentence_id":1,"user_answer":"I have no time.","language":"ja"}`
+	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
+	rec := httptest.NewRecorder()
+	srv.explainAnswer(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if len(explainer.calledWith) != 1 || explainer.calledWith[0].language != "ja" {
+		t.Fatalf("expected Explain called with language=ja, got %+v", explainer.calledWith)
+	}
+}
+
+func TestExplainAnswerInvalidLanguage(t *testing.T) {
+	explainer := &fakeExplainer{}
+	repo := &fakeRepo{sentenceJapanese: "x", sentenceEnglish: "y"}
+	srv := NewServer(repo, explainer)
+	body := `{"sentence_id":1,"user_answer":"z","language":"fr"}`
+	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
+	rec := httptest.NewRecorder()
+	srv.explainAnswer(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+	if len(explainer.calledWith) != 0 {
+		t.Fatal("explainer should not be called for an invalid language")
+	}
+}
+
+func TestExplainAnswerMissingLanguage(t *testing.T) {
+	explainer := &fakeExplainer{}
+	repo := &fakeRepo{sentenceJapanese: "x", sentenceEnglish: "y"}
+	srv := NewServer(repo, explainer)
+	body := `{"sentence_id":1,"user_answer":"z"}`
+	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
+	rec := httptest.NewRecorder()
+	srv.explainAnswer(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+	if len(explainer.calledWith) != 0 {
+		t.Fatal("explainer should not be called when language is missing")
 	}
 }
 

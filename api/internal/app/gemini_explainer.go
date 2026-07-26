@@ -37,11 +37,11 @@ func NewGeminiExplainer(ctx context.Context, apiKey string) (*GeminiExplainer, e
 	return &GeminiExplainer{models: client.Models, model: geminiExplainModel}, nil
 }
 
-func (g *GeminiExplainer) Explain(ctx context.Context, japanese, correctAnswer, userAnswer string) (string, error) {
+func (g *GeminiExplainer) Explain(ctx context.Context, japanese, correctAnswer, userAnswer, language string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, explainTimeout)
 	defer cancel()
 
-	prompt := buildExplainPrompt(japanese, correctAnswer, userAnswer)
+	prompt := buildExplainPrompt(japanese, correctAnswer, userAnswer, language)
 	contents := []*genai.Content{{Parts: []*genai.Part{{Text: prompt}}}}
 
 	resp, err := g.models.GenerateContent(ctx, g.model, contents, nil)

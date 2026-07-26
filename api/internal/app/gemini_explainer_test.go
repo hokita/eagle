@@ -34,7 +34,7 @@ func TestGeminiExplainerExplainReturnsText(t *testing.T) {
 	}
 	g := &GeminiExplainer{models: fake, model: "gemini-2.5-flash"}
 
-	got, err := g.Explain(context.Background(), "japanese", "correct", "user")
+	got, err := g.Explain(context.Background(), "japanese", "correct", "user", "en")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -56,7 +56,7 @@ func TestGeminiExplainerExplainPropagatesError(t *testing.T) {
 	fake := &fakeContentGenerator{err: errors.New("network error")}
 	g := &GeminiExplainer{models: fake, model: "gemini-2.5-flash"}
 
-	_, err := g.Explain(context.Background(), "japanese", "correct", "user")
+	_, err := g.Explain(context.Background(), "japanese", "correct", "user", "en")
 	if err == nil {
 		t.Fatal("expected error")
 	}
