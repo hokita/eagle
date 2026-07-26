@@ -40,6 +40,7 @@ const fakeSentence = {
 beforeEach(() => {
   vi.clearAllMocks()
   mockApi.getRandomSentence.mockResolvedValue(fakeSentence)
+  localStorage.clear()
 })
 
 async function answerIncorrectly() {
@@ -95,7 +96,7 @@ describe('Explain button', () => {
     await answerIncorrectly()
     fireEvent.click(screen.getByRole('button', { name: /^explain$/i }))
     await screen.findByText('Great nuance explanation.')
-    expect(mockApi.explainAnswer).toHaveBeenCalledWith(fakeSentence.id, 'I have no time.')
+    expect(mockApi.explainAnswer).toHaveBeenCalledWith(fakeSentence.id, 'I have no time.', 'en')
   })
 
   it('shows a loading state while waiting for the explanation', async () => {
@@ -144,5 +145,114 @@ describe('Explain button', () => {
     fireEvent.click(screen.getByRole('button', { name: /^explain$/i }))
     await screen.findByText('API error: 500')
     expect(screen.getByRole('button', { name: /^explain$/i })).toBeEnabled()
+  })
+
+  it('shows an EN/JA language toggle next to the Explain button', async () => {
+    mockApi.checkAnswer.mockResolvedValue({
+      is_correct: false,
+      correct_answer: fakeSentence.english,
+      histories: [],
+    })
+    await answerIncorrectly()
+    expect(screen.getByRole('button', { name: 'EN' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'JA' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'EN' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('does not call api.explainAnswer when switching language before explaining', async () => {
+    mockApi.checkAnswer.mockResolvedValue({
+      is_correct: false,
+      correct_answer: fakeSentence.english,
+      histories: [],
+    })
+    await answerIncorrectly()
+    fireEvent.click(screen.getByRole('button', { name: 'JA' }))
+    expect(mockApi.explainAnswer).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'JA' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('re-fetches the explanation in the new language when the toggle is switched after explaining', async () => {
+    mockApi.checkAnswer.mockResolvedValue({
+      is_correct: false,
+      correct_answer: fakeSentence.english,
+      histories: [],
+    })
+    mockApi.explainAnswer.mockResolvedValueOnce({ explanation: 'English explanation.' })
+    await answerIncorrectly()
+    fireEvent.click(screen.getByRole('button', { name: /^explain$/i }))
+    await screen.findByText('English explanation.')
+
+    mockApi.explainAnswer.mockResolvedValueOnce({ explanation: '日本語の説明。' })
+    fireEvent.click(screen.getByRole('button', { name: 'JA' }))
+    await screen.findByText('日本語の説明。')
+
+    expect(mockApi.explainAnswer).toHaveBeenLastCalledWith(fakeSentence.id, 'I have no time.', 'ja')
+  })
+
+  it('persists the selected language to localStorage and restores it on remount', async () => {
+    mockApi.checkAnswer.mockResolvedValue({
+      is_correct: false,
+      correct_answer: fakeSentence.english,
+      histories: [],
+    })
+    const { unmount } = render(<Translator user={fakeUser} />)
+    await screen.findByText(fakeSentence.japanese)
+    fireEvent.change(screen.getByLabelText(/your english translation/i), {
+      target: { value: 'I have no time.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /check translation/i }))
+    await screen.findByText(/not quite right/i)
+    fireEvent.click(screen.getByRole('button', { name: 'JA' }))
+    expect(localStorage.getItem('eagle:explainLanguage')).toBe('ja')
+    unmount()
+
+    render(<Translator user={fakeUser} />)
+    await screen.findByText(fakeSentence.japanese)
+    fireEvent.change(screen.getByLabelText(/your english translation/i), {
+      target: { value: 'I have no time.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /check translation/i }))
+    await screen.findByText(/not quite right/i)
+    expect(screen.getByRole('button', { name: 'JA' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('clears the previous explanation if a language-switch re-fetch fails', async () => {
+    mockApi.checkAnswer.mockResolvedValue({
+      is_correct: false,
+      correct_answer: fakeSentence.english,
+      histories: [],
+    })
+    mockApi.explainAnswer.mockResolvedValueOnce({ explanation: 'English explanation.' })
+    await answerIncorrectly()
+    fireEvent.click(screen.getByRole('button', { name: /^explain$/i }))
+    await screen.findByText('English explanation.')
+
+    mockApi.explainAnswer.mockRejectedValueOnce(new Error('API error: 500'))
+    fireEvent.click(screen.getByRole('button', { name: 'JA' }))
+    await screen.findByText('API error: 500')
+
+    expect(screen.queryByText('English explanation.')).not.toBeInTheDocument()
+  })
+
+  it('disables the language toggle buttons while an explanation fetch is in progress', async () => {
+    mockApi.checkAnswer.mockResolvedValue({
+      is_correct: false,
+      correct_answer: fakeSentence.english,
+      histories: [],
+    })
+    let resolveExplain: (value: { explanation: string }) => void = () => {}
+    mockApi.explainAnswer.mockReturnValue(
+      new Promise(resolve => {
+        resolveExplain = resolve
+      })
+    )
+    await answerIncorrectly()
+    fireEvent.click(screen.getByRole('button', { name: /^explain$/i }))
+    await screen.findByRole('button', { name: /explaining/i })
+    expect(screen.getByRole('button', { name: 'EN' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'JA' })).toBeDisabled()
+    await act(async () => resolveExplain({ explanation: 'Explanation text.' }))
+    expect(screen.getByRole('button', { name: 'EN' })).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: 'JA' })).not.toBeDisabled()
   })
 })

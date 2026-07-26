@@ -19,7 +19,7 @@ const stubExplanation = "This is a stub explanation for e2e tests."
 // wiring around the Explain endpoint.
 type stubExplainer struct{}
 
-func (stubExplainer) Explain(_ context.Context, _, _, _ string) (string, error) {
+func (stubExplainer) Explain(_ context.Context, _, _, _, _ string) (string, error) {
 	return stubExplanation, nil
 }
 
