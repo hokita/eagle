@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"net/http"
+	"slices"
 	"strings"
 )
 
@@ -26,15 +27,15 @@ func uidFromContext(ctx context.Context) (string, bool) {
 }
 
 // requireAuth wraps a handler, requiring a valid "Authorization: Bearer <token>"
-// header whose verified email matches allowedEmail. On success it injects the
-// verified uid into the request context.
+// header whose verified email is present in allowedEmails. On success it
+// injects the verified uid into the request context.
 //
-// This is a single-user allowlist (one exact email, not a list) matching the
-// ALLOWED_EMAIL convention used by the corgi project. A disallowed or missing
-// email is rejected with 401 (not 403), matching corgi's authMiddleware, so
-// the response doesn't reveal whether the token was invalid or just the
-// wrong account.
-func requireAuth(v TokenVerifier, allowedEmail string, next http.HandlerFunc) http.HandlerFunc {
+// This is a multi-email allowlist (exact match against a fixed,
+// operator-configured set of addresses) matching the ALLOWED_EMAILS
+// convention. A disallowed or missing email is rejected with 401 (not
+// 403), matching corgi's authMiddleware, so the response doesn't reveal
+// whether the token was invalid or just the wrong account.
+func requireAuth(v TokenVerifier, allowedEmails []string, next http.HandlerFunc) http.HandlerFunc {
 	const prefix = "Bearer "
 	return func(w http.ResponseWriter, r *http.Request) {
 		authz := r.Header.Get("Authorization")
@@ -52,7 +53,7 @@ func requireAuth(v TokenVerifier, allowedEmail string, next http.HandlerFunc) ht
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		if email == "" || email != allowedEmail {
+		if email == "" || !slices.Contains(allowedEmails, email) {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
