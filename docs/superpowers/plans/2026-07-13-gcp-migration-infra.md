@@ -6,7 +6,7 @@
 
 **Architecture:** Cross-origin + CORS, matching `corgi`'s actual production setup — confirmed by reading its real `firebase.json` (no `/api/**` rewrite) and `frontend.yml` (bakes in the real Cloud Run URL as `VITE_API_URL` at build time). No backend or frontend code changes are needed for this; only the infra/build-time values differ from the (now-corrected) original same-origin design. `ALLOWED_EMAIL` is stored in Secret Manager and mounted into Cloud Run, matching corgi's `backend.yml` pattern, rather than a plain env var.
 
-**Tech Stack:** `gcloud` CLI (already authenticated as `test@example.com`), `firebase` CLI (v15.22.0, already installed), GitHub Actions, Workload Identity Federation (`google-github-actions/auth`), Firestore Native mode, Cloud Run, Artifact Registry, Secret Manager.
+**Tech Stack:** `gcloud` CLI (already authenticated as `<your-email>`), `firebase` CLI (v15.22.0, already installed), GitHub Actions, Workload Identity Federation (`google-github-actions/auth`), Firestore Native mode, Cloud Run, Artifact Registry, Secret Manager.
 
 ## Global Constraints
 
@@ -15,7 +15,7 @@
 - Region: `asia-northeast1` (Tokyo) — matches corgi's region, per the design spec.
 - GitHub repo: `hokita/eagle`. WIF trust is scoped to exactly this repo.
 - Architecture is cross-origin + CORS (see Goal/Architecture above) — **no** `firebase.json` rewrite for `/api/**`, and **no** code changes to `api/` or `fe/src/` in this plan. Only new/modified files are infra config, GitHub workflows, and env values baked in at CI build time.
-- `ALLOWED_EMAIL` value: `test@example.com` (matches the backend's existing `ALLOWED_EMAIL` design from the backend plan).
+- `ALLOWED_EMAIL` value: `<your-email>` — replace with your actual Google account email everywhere it appears in this doc; it is not a literal value to run as-is (matches the backend's existing `ALLOWED_EMAIL` design from the backend plan).
 - Enabling the Google sign-in provider in Firebase Auth has **no CLI path** — confirmed neither `gcloud` (stable or beta) nor the `firebase` CLI expose a command for it. That step is manual (Firebase Console), documented precisely in Task 3.
 - Task 13 (seeding real production data) needs network access to the live home-network MySQL instance (`192.168.1.101`, per the original `fe/.env.production`). This sandboxed environment likely cannot reach a private home LAN IP — flagged explicitly in that task rather than assumed away.
 - No TDD/red-green cycle applies to pure infrastructure-provisioning steps (there's no test to fail first); "verification" instead means confirming the resource exists and behaves as expected via `gcloud`/`firebase`/`curl`. Steps that produce new committed files (workflows, `firebase.json`) are still reviewed like code.
@@ -191,7 +191,7 @@ user data, not provider config) can do this. In the Firebase Console:
 
 1. Go to `https://console.firebase.google.com/project/eagle-473ac1/authentication/providers`.
 2. Click **Google** in the Sign-in providers list → **Enable**.
-3. Set a project support email (use `test@example.com`).
+3. Set a project support email (use `<your-email>`).
 4. Save.
 
 - [ ] **Step 2: [MANUAL] Add authorized domains**
@@ -289,7 +289,7 @@ gcloud secrets create ALLOWED_EMAIL --project=eagle-473ac1 --replication-policy=
 - [ ] **Step 2: [CONFIRM] Add the value**
 
 ```bash
-printf '%s' 'test@example.com' | \
+printf '%s' '<your-email>' | \
   gcloud secrets versions add ALLOWED_EMAIL --project=eagle-473ac1 --data-file=-
 ```
 (Uses `printf '%s'`, not `echo`, to avoid a trailing newline in the secret value.)
@@ -308,7 +308,7 @@ gcloud secrets add-iam-policy-binding ALLOWED_EMAIL \
 ```bash
 gcloud secrets versions access latest --secret=ALLOWED_EMAIL --project=eagle-473ac1
 ```
-Expected: prints `test@example.com` with no trailing newline.
+Expected: prints `<your-email>` with no trailing newline.
 
 ---
 
@@ -842,7 +842,7 @@ export GOOGLE_CLOUD_PROJECT=eagle-473ac1
 cd api && go run ./cmd/seed -file ../docs/sentences_export.ndjson
 ```
 Requires Application Default Credentials for a principal with Firestore write
-access — run as `test@example.com` (already the active `gcloud auth`
+access — run as `<your-email>` (already the active `gcloud auth`
 account) via `gcloud auth application-default login` if ADC isn't already set
 up for this account.
 Expected: `seeded N sentences` where N is ~790 (or the count from the actual
@@ -913,7 +913,7 @@ gh workflow run deploy-fe.yml --repo hokita/eagle --ref gcp-migration
 
 Open the Hosting URL (`https://eagle-473ac1.web.app`) in a browser:
 1. Confirm the `LoginScreen` renders (not a crash/blank page).
-2. Sign in with Google (`test@example.com`).
+2. Sign in with Google (`<your-email>`).
 3. Confirm `Translator` renders with a real sentence.
 4. Submit a translation, confirm correct/incorrect feedback and history work.
 5. Click "Next Sentence", confirm a new sentence loads.
