@@ -216,6 +216,24 @@ describe('Explain button', () => {
     expect(screen.getByRole('button', { name: 'JA' })).toHaveAttribute('aria-pressed', 'true')
   })
 
+  it('clears the previous explanation if a language-switch re-fetch fails', async () => {
+    mockApi.checkAnswer.mockResolvedValue({
+      is_correct: false,
+      correct_answer: fakeSentence.english,
+      histories: [],
+    })
+    mockApi.explainAnswer.mockResolvedValueOnce({ explanation: 'English explanation.' })
+    await answerIncorrectly()
+    fireEvent.click(screen.getByRole('button', { name: /^explain$/i }))
+    await screen.findByText('English explanation.')
+
+    mockApi.explainAnswer.mockRejectedValueOnce(new Error('API error: 500'))
+    fireEvent.click(screen.getByRole('button', { name: 'JA' }))
+    await screen.findByText('API error: 500')
+
+    expect(screen.queryByText('English explanation.')).not.toBeInTheDocument()
+  })
+
   it('disables the language toggle buttons while an explanation fetch is in progress', async () => {
     mockApi.checkAnswer.mockResolvedValue({
       is_correct: false,

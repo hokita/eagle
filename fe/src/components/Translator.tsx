@@ -110,6 +110,7 @@ export default function Translator({ user }: Props) {
     if (!currentSentence) return
     setExplaining(true)
     setExplainError(null)
+    setExplanation(null)
     try {
       const result = await api.explainAnswer(currentSentence.id, userTranslation, language)
       setExplanation(result.explanation)
