@@ -380,6 +380,7 @@ export default function Translator({ user }: Props) {
                             size="sm"
                             aria-pressed={explainLanguage === 'en'}
                             onClick={() => selectExplainLanguage('en')}
+                            disabled={explaining}
                           >
                             EN
                           </Button>
@@ -389,6 +390,7 @@ export default function Translator({ user }: Props) {
                             size="sm"
                             aria-pressed={explainLanguage === 'ja'}
                             onClick={() => selectExplainLanguage('ja')}
+                            disabled={explaining}
                           >
                             JA
                           </Button>

@@ -215,4 +215,26 @@ describe('Explain button', () => {
     await screen.findByText(/not quite right/i)
     expect(screen.getByRole('button', { name: 'JA' })).toHaveAttribute('aria-pressed', 'true')
   })
+
+  it('disables the language toggle buttons while an explanation fetch is in progress', async () => {
+    mockApi.checkAnswer.mockResolvedValue({
+      is_correct: false,
+      correct_answer: fakeSentence.english,
+      histories: [],
+    })
+    let resolveExplain: (value: { explanation: string }) => void = () => {}
+    mockApi.explainAnswer.mockReturnValue(
+      new Promise(resolve => {
+        resolveExplain = resolve
+      })
+    )
+    await answerIncorrectly()
+    fireEvent.click(screen.getByRole('button', { name: /^explain$/i }))
+    await screen.findByRole('button', { name: /explaining/i })
+    expect(screen.getByRole('button', { name: 'EN' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'JA' })).toBeDisabled()
+    await act(async () => resolveExplain({ explanation: 'Explanation text.' }))
+    expect(screen.getByRole('button', { name: 'EN' })).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: 'JA' })).not.toBeDisabled()
+  })
 })
