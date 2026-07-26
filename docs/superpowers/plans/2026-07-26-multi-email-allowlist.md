@@ -380,8 +380,15 @@ git commit -m "feat(api): support multiple allowed emails in requireAuth"
 
 **Files:**
 - Modify: `api/main.go`
+- Modify: `api/cmd/e2eserver/main.go` — a second binary (used by the
+  Playwright e2e suite) that independently reads `ALLOWED_EMAIL` and
+  calls `app.NewMux` with the same signature as `api/main.go`; it must
+  be updated in lockstep or the module fails to build.
 - Modify: `api/.env.example`
 - Modify: `.github/workflows/deploy-api.yml`
+- Modify: `e2e/playwright.config.ts` — sets `ALLOWED_EMAIL` in the
+  `cmd/e2eserver` process env; must be renamed to `ALLOWED_EMAILS` or
+  the e2e server fails its own startup check.
 
 **Interfaces:**
 - Consumes: `app.ParseAllowedEmails(raw string) []string` (Task 1),
@@ -421,7 +428,42 @@ with:
 	mux := app.NewMux(srv, verifier, allowedEmails, frontendURL)
 ```
 
-- [ ] **Step 2: Update api/.env.example**
+- [ ] **Step 2: Update api/cmd/e2eserver/main.go**
+
+This is a second binary (used by the Playwright e2e suite) that
+independently reads `ALLOWED_EMAIL` and calls `app.NewMux` with the same
+shape as `api/main.go`. It must change in lockstep or the module fails
+to build. In `api/cmd/e2eserver/main.go`, replace:
+
+```go
+	allowedEmail := os.Getenv("ALLOWED_EMAIL")
+	if allowedEmail == "" {
+		log.Fatal("ALLOWED_EMAIL is required")
+	}
+```
+
+with:
+
+```go
+	allowedEmails := app.ParseAllowedEmails(os.Getenv("ALLOWED_EMAILS"))
+	if len(allowedEmails) == 0 {
+		log.Fatal("ALLOWED_EMAILS is required")
+	}
+```
+
+And replace:
+
+```go
+	mux := app.NewMux(srv, verifier, allowedEmail, frontendURL)
+```
+
+with:
+
+```go
+	mux := app.NewMux(srv, verifier, allowedEmails, frontendURL)
+```
+
+- [ ] **Step 3: Update api/.env.example**
 
 Replace:
 
@@ -435,7 +477,7 @@ with:
 ALLOWED_EMAILS=you@gmail.com,someone-else@gmail.com
 ```
 
-- [ ] **Step 3: Update the Cloud Run deploy workflow**
+- [ ] **Step 4: Update the Cloud Run deploy workflow**
 
 In `.github/workflows/deploy-api.yml`, replace:
 
@@ -461,18 +503,38 @@ printf 'you@gmail.com,someone-else@gmail.com' | gcloud secrets versions add ALLO
 This is a manual production step outside the repo — not part of this
 task's commit.
 
-- [ ] **Step 4: Verify the whole module builds and passes**
+- [ ] **Step 5: Update e2e/playwright.config.ts**
+
+The Playwright e2e suite starts `cmd/e2eserver` with `ALLOWED_EMAIL` set
+in its process env (`e2e/playwright.config.ts` around line 24). Replace:
+
+```ts
+        ALLOWED_EMAIL: 'e2e-test@example.com',
+```
+
+with:
+
+```ts
+        ALLOWED_EMAILS: 'e2e-test@example.com',
+```
+
+(Single value is fine — `ParseAllowedEmails` handles a one-entry list
+the same as any other. No comma needed since there's only one e2e test
+account, matching `e2e/tests/helpers.ts`'s `TEST_EMAIL` constant, which
+is unchanged.)
+
+- [ ] **Step 6: Verify the whole module builds and passes**
 
 Run: `cd api && go vet ./... && go test ./...`
 Expected: PASS, no vet warnings, no compile errors anywhere in the module
-(confirms `main.go` compiles against the new `app.ParseAllowedEmails`
-and `app.NewMux` signatures).
+(confirms both `main.go` and `cmd/e2eserver/main.go` compile against the
+new `app.ParseAllowedEmails` and `app.NewMux` signatures).
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add api/main.go api/.env.example .github/workflows/deploy-api.yml
-git commit -m "feat(api): wire ALLOWED_EMAILS through main and deploy config"
+git add api/main.go api/cmd/e2eserver/main.go api/.env.example .github/workflows/deploy-api.yml e2e/playwright.config.ts
+git commit -m "feat(api): wire ALLOWED_EMAILS through main, e2e server, and deploy config"
 ```
 
 ---
