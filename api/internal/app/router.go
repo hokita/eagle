@@ -4,9 +4,9 @@ import "net/http"
 
 // NewMux wires all HTTP routes with CORS and auth, matching the API's
 // public surface exactly.
-func NewMux(srv *Server, verifier TokenVerifier, allowedEmail, frontendURL string) *http.ServeMux {
+func NewMux(srv *Server, verifier TokenVerifier, allowedEmails []string, frontendURL string) *http.ServeMux {
 	auth := func(h http.HandlerFunc) http.HandlerFunc {
-		return withCORS(frontendURL, requireAuth(verifier, allowedEmail, h))
+		return withCORS(frontendURL, requireAuth(verifier, allowedEmails, h))
 	}
 
 	mux := http.NewServeMux()
