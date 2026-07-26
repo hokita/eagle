@@ -1146,7 +1146,7 @@ gcloud emulators firestore start --host-port=localhost:8090 &
 export FIRESTORE_EMULATOR_HOST=localhost:8090
 export FIREBASE_AUTH_EMULATOR_HOST=localhost:9099
 export GOOGLE_CLOUD_PROJECT=eagle-local
-export ALLOWED_EMAIL=<your-email>  # replace with your actual Google account email
+export ALLOWED_EMAIL="<your-email>"  # replace with your actual Google account email
 cd api && go run .
 ```
 Expected: logs `Server starting on port 8080` with no fatal error.
