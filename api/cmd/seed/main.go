@@ -19,7 +19,25 @@ type row struct {
 	Japanese   string      `json:"japanese"`
 	English    string      `json:"english"`
 	Page       json.Number `json:"page"`
+	Level      int         `json:"level"`
 	IsReported int         `json:"is_reported"`
+}
+
+// toFirestoreFields builds the Firestore write payload for one NDJSON row,
+// validating that level falls in the supported 1-5 difficulty range.
+func toFirestoreFields(rw row, now string) (map[string]interface{}, error) {
+	if rw.Level < 1 || rw.Level > 5 {
+		return nil, fmt.Errorf("sentence %d: level must be 1-5, got %d", rw.ID, rw.Level)
+	}
+	return map[string]interface{}{
+		"japanese":    rw.Japanese,
+		"english":     rw.English,
+		"page":        rw.Page.String(),
+		"level":       rw.Level,
+		"is_reported": rw.IsReported != 0,
+		"created_at":  now,
+		"updated_at":  now,
+	}, nil
 }
 
 func main() {
@@ -57,14 +75,11 @@ func main() {
 		if err := json.Unmarshal(line, &rw); err != nil {
 			log.Fatalf("parse line: %v", err)
 		}
-		_, err := client.Collection("sentences").Doc(strconv.Itoa(rw.ID)).Set(ctx, map[string]interface{}{
-			"japanese":    rw.Japanese,
-			"english":     rw.English,
-			"page":        rw.Page.String(),
-			"is_reported": rw.IsReported != 0,
-			"created_at":  now,
-			"updated_at":  now,
-		})
+		fields, err := toFirestoreFields(rw, now)
+		if err != nil {
+			log.Fatalf("invalid row: %v", err)
+		}
+		_, err = client.Collection("sentences").Doc(strconv.Itoa(rw.ID)).Set(ctx, fields)
 		if err != nil {
 			log.Fatalf("write sentence %d: %v", rw.ID, err)
 		}

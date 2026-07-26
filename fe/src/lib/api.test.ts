@@ -32,6 +32,7 @@ describe('api.getRandomSentence', () => {
       japanese: '時間がありません。',
       english: "I don't have time.",
       page: '12',
+      level: 2,
       correct_count: 0,
       incorrect_count: 0,
       created_at: '2026-01-01T00:00:00Z',
@@ -46,6 +47,20 @@ describe('api.getRandomSentence', () => {
     )
     expect(result.id).toBe(1)
     expect(result.english).toBe("I don't have time.")
+  })
+
+  it('omits the level query param when no level is given', async () => {
+    mockResponse({ id: 1 })
+    await api.getRandomSentence()
+    const [url] = mockFetch.mock.calls[0]
+    expect(url).not.toContain('level=')
+  })
+
+  it('sends the level query param when a level is given', async () => {
+    mockResponse({ id: 1 })
+    await api.getRandomSentence(3)
+    const [url] = mockFetch.mock.calls[0]
+    expect(url).toContain('/api/sentence/random?level=3')
   })
 })
 

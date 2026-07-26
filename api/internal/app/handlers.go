@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -34,7 +35,16 @@ func (s *Server) getRandomSentence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	uid, _ := uidFromContext(r.Context())
-	sentence, err := s.repo.RandomCandidate(r.Context(), uid)
+	level := 0
+	if raw := r.URL.Query().Get("level"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 || n > 5 {
+			http.Error(w, "Invalid level parameter", http.StatusBadRequest)
+			return
+		}
+		level = n
+	}
+	sentence, err := s.repo.RandomCandidate(r.Context(), uid, level)
 	if errors.Is(err, ErrNoCandidate) {
 		http.Error(w, "No sentences found", http.StatusNotFound)
 		return

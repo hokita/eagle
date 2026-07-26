@@ -21,6 +21,7 @@ type recordedAnswer struct {
 type fakeRepo struct {
 	random           *Sentence
 	randomErr        error
+	randomLevels     []int
 	correct          string
 	correctErr       error
 	sentenceJapanese string
@@ -31,7 +32,8 @@ type fakeRepo struct {
 	reported         []int
 }
 
-func (f *fakeRepo) RandomCandidate(_ context.Context, _ string) (*Sentence, error) {
+func (f *fakeRepo) RandomCandidate(_ context.Context, _ string, level int) (*Sentence, error) {
+	f.randomLevels = append(f.randomLevels, level)
 	return f.random, f.randomErr
 }
 func (f *fakeRepo) CorrectAnswer(_ context.Context, _ int) (string, error) {
@@ -90,6 +92,49 @@ func TestGetRandomSentenceOK(t *testing.T) {
 	}
 	if got.ID != 7 || got.English != "dog" {
 		t.Fatalf("unexpected body: %+v", got)
+	}
+}
+
+func TestGetRandomSentencePassesLevelToRepo(t *testing.T) {
+	repo := &fakeRepo{random: &Sentence{ID: 7}}
+	srv := NewServer(repo, &fakeExplainer{})
+	rec := httptest.NewRecorder()
+	srv.getRandomSentence(rec, authed(httptest.NewRequest(http.MethodGet, "/api/sentence/random?level=3", nil), "u1"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if len(repo.randomLevels) != 1 || repo.randomLevels[0] != 3 {
+		t.Fatalf("expected repo called with level 3, got %v", repo.randomLevels)
+	}
+}
+
+func TestGetRandomSentenceNoLevelDefaultsToZero(t *testing.T) {
+	repo := &fakeRepo{random: &Sentence{ID: 7}}
+	srv := NewServer(repo, &fakeExplainer{})
+	rec := httptest.NewRecorder()
+	srv.getRandomSentence(rec, authed(httptest.NewRequest(http.MethodGet, "/api/sentence/random", nil), "u1"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if len(repo.randomLevels) != 1 || repo.randomLevels[0] != 0 {
+		t.Fatalf("expected repo called with level 0, got %v", repo.randomLevels)
+	}
+}
+
+func TestGetRandomSentenceInvalidLevel(t *testing.T) {
+	for _, level := range []string{"0", "6", "-1", "abc", "3.5"} {
+		t.Run(level, func(t *testing.T) {
+			repo := &fakeRepo{random: &Sentence{ID: 7}}
+			srv := NewServer(repo, &fakeExplainer{})
+			rec := httptest.NewRecorder()
+			srv.getRandomSentence(rec, authed(httptest.NewRequest(http.MethodGet, "/api/sentence/random?level="+level, nil), "u1"))
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("expected 400 for level=%q, got %d", level, rec.Code)
+			}
+			if len(repo.randomLevels) != 0 {
+				t.Fatalf("expected repo not called for invalid level=%q, got %v", level, repo.randomLevels)
+			}
+		})
 	}
 }
 

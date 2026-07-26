@@ -38,6 +38,7 @@ export default function Translator({ user }: Props) {
   const [explanation, setExplanation] = useState<string | null>(null)
   const [explaining, setExplaining] = useState(false)
   const [explainError, setExplainError] = useState<string | null>(null)
+  const [level, setLevel] = useState(0)
 
   const speakJapanese = (text: string) => {
     if ('speechSynthesis' in window) {
@@ -114,11 +115,11 @@ export default function Translator({ user }: Props) {
     }
   }
 
-  const getRandomSentence = async () => {
+  const getRandomSentence = async (levelOverride?: number) => {
     try {
       setLoading(true)
       setError(null)
-      const sentence = await api.getRandomSentence()
+      const sentence = await api.getRandomSentence(levelOverride ?? level)
       setCurrentSentence(sentence)
       setCorrectCount(sentence.correct_count)
       setIncorrectCount(sentence.incorrect_count)
@@ -155,7 +156,7 @@ export default function Translator({ user }: Props) {
     }
   }
 
-  const nextSentence = () => {
+  const resetQuestionState = () => {
     setUserTranslation('')
     setFeedback(null)
     setShowAnswer(false)
@@ -168,48 +169,49 @@ export default function Translator({ user }: Props) {
     setExplanation(null)
     setExplaining(false)
     setExplainError(null)
-    speechSynthesis.cancel()
+    if ('speechSynthesis' in window) {
+      speechSynthesis.cancel()
+    }
+  }
+
+  const nextSentence = () => {
+    resetQuestionState()
     getRandomSentence()
+  }
+
+  const handleLevelChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newLevel = Number(e.target.value)
+    setLevel(newLevel)
+    resetQuestionState()
+    getRandomSentence(newLevel)
   }
 
   useEffect(() => {
     getRandomSentence()
   }, [])
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (error || !currentSentence) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 flex items-center justify-center">
-        <Card className="max-w-md">
-          <CardHeader>
-            <CardTitle className="text-red-600">Error</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-gray-700 mb-4">{error || 'Failed to load content'}</p>
-            <Button onClick={() => getRandomSentence()} className="w-full">
-              Try Again
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
+  const levelSelector = (
+    <select
+      aria-label="Sentence difficulty level"
+      value={level}
+      onChange={handleLevelChange}
+      className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+    >
+      <option value={0}>Any level</option>
+      <option value={1}>1</option>
+      <option value={2}>2</option>
+      <option value={3}>3</option>
+      <option value={4}>4</option>
+      <option value={5}>5</option>
+    </select>
+  )
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <div className="max-w-2xl mx-auto">
         <div className="mb-8">
-          <div className="flex items-center justify-end mb-2">
+          <div className="flex items-center justify-end mb-2 gap-2">
+            {levelSelector}
             <UserMenu user={user} />
           </div>
           <div className="flex items-center justify-center gap-2">
@@ -218,6 +220,24 @@ export default function Translator({ user }: Props) {
           </div>
         </div>
 
+        {loading ? (
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading...</p>
+          </div>
+        ) : error || !currentSentence ? (
+          <Card className="max-w-md mx-auto">
+            <CardHeader>
+              <CardTitle className="text-red-600">Error</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-700 mb-4">{error || 'Failed to load content'}</p>
+              <Button onClick={() => getRandomSentence()} className="w-full">
+                Try Again
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
         <div className="grid gap-6 mb-6">
           <Card>
             <CardHeader>
@@ -401,6 +421,7 @@ export default function Translator({ user }: Props) {
 
           </Card>
         </div>
+        )}
       </div>
     </div>
   )

@@ -31,6 +31,7 @@ const fakeSentence = {
   japanese: '時間がありません。',
   english: "I don't have time.",
   page: '12',
+  level: 2,
   correct_count: 0,
   incorrect_count: 0,
   created_at: '2026-01-01T00:00:00Z',
@@ -51,6 +52,56 @@ async function answerIncorrectly() {
   fireEvent.click(screen.getByRole('button', { name: /check translation/i }))
   await screen.findByText(/not quite right/i)
 }
+
+describe('Level selector', () => {
+  it('defaults to "Any level" and fetches with no level filter on mount', async () => {
+    render(<Translator user={fakeUser} />)
+    await screen.findByText(fakeSentence.japanese)
+    expect(screen.getByLabelText(/sentence difficulty level/i)).toHaveValue('0')
+    expect(mockApi.getRandomSentence).toHaveBeenCalledWith(0)
+  })
+
+  it('offers levels 1 through 5', async () => {
+    render(<Translator user={fakeUser} />)
+    await screen.findByText(fakeSentence.japanese)
+    const select = screen.getByLabelText(/sentence difficulty level/i)
+    const values = Array.from(select.querySelectorAll('option')).map(o => (o as HTMLOptionElement).value)
+    expect(values).toEqual(['0', '1', '2', '3', '4', '5'])
+  })
+
+  it('refetches with the chosen level when the user picks one', async () => {
+    render(<Translator user={fakeUser} />)
+    await screen.findByText(fakeSentence.japanese)
+    const otherSentence = { ...fakeSentence, id: 2, japanese: '違う文です。', level: 3 }
+    mockApi.getRandomSentence.mockResolvedValueOnce(otherSentence)
+    fireEvent.change(screen.getByLabelText(/sentence difficulty level/i), { target: { value: '3' } })
+    await screen.findByText('違う文です。')
+    expect(mockApi.getRandomSentence).toHaveBeenLastCalledWith(3)
+  })
+
+  it('resets in-progress answer state when the level changes', async () => {
+    mockApi.checkAnswer.mockResolvedValue({
+      is_correct: false,
+      correct_answer: fakeSentence.english,
+      histories: [],
+    })
+    await answerIncorrectly()
+    mockApi.getRandomSentence.mockResolvedValueOnce({ ...fakeSentence, id: 3, level: 1 })
+    fireEvent.change(screen.getByLabelText(/sentence difficulty level/i), { target: { value: '1' } })
+    await screen.findByLabelText(/your english translation/i)
+    expect(screen.queryByText(/not quite right/i)).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/your english translation/i)).toHaveValue('')
+  })
+
+  it('stays visible and interactive when the chosen level has no candidates', async () => {
+    render(<Translator user={fakeUser} />)
+    await screen.findByText(fakeSentence.japanese)
+    mockApi.getRandomSentence.mockRejectedValueOnce(new Error('API error: 404'))
+    fireEvent.change(screen.getByLabelText(/sentence difficulty level/i), { target: { value: '4' } })
+    await screen.findByText(/api error: 404/i)
+    expect(screen.getByLabelText(/sentence difficulty level/i)).toBeEnabled()
+  })
+})
 
 describe('Explain button', () => {
   it('is not shown before the answer is checked', async () => {
