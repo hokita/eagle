@@ -12,7 +12,7 @@ export const app = initializeApp(firebaseConfig)
 // getAuth() validates the API key (a real network-capable call, not just a
 // format check) and must not run during Next.js's server-side prerender of
 // this static-export app. Every real call site (onAuthStateChanged, signOut,
-// signInWithPopup) only runs client-side, inside useEffect/event handlers,
+// signInWithRedirect) only runs client-side, inside useEffect/event handlers,
 // which never execute during prerendering — so this fallback is never
 // actually invoked with a live `Auth` on the server.
 export const auth: Auth = typeof window !== 'undefined' ? getAuth(app) : ({} as Auth)
