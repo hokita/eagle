@@ -40,6 +40,7 @@ const fakeSentence = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.clear()
   mockApi.getRandomSentence.mockResolvedValue(fakeSentence)
 })
 
@@ -53,33 +54,48 @@ async function answerIncorrectly() {
   await screen.findByText(/not quite right/i)
 }
 
-describe('Level selector', () => {
-  it('defaults to "Any level" and fetches with no level filter on mount', async () => {
+describe('Level toggles', () => {
+  it('defaults to all levels selected and fetches with no level filter on mount', async () => {
     render(<Translator user={fakeUser} />)
     await screen.findByText(fakeSentence.japanese)
-    expect(screen.getByLabelText(/sentence difficulty level/i)).toHaveValue('0')
-    expect(mockApi.getRandomSentence).toHaveBeenCalledWith(0)
+    for (const n of [1, 2, 3, 4, 5]) {
+      expect(screen.getByRole('button', { name: `Level ${n}` })).toHaveAttribute('aria-pressed', 'true')
+    }
+    expect(mockApi.getRandomSentence).toHaveBeenCalledWith(undefined)
   })
 
-  it('offers levels 1 through 5', async () => {
-    render(<Translator user={fakeUser} />)
-    await screen.findByText(fakeSentence.japanese)
-    const select = screen.getByLabelText(/sentence difficulty level/i)
-    const values = Array.from(select.querySelectorAll('option')).map(o => (o as HTMLOptionElement).value)
-    expect(values).toEqual(['0', '1', '2', '3', '4', '5'])
-  })
-
-  it('refetches with the chosen level when the user picks one', async () => {
+  it('narrows the filter and persists the selection when a level is toggled off', async () => {
     render(<Translator user={fakeUser} />)
     await screen.findByText(fakeSentence.japanese)
     const otherSentence = { ...fakeSentence, id: 2, japanese: '違う文です。', level: 3 }
     mockApi.getRandomSentence.mockResolvedValueOnce(otherSentence)
-    fireEvent.change(screen.getByLabelText(/sentence difficulty level/i), { target: { value: '3' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Level 1' }))
     await screen.findByText('違う文です。')
-    expect(mockApi.getRandomSentence).toHaveBeenLastCalledWith(3)
+    expect(mockApi.getRandomSentence).toHaveBeenLastCalledWith([2, 3, 4, 5])
+    expect(localStorage.getItem('eagle:selectedLevels')).toBe(JSON.stringify([2, 3, 4, 5]))
   })
 
-  it('resets in-progress answer state when the level changes', async () => {
+  it('treats deselecting every level the same as selecting them all (any level)', async () => {
+    render(<Translator user={fakeUser} />)
+    await screen.findByText(fakeSentence.japanese)
+    for (const n of [1, 2, 3, 4, 5]) {
+      mockApi.getRandomSentence.mockResolvedValueOnce(fakeSentence)
+      fireEvent.click(screen.getByRole('button', { name: `Level ${n}` }))
+      await screen.findByText(fakeSentence.japanese)
+    }
+    expect(mockApi.getRandomSentence).toHaveBeenLastCalledWith(undefined)
+  })
+
+  it('restores a previously persisted selection on mount', async () => {
+    localStorage.setItem('eagle:selectedLevels', JSON.stringify([2, 4]))
+    render(<Translator user={fakeUser} />)
+    await screen.findByText(fakeSentence.japanese)
+    expect(screen.getByRole('button', { name: 'Level 2' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Level 1' })).toHaveAttribute('aria-pressed', 'false')
+    expect(mockApi.getRandomSentence).toHaveBeenCalledWith([2, 4])
+  })
+
+  it('resets in-progress answer state when a level is toggled', async () => {
     mockApi.checkAnswer.mockResolvedValue({
       is_correct: false,
       correct_answer: fakeSentence.english,
@@ -87,19 +103,19 @@ describe('Level selector', () => {
     })
     await answerIncorrectly()
     mockApi.getRandomSentence.mockResolvedValueOnce({ ...fakeSentence, id: 3, level: 1 })
-    fireEvent.change(screen.getByLabelText(/sentence difficulty level/i), { target: { value: '1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Level 1' }))
     await screen.findByLabelText(/your english translation/i)
     expect(screen.queryByText(/not quite right/i)).not.toBeInTheDocument()
     expect(screen.getByLabelText(/your english translation/i)).toHaveValue('')
   })
 
-  it('stays visible and interactive when the chosen level has no candidates', async () => {
+  it('stays visible and interactive when the narrowed selection has no candidates', async () => {
     render(<Translator user={fakeUser} />)
     await screen.findByText(fakeSentence.japanese)
     mockApi.getRandomSentence.mockRejectedValueOnce(new Error('API error: 404'))
-    fireEvent.change(screen.getByLabelText(/sentence difficulty level/i), { target: { value: '4' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Level 1' }))
     await screen.findByText(/api error: 404/i)
-    expect(screen.getByLabelText(/sentence difficulty level/i)).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Level 1' })).toBeEnabled()
   })
 })
 

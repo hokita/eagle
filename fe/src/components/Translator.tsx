@@ -23,6 +23,27 @@ interface Props {
   user: User
 }
 
+const LEVELS = [1, 2, 3, 4, 5]
+const SELECTED_LEVELS_STORAGE_KEY = 'eagle:selectedLevels'
+
+function loadStoredLevels(): number[] {
+  try {
+    const raw = window.localStorage.getItem(SELECTED_LEVELS_STORAGE_KEY)
+    if (!raw) return LEVELS
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed) && parsed.every((n): n is number => typeof n === 'number')) {
+      return parsed
+    }
+  } catch {
+    // ignore malformed storage, fall back to default
+  }
+  return LEVELS
+}
+
+function levelsForRequest(levels: number[]): number[] | undefined {
+  return levels.length === 0 || levels.length === LEVELS.length ? undefined : levels
+}
+
 export default function Translator({ user }: Props) {
   const [currentSentence, setCurrentSentence] = useState<Sentence | null>(null)
   const [userTranslation, setUserTranslation] = useState('')
@@ -38,7 +59,7 @@ export default function Translator({ user }: Props) {
   const [explanation, setExplanation] = useState<string | null>(null)
   const [explaining, setExplaining] = useState(false)
   const [explainError, setExplainError] = useState<string | null>(null)
-  const [level, setLevel] = useState(0)
+  const [selectedLevels, setSelectedLevels] = useState<number[]>(LEVELS)
 
   const speakJapanese = (text: string) => {
     if ('speechSynthesis' in window) {
@@ -115,11 +136,11 @@ export default function Translator({ user }: Props) {
     }
   }
 
-  const getRandomSentence = async (levelOverride?: number) => {
+  const getRandomSentence = async (levelsOverride?: number[]) => {
     try {
       setLoading(true)
       setError(null)
-      const sentence = await api.getRandomSentence(levelOverride ?? level)
+      const sentence = await api.getRandomSentence(levelsForRequest(levelsOverride ?? selectedLevels))
       setCurrentSentence(sentence)
       setCorrectCount(sentence.correct_count)
       setIncorrectCount(sentence.incorrect_count)
@@ -179,31 +200,39 @@ export default function Translator({ user }: Props) {
     getRandomSentence()
   }
 
-  const handleLevelChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newLevel = Number(e.target.value)
-    setLevel(newLevel)
+  const toggleLevel = (n: number) => {
+    const next = selectedLevels.includes(n)
+      ? selectedLevels.filter(l => l !== n)
+      : [...selectedLevels, n].sort((a, b) => a - b)
+    setSelectedLevels(next)
+    window.localStorage.setItem(SELECTED_LEVELS_STORAGE_KEY, JSON.stringify(next))
     resetQuestionState()
-    getRandomSentence(newLevel)
+    getRandomSentence(next)
   }
 
   useEffect(() => {
-    getRandomSentence()
+    const stored = loadStoredLevels()
+    setSelectedLevels(stored)
+    getRandomSentence(stored)
   }, [])
 
-  const levelSelector = (
-    <select
-      aria-label="Sentence difficulty level"
-      value={level}
-      onChange={handleLevelChange}
-      className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-    >
-      <option value={0}>Any level</option>
-      <option value={1}>1</option>
-      <option value={2}>2</option>
-      <option value={3}>3</option>
-      <option value={4}>4</option>
-      <option value={5}>5</option>
-    </select>
+  const levelToggles = (
+    <div role="group" aria-label="Sentence difficulty level" className="flex gap-1">
+      {LEVELS.map(n => (
+        <Button
+          key={n}
+          type="button"
+          size="sm"
+          variant={selectedLevels.includes(n) ? 'default' : 'outline'}
+          aria-pressed={selectedLevels.includes(n)}
+          aria-label={`Level ${n}`}
+          onClick={() => toggleLevel(n)}
+          className="h-9 w-9 p-0"
+        >
+          {n}
+        </Button>
+      ))}
+    </div>
   )
 
   return (
@@ -211,7 +240,7 @@ export default function Translator({ user }: Props) {
       <div className="max-w-2xl mx-auto">
         <div className="mb-8">
           <div className="flex items-center justify-end mb-2 gap-2">
-            {levelSelector}
+            {levelToggles}
             <UserMenu user={user} />
           </div>
           <div className="flex items-center justify-center gap-2">
