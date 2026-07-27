@@ -95,11 +95,11 @@ func TestGetRandomSentenceOK(t *testing.T) {
 	}
 }
 
-func TestGetRandomSentencePassesLevelToRepo(t *testing.T) {
+func TestGetRandomSentencePassesLevelsToRepo(t *testing.T) {
 	repo := &fakeRepo{random: &Sentence{ID: 7}}
 	srv := NewServer(repo, &fakeExplainer{})
 	rec := httptest.NewRecorder()
-	srv.getRandomSentence(rec, authed(httptest.NewRequest(http.MethodGet, "/api/sentence/random?level=3", nil), "u1"))
+	srv.getRandomSentence(rec, authed(httptest.NewRequest(http.MethodGet, "/api/sentence/random?levels=3", nil), "u1"))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
@@ -108,7 +108,36 @@ func TestGetRandomSentencePassesLevelToRepo(t *testing.T) {
 	}
 }
 
-func TestGetRandomSentenceNoLevelDefaultsToZero(t *testing.T) {
+func TestGetRandomSentencePassesMultipleLevelsToRepo(t *testing.T) {
+	repo := &fakeRepo{random: &Sentence{ID: 7}}
+	srv := NewServer(repo, &fakeExplainer{})
+	rec := httptest.NewRecorder()
+	srv.getRandomSentence(rec, authed(httptest.NewRequest(http.MethodGet, "/api/sentence/random?levels=1,3,5", nil), "u1"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if len(repo.randomLevelCalls) != 1 {
+		t.Fatalf("expected repo called once, got %d calls", len(repo.randomLevelCalls))
+	}
+	if got := repo.randomLevelCalls[0]; len(got) != 3 || got[0] != 1 || got[1] != 3 || got[2] != 5 {
+		t.Fatalf("expected repo called with levels [1 3 5], got %v", got)
+	}
+}
+
+func TestGetRandomSentenceDedupesLevels(t *testing.T) {
+	repo := &fakeRepo{random: &Sentence{ID: 7}}
+	srv := NewServer(repo, &fakeExplainer{})
+	rec := httptest.NewRecorder()
+	srv.getRandomSentence(rec, authed(httptest.NewRequest(http.MethodGet, "/api/sentence/random?levels=2,2,3", nil), "u1"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if got := repo.randomLevelCalls[0]; len(got) != 2 || got[0] != 2 || got[1] != 3 {
+		t.Fatalf("expected deduped levels [2 3], got %v", got)
+	}
+}
+
+func TestGetRandomSentenceNoLevelsDefaultsToAny(t *testing.T) {
 	repo := &fakeRepo{random: &Sentence{ID: 7}}
 	srv := NewServer(repo, &fakeExplainer{})
 	rec := httptest.NewRecorder()
@@ -121,18 +150,18 @@ func TestGetRandomSentenceNoLevelDefaultsToZero(t *testing.T) {
 	}
 }
 
-func TestGetRandomSentenceInvalidLevel(t *testing.T) {
-	for _, level := range []string{"0", "6", "-1", "abc", "3.5"} {
-		t.Run(level, func(t *testing.T) {
+func TestGetRandomSentenceInvalidLevels(t *testing.T) {
+	for _, levels := range []string{"0", "6", "-1", "abc", "3.5", "1,6", "1,abc", "1,,3"} {
+		t.Run(levels, func(t *testing.T) {
 			repo := &fakeRepo{random: &Sentence{ID: 7}}
 			srv := NewServer(repo, &fakeExplainer{})
 			rec := httptest.NewRecorder()
-			srv.getRandomSentence(rec, authed(httptest.NewRequest(http.MethodGet, "/api/sentence/random?level="+level, nil), "u1"))
+			srv.getRandomSentence(rec, authed(httptest.NewRequest(http.MethodGet, "/api/sentence/random?levels="+levels, nil), "u1"))
 			if rec.Code != http.StatusBadRequest {
-				t.Fatalf("expected 400 for level=%q, got %d", level, rec.Code)
+				t.Fatalf("expected 400 for levels=%q, got %d", levels, rec.Code)
 			}
 			if len(repo.randomLevelCalls) != 0 {
-				t.Fatalf("expected repo not called for invalid level=%q, got %v", level, repo.randomLevelCalls)
+				t.Fatalf("expected repo not called for invalid levels=%q, got %v", levels, repo.randomLevelCalls)
 			}
 		})
 	}

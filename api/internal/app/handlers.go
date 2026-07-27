@@ -35,18 +35,20 @@ func (s *Server) getRandomSentence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	uid, _ := uidFromContext(r.Context())
-	level := 0
-	if raw := r.URL.Query().Get("level"); raw != "" {
-		n, err := strconv.Atoi(raw)
-		if err != nil || n < 1 || n > 5 {
-			http.Error(w, "Invalid level parameter", http.StatusBadRequest)
-			return
-		}
-		level = n
-	}
 	var levels []int
-	if level != 0 {
-		levels = []int{level}
+	if raw := r.URL.Query().Get("levels"); raw != "" {
+		seen := map[int]bool{}
+		for _, part := range strings.Split(raw, ",") {
+			n, err := strconv.Atoi(strings.TrimSpace(part))
+			if err != nil || n < 1 || n > 5 {
+				http.Error(w, "Invalid levels parameter", http.StatusBadRequest)
+				return
+			}
+			if !seen[n] {
+				seen[n] = true
+				levels = append(levels, n)
+			}
+		}
 	}
 	sentence, err := s.repo.RandomCandidate(r.Context(), uid, levels)
 	if errors.Is(err, ErrNoCandidate) {
