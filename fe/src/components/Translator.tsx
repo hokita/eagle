@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -151,18 +151,25 @@ export default function Translator({ user }: Props) {
     }
   }
 
+  const latestRequestId = useRef(0)
+
   const getRandomSentence = async (levelsOverride?: number[]) => {
+    const requestId = ++latestRequestId.current
     try {
       setLoading(true)
       setError(null)
       const sentence = await api.getRandomSentence(levelsForRequest(levelsOverride ?? selectedLevels))
+      if (requestId !== latestRequestId.current) return
       setCurrentSentence(sentence)
       setCorrectCount(sentence.correct_count)
       setIncorrectCount(sentence.incorrect_count)
     } catch (err) {
+      if (requestId !== latestRequestId.current) return
       setError(err instanceof Error ? err.message : 'Failed to load sentence')
     } finally {
-      setLoading(false)
+      if (requestId === latestRequestId.current) {
+        setLoading(false)
+      }
     }
   }
 

@@ -118,6 +118,40 @@ describe('Level toggles', () => {
     await screen.findByText(/api error: 404/i)
     expect(screen.getByRole('button', { name: 'Level 1' })).toBeEnabled()
   })
+
+  it('ignores a stale response that resolves after a newer request', async () => {
+    render(<Translator user={fakeUser} />)
+    await screen.findByText(fakeSentence.japanese)
+
+    let resolveFirst: (value: typeof fakeSentence) => void = () => {}
+    let resolveSecond: (value: typeof fakeSentence) => void = () => {}
+    const staleSentence = { ...fakeSentence, id: 10, japanese: 'stale response' }
+    const latestSentence = { ...fakeSentence, id: 20, japanese: 'latest response' }
+
+    mockApi.getRandomSentence.mockReturnValueOnce(
+      new Promise(resolve => {
+        resolveFirst = resolve
+      })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Level 1' }))
+
+    mockApi.getRandomSentence.mockReturnValueOnce(
+      new Promise(resolve => {
+        resolveSecond = resolve
+      })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Level 2' }))
+
+    // Resolve out of arrival order: the newer (second) request settles first,
+    // then the older (first) request's stale response arrives afterward.
+    await act(async () => resolveSecond(latestSentence))
+    await screen.findByText('latest response')
+
+    await act(async () => resolveFirst(staleSentence))
+
+    expect(screen.queryByText('stale response')).not.toBeInTheDocument()
+    expect(screen.getByText('latest response')).toBeInTheDocument()
+  })
 })
 
 describe('Explain button', () => {
