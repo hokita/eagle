@@ -92,7 +92,7 @@ func TestFirestoreRecordListAndCount(t *testing.T) {
 		t.Fatalf("history id/created_at should be populated, got %+v", hs[0])
 	}
 
-	s, err := repo.RandomCandidate(ctx, uid, 0)
+	s, err := repo.RandomCandidate(ctx, uid, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestFirestoreRandomExcludesMasteredAndReported(t *testing.T) {
 	}
 
 	for i := 0; i < 8; i++ {
-		s, err := repo.RandomCandidate(ctx, uid, 0)
+		s, err := repo.RandomCandidate(ctx, uid, nil)
 		if err != nil {
 			t.Fatalf("iteration %d: %v", i, err)
 		}
@@ -142,7 +142,7 @@ func TestFirestoreRandomCandidateFiltersByLevel(t *testing.T) {
 	seedSentence(t, client, "403", "1", "C", "C", 3, false)
 
 	for i := 0; i < 5; i++ {
-		s, err := repo.RandomCandidate(ctx, uid, 1)
+		s, err := repo.RandomCandidate(ctx, uid, []int{1})
 		if err != nil {
 			t.Fatalf("iteration %d: %v", i, err)
 		}
@@ -152,7 +152,7 @@ func TestFirestoreRandomCandidateFiltersByLevel(t *testing.T) {
 	}
 
 	for i := 0; i < 8; i++ {
-		s, err := repo.RandomCandidate(ctx, uid, 3)
+		s, err := repo.RandomCandidate(ctx, uid, []int{3})
 		if err != nil {
 			t.Fatalf("iteration %d: %v", i, err)
 		}
@@ -177,7 +177,7 @@ func TestFirestoreRandomCandidateLevelZeroIncludesUnleveledDocs(t *testing.T) {
 		t.Fatalf("seed unleveled sentence: %v", err)
 	}
 
-	s, err := repo.RandomCandidate(ctx, uid, 0)
+	s, err := repo.RandomCandidate(ctx, uid, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +185,35 @@ func TestFirestoreRandomCandidateLevelZeroIncludesUnleveledDocs(t *testing.T) {
 		t.Fatalf("expected unleveled sentence 501 under level=0, got %d", s.ID)
 	}
 
-	if _, err := repo.RandomCandidate(ctx, uid, 2); err != ErrNoCandidate {
+	if _, err := repo.RandomCandidate(ctx, uid, []int{2}); err != ErrNoCandidate {
 		t.Fatalf("expected ErrNoCandidate excluding unleveled doc under level=2, got %v", err)
+	}
+}
+
+func TestFirestoreRandomCandidateFiltersByMultipleLevels(t *testing.T) {
+	ctx := context.Background()
+	client := newEmulatorClient(t)
+	repo := NewFirestoreRepo(client)
+	uid := "user-multilevel"
+	seedSentence(t, client, "601", "1", "A", "A", 1, false)
+	seedSentence(t, client, "602", "1", "B", "B", 3, false)
+	seedSentence(t, client, "603", "1", "C", "C", 5, false)
+	// Unleveled doc (pre-backfill) must not match an explicit multi-level subset.
+	_, err := client.Collection("sentences").Doc("604").Set(ctx, map[string]interface{}{
+		"japanese": "D", "english": "D", "page": "1", "is_reported": false,
+		"created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z",
+	})
+	if err != nil {
+		t.Fatalf("seed unleveled sentence: %v", err)
+	}
+
+	for i := 0; i < 8; i++ {
+		s, err := repo.RandomCandidate(ctx, uid, []int{1, 3})
+		if err != nil {
+			t.Fatalf("iteration %d: %v", i, err)
+		}
+		if s.ID != 601 && s.ID != 602 {
+			t.Fatalf("expected level-1 or level-3 sentence, got %d", s.ID)
+		}
 	}
 }

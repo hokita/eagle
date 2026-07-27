@@ -44,7 +44,11 @@ func (s *Server) getRandomSentence(w http.ResponseWriter, r *http.Request) {
 		}
 		level = n
 	}
-	sentence, err := s.repo.RandomCandidate(r.Context(), uid, level)
+	var levels []int
+	if level != 0 {
+		levels = []int{level}
+	}
+	sentence, err := s.repo.RandomCandidate(r.Context(), uid, levels)
 	if errors.Is(err, ErrNoCandidate) {
 		http.Error(w, "No sentences found", http.StatusNotFound)
 		return

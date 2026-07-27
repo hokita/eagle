@@ -21,7 +21,7 @@ type recordedAnswer struct {
 type fakeRepo struct {
 	random           *Sentence
 	randomErr        error
-	randomLevels     []int
+	randomLevelCalls [][]int
 	correct          string
 	correctErr       error
 	sentenceJapanese string
@@ -32,8 +32,8 @@ type fakeRepo struct {
 	reported         []int
 }
 
-func (f *fakeRepo) RandomCandidate(_ context.Context, _ string, level int) (*Sentence, error) {
-	f.randomLevels = append(f.randomLevels, level)
+func (f *fakeRepo) RandomCandidate(_ context.Context, _ string, levels []int) (*Sentence, error) {
+	f.randomLevelCalls = append(f.randomLevelCalls, levels)
 	return f.random, f.randomErr
 }
 func (f *fakeRepo) CorrectAnswer(_ context.Context, _ int) (string, error) {
@@ -103,8 +103,8 @@ func TestGetRandomSentencePassesLevelToRepo(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
-	if len(repo.randomLevels) != 1 || repo.randomLevels[0] != 3 {
-		t.Fatalf("expected repo called with level 3, got %v", repo.randomLevels)
+	if len(repo.randomLevelCalls) != 1 || len(repo.randomLevelCalls[0]) != 1 || repo.randomLevelCalls[0][0] != 3 {
+		t.Fatalf("expected repo called with levels [3], got %v", repo.randomLevelCalls)
 	}
 }
 
@@ -116,8 +116,8 @@ func TestGetRandomSentenceNoLevelDefaultsToZero(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
-	if len(repo.randomLevels) != 1 || repo.randomLevels[0] != 0 {
-		t.Fatalf("expected repo called with level 0, got %v", repo.randomLevels)
+	if len(repo.randomLevelCalls) != 1 || len(repo.randomLevelCalls[0]) != 0 {
+		t.Fatalf("expected repo called with no levels, got %v", repo.randomLevelCalls)
 	}
 }
 
@@ -131,8 +131,8 @@ func TestGetRandomSentenceInvalidLevel(t *testing.T) {
 			if rec.Code != http.StatusBadRequest {
 				t.Fatalf("expected 400 for level=%q, got %d", level, rec.Code)
 			}
-			if len(repo.randomLevels) != 0 {
-				t.Fatalf("expected repo not called for invalid level=%q, got %v", level, repo.randomLevels)
+			if len(repo.randomLevelCalls) != 0 {
+				t.Fatalf("expected repo not called for invalid level=%q, got %v", level, repo.randomLevelCalls)
 			}
 		})
 	}
