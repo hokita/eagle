@@ -31,6 +31,7 @@ const fakeSentence = {
   japanese: '時間がありません。',
   english: "I don't have time.",
   page: '12',
+  level: 2,
   correct_count: 0,
   incorrect_count: 0,
   created_at: '2026-01-01T00:00:00Z',
@@ -39,6 +40,7 @@ const fakeSentence = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.clear()
   mockApi.getRandomSentence.mockResolvedValue(fakeSentence)
   localStorage.clear()
 })
@@ -52,6 +54,105 @@ async function answerIncorrectly() {
   fireEvent.click(screen.getByRole('button', { name: /check translation/i }))
   await screen.findByText(/not quite right/i)
 }
+
+describe('Level toggles', () => {
+  it('defaults to all levels selected and fetches with no level filter on mount', async () => {
+    render(<Translator user={fakeUser} />)
+    await screen.findByText(fakeSentence.japanese)
+    for (const n of [1, 2, 3, 4, 5]) {
+      expect(screen.getByRole('button', { name: `Level ${n}` })).toHaveAttribute('aria-pressed', 'true')
+    }
+    expect(mockApi.getRandomSentence).toHaveBeenCalledWith(undefined)
+  })
+
+  it('narrows the filter and persists the selection when a level is toggled off', async () => {
+    render(<Translator user={fakeUser} />)
+    await screen.findByText(fakeSentence.japanese)
+    const otherSentence = { ...fakeSentence, id: 2, japanese: '違う文です。', level: 3 }
+    mockApi.getRandomSentence.mockResolvedValueOnce(otherSentence)
+    fireEvent.click(screen.getByRole('button', { name: 'Level 1' }))
+    await screen.findByText('違う文です。')
+    expect(mockApi.getRandomSentence).toHaveBeenLastCalledWith([2, 3, 4, 5])
+    expect(localStorage.getItem('eagle:selectedLevels')).toBe(JSON.stringify([2, 3, 4, 5]))
+  })
+
+  it('treats deselecting every level the same as selecting them all (any level)', async () => {
+    render(<Translator user={fakeUser} />)
+    await screen.findByText(fakeSentence.japanese)
+    for (const n of [1, 2, 3, 4, 5]) {
+      mockApi.getRandomSentence.mockResolvedValueOnce(fakeSentence)
+      fireEvent.click(screen.getByRole('button', { name: `Level ${n}` }))
+      await screen.findByText(fakeSentence.japanese)
+    }
+    expect(mockApi.getRandomSentence).toHaveBeenLastCalledWith(undefined)
+  })
+
+  it('restores a previously persisted selection on mount', async () => {
+    localStorage.setItem('eagle:selectedLevels', JSON.stringify([2, 4]))
+    render(<Translator user={fakeUser} />)
+    await screen.findByText(fakeSentence.japanese)
+    expect(screen.getByRole('button', { name: 'Level 2' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Level 1' })).toHaveAttribute('aria-pressed', 'false')
+    expect(mockApi.getRandomSentence).toHaveBeenCalledWith([2, 4])
+  })
+
+  it('resets in-progress answer state when a level is toggled', async () => {
+    mockApi.checkAnswer.mockResolvedValue({
+      is_correct: false,
+      correct_answer: fakeSentence.english,
+      histories: [],
+    })
+    await answerIncorrectly()
+    mockApi.getRandomSentence.mockResolvedValueOnce({ ...fakeSentence, id: 3, level: 1 })
+    fireEvent.click(screen.getByRole('button', { name: 'Level 1' }))
+    await screen.findByLabelText(/your english translation/i)
+    expect(screen.queryByText(/not quite right/i)).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/your english translation/i)).toHaveValue('')
+  })
+
+  it('stays visible and interactive when the narrowed selection has no candidates', async () => {
+    render(<Translator user={fakeUser} />)
+    await screen.findByText(fakeSentence.japanese)
+    mockApi.getRandomSentence.mockRejectedValueOnce(new Error('API error: 404'))
+    fireEvent.click(screen.getByRole('button', { name: 'Level 1' }))
+    await screen.findByText(/api error: 404/i)
+    expect(screen.getByRole('button', { name: 'Level 1' })).toBeEnabled()
+  })
+
+  it('ignores a stale response that resolves after a newer request', async () => {
+    render(<Translator user={fakeUser} />)
+    await screen.findByText(fakeSentence.japanese)
+
+    let resolveFirst: (value: typeof fakeSentence) => void = () => {}
+    let resolveSecond: (value: typeof fakeSentence) => void = () => {}
+    const staleSentence = { ...fakeSentence, id: 10, japanese: 'stale response' }
+    const latestSentence = { ...fakeSentence, id: 20, japanese: 'latest response' }
+
+    mockApi.getRandomSentence.mockReturnValueOnce(
+      new Promise(resolve => {
+        resolveFirst = resolve
+      })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Level 1' }))
+
+    mockApi.getRandomSentence.mockReturnValueOnce(
+      new Promise(resolve => {
+        resolveSecond = resolve
+      })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Level 2' }))
+
+    // Resolve out of arrival order: the newer (second) request settles first,
+    // then the older (first) request's stale response arrives afterward.
+    await act(async () => resolveSecond(latestSentence))
+    await screen.findByText('latest response')
+
+    await act(async () => resolveFirst(staleSentence))
+
+    expect(screen.queryByText('stale response')).not.toBeInTheDocument()
+    expect(screen.getByText('latest response')).toBeInTheDocument()
+  })
+})
 
 describe('Explain button', () => {
   it('is not shown before the answer is checked', async () => {

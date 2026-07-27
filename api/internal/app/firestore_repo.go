@@ -26,6 +26,7 @@ type sentenceDoc struct {
 	Japanese   string `firestore:"japanese"`
 	English    string `firestore:"english"`
 	Page       string `firestore:"page"`
+	Level      int    `firestore:"level"`
 	IsReported bool   `firestore:"is_reported"`
 	CreatedAt  string `firestore:"created_at"`
 	UpdatedAt  string `firestore:"updated_at"`
@@ -46,7 +47,7 @@ func (r *firestoreRepo) userStats(uid string) *firestore.CollectionRef {
 	return r.client.Collection("users").Doc(uid).Collection("sentence_stats")
 }
 
-func (r *firestoreRepo) RandomCandidate(ctx context.Context, uid string) (*Sentence, error) {
+func (r *firestoreRepo) RandomCandidate(ctx context.Context, uid string, levels []int) (*Sentence, error) {
 	sentenceDocs, err := r.client.Collection("sentences").
 		Where("is_reported", "==", false).Documents(ctx).GetAll()
 	if err != nil {
@@ -74,6 +75,11 @@ func (r *firestoreRepo) RandomCandidate(ctx context.Context, uid string) (*Sente
 		stats[id] = st
 	}
 
+	wantLevels := map[int]bool{}
+	for _, lv := range levels {
+		wantLevels[lv] = true
+	}
+
 	var candidates []*Sentence
 	for _, ds := range sentenceDocs {
 		id, convErr := strconv.Atoi(ds.Ref.ID)
@@ -88,11 +94,15 @@ func (r *firestoreRepo) RandomCandidate(ctx context.Context, uid string) (*Sente
 		if st.CorrectCount-st.IncorrectCount >= 2 {
 			continue
 		}
+		if len(wantLevels) > 0 && !wantLevels[sd.Level] {
+			continue
+		}
 		candidates = append(candidates, &Sentence{
 			ID:             id,
 			Japanese:       sd.Japanese,
 			English:        sd.English,
 			Page:           sd.Page,
+			Level:          sd.Level,
 			CorrectCount:   st.CorrectCount,
 			IncorrectCount: st.IncorrectCount,
 			CreatedAt:      sd.CreatedAt,

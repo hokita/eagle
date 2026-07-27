@@ -10,6 +10,7 @@ type Sentence struct {
 	Japanese       string `json:"japanese"`
 	English        string `json:"english"`
 	Page           string `json:"page"`
+	Level          int    `json:"level"`
 	CorrectCount   int    `json:"correct_count"`
 	IncorrectCount int    `json:"incorrect_count"`
 	CreatedAt      string `json:"created_at"`
@@ -55,7 +56,11 @@ var ErrNoCandidate = errors.New("no candidate sentence")
 
 // SentenceRepository is the data-access seam behind the HTTP handlers.
 type SentenceRepository interface {
-	RandomCandidate(ctx context.Context, uid string) (*Sentence, error)
+	// RandomCandidate returns a random non-mastered, non-reported sentence.
+	// levels restricts candidates to sentences whose Level is in the set;
+	// an empty levels means "any level" (no filtering), including sentences
+	// with no level set.
+	RandomCandidate(ctx context.Context, uid string, levels []int) (*Sentence, error)
 	CorrectAnswer(ctx context.Context, id int) (string, error)
 	GetSentence(ctx context.Context, id int) (japanese, english string, err error)
 	ListIncorrectHistories(ctx context.Context, uid string, id int) ([]AnswerHistory, error)

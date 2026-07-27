@@ -5,6 +5,7 @@ export interface Sentence {
   japanese: string
   english: string
   page: string
+  level: number
   correct_count: number
   incorrect_count: number
   created_at: string
@@ -45,7 +46,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  getRandomSentence: () => request<Sentence>('/api/sentence/random'),
+  getRandomSentence: (levels?: number[]) =>
+    request<Sentence>(
+      `/api/sentence/random${levels && levels.length > 0 ? `?levels=${levels.join(',')}` : ''}`
+    ),
 
   checkAnswer: (sentenceId: number, userAnswer: string) =>
     request<CheckAnswerResponse>('/api/answer/check', {

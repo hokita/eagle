@@ -1,2 +1,3 @@
-{"id": 90001, "japanese": "彼女はコーヒーが好きです。", "english": "She likes coffee.", "page": 1, "is_reported": 0}
-{"id": 90002, "japanese": "今日は雨が降っています。", "english": "It is raining today.", "page": 1, "is_reported": 0}
+{"id": 90001, "japanese": "彼女はコーヒーが好きです。", "english": "She likes coffee.", "page": 1, "level": 1, "is_reported": 0}
+{"id": 90002, "japanese": "今日は雨が降っています。", "english": "It is raining today.", "page": 1, "level": 1, "is_reported": 0}
+{"id": 90003, "japanese": "彼は毎朝ジョギングをする。", "english": "He jogs every morning.", "page": 1, "level": 3, "is_reported": 0}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -25,6 +25,27 @@ interface Props {
   user: User
 }
 
+const LEVELS = [1, 2, 3, 4, 5]
+const SELECTED_LEVELS_STORAGE_KEY = 'eagle:selectedLevels'
+
+function loadStoredLevels(): number[] {
+  try {
+    const raw = window.localStorage.getItem(SELECTED_LEVELS_STORAGE_KEY)
+    if (!raw) return LEVELS
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed) && parsed.every((n): n is number => typeof n === 'number')) {
+      return parsed
+    }
+  } catch {
+    // ignore malformed storage, fall back to default
+  }
+  return LEVELS
+}
+
+function levelsForRequest(levels: number[]): number[] | undefined {
+  return levels.length === 0 || levels.length === LEVELS.length ? undefined : levels
+}
+
 export default function Translator({ user }: Props) {
   const [currentSentence, setCurrentSentence] = useState<Sentence | null>(null)
   const [userTranslation, setUserTranslation] = useState('')
@@ -40,6 +61,7 @@ export default function Translator({ user }: Props) {
   const [explanation, setExplanation] = useState<string | null>(null)
   const [explaining, setExplaining] = useState(false)
   const [explainError, setExplainError] = useState<string | null>(null)
+  const [selectedLevels, setSelectedLevels] = useState<number[]>(LEVELS)
   const [explainLanguage, setExplainLanguage] = useState<'en' | 'ja'>(() => {
     const stored = localStorage.getItem(EXPLAIN_LANGUAGE_STORAGE_KEY)
     return stored === 'ja' ? 'ja' : 'en'
@@ -129,18 +151,25 @@ export default function Translator({ user }: Props) {
     }
   }
 
-  const getRandomSentence = async () => {
+  const latestRequestId = useRef(0)
+
+  const getRandomSentence = async (levelsOverride?: number[]) => {
+    const requestId = ++latestRequestId.current
     try {
       setLoading(true)
       setError(null)
-      const sentence = await api.getRandomSentence()
+      const sentence = await api.getRandomSentence(levelsForRequest(levelsOverride ?? selectedLevels))
+      if (requestId !== latestRequestId.current) return
       setCurrentSentence(sentence)
       setCorrectCount(sentence.correct_count)
       setIncorrectCount(sentence.incorrect_count)
     } catch (err) {
+      if (requestId !== latestRequestId.current) return
       setError(err instanceof Error ? err.message : 'Failed to load sentence')
     } finally {
-      setLoading(false)
+      if (requestId === latestRequestId.current) {
+        setLoading(false)
+      }
     }
   }
 
@@ -170,7 +199,7 @@ export default function Translator({ user }: Props) {
     }
   }
 
-  const nextSentence = () => {
+  const resetQuestionState = () => {
     setUserTranslation('')
     setFeedback(null)
     setShowAnswer(false)
@@ -183,48 +212,57 @@ export default function Translator({ user }: Props) {
     setExplanation(null)
     setExplaining(false)
     setExplainError(null)
-    speechSynthesis.cancel()
+    if ('speechSynthesis' in window) {
+      speechSynthesis.cancel()
+    }
+  }
+
+  const nextSentence = () => {
+    resetQuestionState()
     getRandomSentence()
+  }
+
+  const toggleLevel = (n: number) => {
+    const next = selectedLevels.includes(n)
+      ? selectedLevels.filter(l => l !== n)
+      : [...selectedLevels, n].sort((a, b) => a - b)
+    setSelectedLevels(next)
+    window.localStorage.setItem(SELECTED_LEVELS_STORAGE_KEY, JSON.stringify(next))
+    resetQuestionState()
+    getRandomSentence(next)
   }
 
   useEffect(() => {
-    getRandomSentence()
+    const stored = loadStoredLevels()
+    setSelectedLevels(stored)
+    getRandomSentence(stored)
   }, [])
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (error || !currentSentence) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 flex items-center justify-center">
-        <Card className="max-w-md">
-          <CardHeader>
-            <CardTitle className="text-red-600">Error</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-gray-700 mb-4">{error || 'Failed to load content'}</p>
-            <Button onClick={() => getRandomSentence()} className="w-full">
-              Try Again
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
+  const levelToggles = (
+    <div role="group" aria-label="Sentence difficulty level" className="flex gap-1">
+      {LEVELS.map(n => (
+        <Button
+          key={n}
+          type="button"
+          size="sm"
+          variant={selectedLevels.includes(n) ? 'default' : 'outline'}
+          aria-pressed={selectedLevels.includes(n)}
+          aria-label={`Level ${n}`}
+          onClick={() => toggleLevel(n)}
+          className="h-9 w-9 p-0"
+        >
+          {n}
+        </Button>
+      ))}
+    </div>
+  )
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <div className="max-w-2xl mx-auto">
         <div className="mb-8">
-          <div className="flex items-center justify-end mb-2">
+          <div className="flex items-center justify-end mb-2 gap-2">
+            {levelToggles}
             <UserMenu user={user} />
           </div>
           <div className="flex items-center justify-center gap-2">
@@ -233,6 +271,24 @@ export default function Translator({ user }: Props) {
           </div>
         </div>
 
+        {loading ? (
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading...</p>
+          </div>
+        ) : error || !currentSentence ? (
+          <Card className="max-w-md mx-auto">
+            <CardHeader>
+              <CardTitle className="text-red-600">Error</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-700 mb-4">{error || 'Failed to load content'}</p>
+              <Button onClick={() => getRandomSentence()} className="w-full">
+                Try Again
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
         <div className="grid gap-6 mb-6">
           <Card>
             <CardHeader>
@@ -441,6 +497,7 @@ export default function Translator({ user }: Props) {
 
           </Card>
         </div>
+        )}
       </div>
     </div>
   )
