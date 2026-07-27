@@ -46,8 +46,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  getRandomSentence: (level?: number) =>
-    request<Sentence>(`/api/sentence/random${level ? `?level=${level}` : ''}`),
+  getRandomSentence: (levels?: number[]) =>
+    request<Sentence>(
+      `/api/sentence/random${levels && levels.length > 0 ? `?levels=${levels.join(',')}` : ''}`
+    ),
 
   checkAnswer: (sentenceId: number, userAnswer: string) =>
     request<CheckAnswerResponse>('/api/answer/check', {

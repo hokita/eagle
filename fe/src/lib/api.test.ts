@@ -49,18 +49,25 @@ describe('api.getRandomSentence', () => {
     expect(result.english).toBe("I don't have time.")
   })
 
-  it('omits the level query param when no level is given', async () => {
+  it('omits the levels query param when no levels are given', async () => {
     mockResponse({ id: 1 })
     await api.getRandomSentence()
     const [url] = mockFetch.mock.calls[0]
-    expect(url).not.toContain('level=')
+    expect(url).not.toContain('levels=')
   })
 
-  it('sends the level query param when a level is given', async () => {
+  it('omits the levels query param when given an empty array', async () => {
     mockResponse({ id: 1 })
-    await api.getRandomSentence(3)
+    await api.getRandomSentence([])
     const [url] = mockFetch.mock.calls[0]
-    expect(url).toContain('/api/sentence/random?level=3')
+    expect(url).not.toContain('levels=')
+  })
+
+  it('sends the levels query param when levels are given', async () => {
+    mockResponse({ id: 1 })
+    await api.getRandomSentence([1, 3])
+    const [url] = mockFetch.mock.calls[0]
+    expect(url).toContain('/api/sentence/random?levels=1,3')
   })
 })
 
