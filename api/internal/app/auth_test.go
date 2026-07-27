@@ -18,10 +18,10 @@ func (f fakeVerifier) Verify(_ context.Context, _ string) (string, string, error
 	return f.uid, f.email, f.err
 }
 
-const testAllowedEmail = "hideee.0202@gmail.com"
+const testAllowedEmail = "test@example.com"
 
 func TestRequireAuthRejectsMissingHeader(t *testing.T) {
-	h := requireAuth(fakeVerifier{uid: "u1", email: testAllowedEmail}, testAllowedEmail, func(w http.ResponseWriter, r *http.Request) {
+	h := requireAuth(fakeVerifier{uid: "u1", email: testAllowedEmail}, []string{testAllowedEmail}, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	rec := httptest.NewRecorder()
@@ -32,7 +32,7 @@ func TestRequireAuthRejectsMissingHeader(t *testing.T) {
 }
 
 func TestRequireAuthRejectsInvalidToken(t *testing.T) {
-	h := requireAuth(fakeVerifier{err: errors.New("bad token")}, testAllowedEmail, func(w http.ResponseWriter, r *http.Request) {
+	h := requireAuth(fakeVerifier{err: errors.New("bad token")}, []string{testAllowedEmail}, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	req := httptest.NewRequest(http.MethodGet, "/api/sentence/random", nil)
@@ -46,7 +46,7 @@ func TestRequireAuthRejectsInvalidToken(t *testing.T) {
 
 func TestRequireAuthPassesUID(t *testing.T) {
 	var gotUID string
-	h := requireAuth(fakeVerifier{uid: "user-123", email: testAllowedEmail}, testAllowedEmail, func(w http.ResponseWriter, r *http.Request) {
+	h := requireAuth(fakeVerifier{uid: "user-123", email: testAllowedEmail}, []string{testAllowedEmail}, func(w http.ResponseWriter, r *http.Request) {
 		gotUID, _ = uidFromContext(r.Context())
 		w.WriteHeader(http.StatusOK)
 	})
@@ -63,7 +63,7 @@ func TestRequireAuthPassesUID(t *testing.T) {
 }
 
 func TestRequireAuthRejectsDisallowedEmail(t *testing.T) {
-	h := requireAuth(fakeVerifier{uid: "u1", email: "someone-else@gmail.com"}, testAllowedEmail, func(w http.ResponseWriter, r *http.Request) {
+	h := requireAuth(fakeVerifier{uid: "u1", email: "someone-else@gmail.com"}, []string{testAllowedEmail}, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	req := httptest.NewRequest(http.MethodGet, "/api/sentence/random", nil)
@@ -76,7 +76,7 @@ func TestRequireAuthRejectsDisallowedEmail(t *testing.T) {
 }
 
 func TestRequireAuthRejectsEmptyEmail(t *testing.T) {
-	h := requireAuth(fakeVerifier{uid: "u1", email: ""}, testAllowedEmail, func(w http.ResponseWriter, r *http.Request) {
+	h := requireAuth(fakeVerifier{uid: "u1", email: ""}, []string{testAllowedEmail}, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	req := httptest.NewRequest(http.MethodGet, "/api/sentence/random", nil)
@@ -85,5 +85,18 @@ func TestRequireAuthRejectsEmptyEmail(t *testing.T) {
 	h(rec, req)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", rec.Code)
+	}
+}
+
+func TestRequireAuthAllowsSecondEmailInList(t *testing.T) {
+	h := requireAuth(fakeVerifier{uid: "u2", email: "second@example.com"}, []string{testAllowedEmail, "second@example.com"}, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	req := httptest.NewRequest(http.MethodGet, "/api/sentence/random", nil)
+	req.Header.Set("Authorization", "Bearer validtoken")
+	rec := httptest.NewRecorder()
+	h(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
 	}
 }

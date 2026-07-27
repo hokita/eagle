@@ -41,6 +41,7 @@ type ReportSentenceRequest struct {
 type ExplainRequest struct {
 	SentenceID int    `json:"sentence_id"`
 	UserAnswer string `json:"user_answer"`
+	Language   string `json:"language"`
 }
 
 type ExplainResponse struct {

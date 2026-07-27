@@ -21,7 +21,7 @@ export default defineConfig({
       reuseExistingServer: false,
       env: {
         GOOGLE_CLOUD_PROJECT: 'eagle-test',
-        ALLOWED_EMAIL: 'e2e-test@example.com',
+        ALLOWED_EMAILS: 'e2e-test@example.com',
         FRONTEND_URL: `http://localhost:${FRONTEND_PORT}`,
         PORT: String(API_PORT),
       },

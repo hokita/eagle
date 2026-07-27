@@ -141,6 +141,10 @@ func (s *Server) explainAnswer(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid user_answer", http.StatusBadRequest)
 		return
 	}
+	if !validExplainLanguages[req.Language] {
+		http.Error(w, "Invalid language", http.StatusBadRequest)
+		return
+	}
 	// The Japanese sentence and reference answer are always loaded
 	// server-side by sentence_id, never trusted from the client — otherwise
 	// an authenticated caller could submit arbitrary text for Gemini to
@@ -155,7 +159,7 @@ func (s *Server) explainAnswer(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	explanation, err := s.explainer.Explain(r.Context(), japanese, correctAnswer, userAnswer)
+	explanation, err := s.explainer.Explain(r.Context(), japanese, correctAnswer, userAnswer, req.Language)
 	if err != nil {
 		log.Printf("explain answer error: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)

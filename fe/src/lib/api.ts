@@ -63,9 +63,9 @@ export const api = {
       body: JSON.stringify({ sentence_id: sentenceId }),
     }),
 
-  explainAnswer: (sentenceId: number, userAnswer: string) =>
+  explainAnswer: (sentenceId: number, userAnswer: string, language: 'en' | 'ja') =>
     request<ExplainResponse>('/api/answer/explain', {
       method: 'POST',
-      body: JSON.stringify({ sentence_id: sentenceId, user_answer: userAnswer }),
+      body: JSON.stringify({ sentence_id: sentenceId, user_answer: userAnswer, language }),
     }),
 }

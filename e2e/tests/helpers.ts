@@ -15,18 +15,22 @@ export async function signInAndGetSentence(page: Page): Promise<SentenceData> {
     ),
     (async () => {
       await page.goto('/')
-      await page.getByRole('button', { name: 'Sign in with Google' }).click()
-      const popup = await page.waitForEvent('popup')
-      // The 'popup' event fires as soon as the window exists, which can race
-      // with the Auth emulator page's inline <script> attaching its click
-      // handlers. Waiting for 'load' avoids clicks silently landing before
-      // the handler is wired up (observed as a 30s "not visible" timeout on
-      // the email input, with the click on "Add new account" appearing to
-      // succeed but never actually toggling the form open).
-      await popup.waitForLoadState('load')
-      await popup.getByRole('button', { name: /add new account/i }).click()
-      await popup.getByLabel(/email/i).fill(TEST_EMAIL)
-      await popup.getByRole('button', { name: /sign in/i }).click()
+      // signInWithRedirect navigates the tab itself rather than opening a
+      // popup, so pair the click with waitForURL instead of a 'popup' event.
+      await Promise.all([
+        page.waitForURL(/localhost:9099/),
+        page.getByRole('button', { name: 'Sign in with Google' }).click(),
+      ])
+      // Mirrors the old popup-flow race: the Auth emulator page's inline
+      // <script> needs to finish attaching its click handlers before we
+      // interact, or clicks land silently without effect.
+      await page.waitForLoadState('load')
+      await page.getByRole('button', { name: /add new account/i }).click()
+      await page.getByLabel(/email/i).fill(TEST_EMAIL)
+      await Promise.all([
+        page.waitForURL('/'),
+        page.getByRole('button', { name: /sign in/i }).click(),
+      ])
     })(),
   ])
   await expect(page.getByRole('heading', { name: 'Eagle' })).toBeVisible()

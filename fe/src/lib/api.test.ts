@@ -102,9 +102,9 @@ describe('api.reportSentence', () => {
 })
 
 describe('api.explainAnswer', () => {
-  it('sends POST /api/answer/explain with sentence_id and user_answer', async () => {
+  it('sends POST /api/answer/explain with sentence_id, user_answer, and language', async () => {
     mockResponse({ explanation: 'Your answer is also natural.' })
-    const result = await api.explainAnswer(1, 'I have no time.')
+    const result = await api.explainAnswer(1, 'I have no time.', 'en')
     expect(mockFetch).toHaveBeenCalledWith(
       expect.stringContaining('/api/answer/explain'),
       expect.objectContaining({
@@ -112,6 +112,7 @@ describe('api.explainAnswer', () => {
         body: JSON.stringify({
           sentence_id: 1,
           user_answer: 'I have no time.',
+          language: 'en',
         }),
         headers: expect.objectContaining({ Authorization: 'Bearer test-token' }),
       })

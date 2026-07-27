@@ -19,6 +19,8 @@ import type { User } from 'firebase/auth'
 import { api, type Sentence, type AnswerHistory } from '@/lib/api'
 import UserMenu from './UserMenu'
 
+const EXPLAIN_LANGUAGE_STORAGE_KEY = 'eagle:explainLanguage'
+
 interface Props {
   user: User
 }
@@ -60,6 +62,10 @@ export default function Translator({ user }: Props) {
   const [explaining, setExplaining] = useState(false)
   const [explainError, setExplainError] = useState<string | null>(null)
   const [selectedLevels, setSelectedLevels] = useState<number[]>(LEVELS)
+  const [explainLanguage, setExplainLanguage] = useState<'en' | 'ja'>(() => {
+    const stored = localStorage.getItem(EXPLAIN_LANGUAGE_STORAGE_KEY)
+    return stored === 'ja' ? 'ja' : 'en'
+  })
 
   const speakJapanese = (text: string) => {
     if ('speechSynthesis' in window) {
@@ -122,17 +128,26 @@ export default function Translator({ user }: Props) {
     }
   }
 
-  const explainAnswer = async () => {
+  const explainAnswer = async (language: 'en' | 'ja') => {
     if (!currentSentence) return
     setExplaining(true)
     setExplainError(null)
+    setExplanation(null)
     try {
-      const result = await api.explainAnswer(currentSentence.id, userTranslation)
+      const result = await api.explainAnswer(currentSentence.id, userTranslation, language)
       setExplanation(result.explanation)
     } catch (err) {
       setExplainError(err instanceof Error ? err.message : 'Failed to load explanation')
     } finally {
       setExplaining(false)
+    }
+  }
+
+  const selectExplainLanguage = (language: 'en' | 'ja') => {
+    setExplainLanguage(language)
+    localStorage.setItem(EXPLAIN_LANGUAGE_STORAGE_KEY, language)
+    if (explanation) {
+      explainAnswer(language)
     }
   }
 
@@ -398,14 +413,39 @@ export default function Translator({ user }: Props) {
 
                   {feedback === 'incorrect' && (
                     <div className="space-y-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={explainAnswer}
-                        disabled={explaining}
-                      >
-                        {explaining ? 'Explaining...' : 'Explain'}
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => explainAnswer(explainLanguage)}
+                          disabled={explaining}
+                        >
+                          {explaining ? 'Explaining...' : 'Explain'}
+                        </Button>
+
+                        <div className="flex gap-1" role="group" aria-label="Explanation language">
+                          <Button
+                            type="button"
+                            variant={explainLanguage === 'en' ? 'default' : 'outline'}
+                            size="sm"
+                            aria-pressed={explainLanguage === 'en'}
+                            onClick={() => selectExplainLanguage('en')}
+                            disabled={explaining}
+                          >
+                            EN
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={explainLanguage === 'ja' ? 'default' : 'outline'}
+                            size="sm"
+                            aria-pressed={explainLanguage === 'ja'}
+                            onClick={() => selectExplainLanguage('ja')}
+                            disabled={explaining}
+                          >
+                            JA
+                          </Button>
+                        </div>
+                      </div>
 
                       {explainError && (
                         <Alert className="border-red-500 bg-red-50">
