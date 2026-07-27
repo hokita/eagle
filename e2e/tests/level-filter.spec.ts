@@ -1,25 +1,45 @@
 import { test, expect } from '@playwright/test'
 import { signInAndGetSentence } from './helpers'
 
-test('selecting a level only serves sentences at that level', async ({ page }) => {
+test('narrowing the level toggles down to one level only serves sentences at that level', async ({ page }) => {
   await signInAndGetSentence(page)
-  const select = page.getByLabel('Sentence difficulty level')
 
-  const [firstResponse] = await Promise.all([
+  await Promise.all([
     page.waitForResponse(
-      res => res.url().includes('/api/sentence/random?level=3') && res.request().method() === 'GET' && res.ok()
+      res => res.url().includes('/api/sentence/random') && res.request().method() === 'GET' && res.ok()
     ),
-    select.selectOption('3'),
+    page.getByRole('button', { name: 'Level 1' }).click(),
   ])
-  expect((await firstResponse.json()).id).toBe(90003)
-
-  await select.selectOption('0')
-
-  const [secondResponse] = await Promise.all([
+  await Promise.all([
     page.waitForResponse(
-      res => res.url().includes('/api/sentence/random?level=3') && res.request().method() === 'GET' && res.ok()
+      res => res.url().includes('/api/sentence/random') && res.request().method() === 'GET' && res.ok()
     ),
-    select.selectOption('3'),
+    page.getByRole('button', { name: 'Level 2' }).click(),
   ])
-  expect((await secondResponse.json()).id).toBe(90003)
+  await Promise.all([
+    page.waitForResponse(
+      res => res.url().includes('/api/sentence/random') && res.request().method() === 'GET' && res.ok()
+    ),
+    page.getByRole('button', { name: 'Level 4' }).click(),
+  ])
+
+  const [onlyLevel3] = await Promise.all([
+    page.waitForResponse(
+      res => res.url().includes('/api/sentence/random?levels=3') && res.request().method() === 'GET' && res.ok()
+    ),
+    page.getByRole('button', { name: 'Level 5' }).click(),
+  ])
+  expect((await onlyLevel3.json()).id).toBe(90003)
+
+  const [anyLevel] = await Promise.all([
+    page.waitForResponse(
+      res =>
+        res.url().includes('/api/sentence/random') &&
+        !res.url().includes('levels=') &&
+        res.request().method() === 'GET' &&
+        res.ok()
+    ),
+    page.getByRole('button', { name: 'Level 3' }).click(),
+  ])
+  expect(anyLevel.ok()).toBe(true)
 })
