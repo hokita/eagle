@@ -62,6 +62,8 @@ export default function Translator({ user }: Props) {
   const [explaining, setExplaining] = useState(false)
   const [explainError, setExplainError] = useState<string | null>(null)
   const [selectedLevels, setSelectedLevels] = useState<number[]>(LEVELS)
+  const [isLevelMenuOpen, setIsLevelMenuOpen] = useState(false)
+  const levelMenuRef = useRef<HTMLDivElement>(null)
   const [explainLanguage, setExplainLanguage] = useState<'en' | 'ja'>(() => {
     const stored = localStorage.getItem(EXPLAIN_LANGUAGE_STORAGE_KEY)
     return stored === 'ja' ? 'ja' : 'en'
@@ -238,22 +240,63 @@ export default function Translator({ user }: Props) {
     getRandomSentence(stored)
   }, [])
 
-  const levelToggles = (
-    <div role="group" aria-label="Sentence difficulty level" className="flex gap-1">
-      {LEVELS.map(n => (
-        <Button
-          key={n}
-          type="button"
-          size="sm"
-          variant={selectedLevels.includes(n) ? 'default' : 'outline'}
-          aria-pressed={selectedLevels.includes(n)}
-          aria-label={`Level ${n}`}
-          onClick={() => toggleLevel(n)}
-          className="h-9 w-9 p-0"
+  useEffect(() => {
+    if (!isLevelMenuOpen) return
+
+    const closeIfOutside = (e: MouseEvent) => {
+      if (levelMenuRef.current && !levelMenuRef.current.contains(e.target as Node)) {
+        setIsLevelMenuOpen(false)
+      }
+    }
+    const closeOnEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsLevelMenuOpen(false)
+    }
+
+    document.addEventListener('mousedown', closeIfOutside)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('mousedown', closeIfOutside)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [isLevelMenuOpen])
+
+  const levelSummary =
+    selectedLevels.length === 0 || selectedLevels.length === LEVELS.length
+      ? 'All'
+      : [...selectedLevels].sort((a, b) => a - b).join(', ')
+
+  const levelMenu = (
+    <div className="relative inline-block" ref={levelMenuRef}>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        aria-haspopup="true"
+        aria-expanded={isLevelMenuOpen}
+        onClick={() => setIsLevelMenuOpen(open => !open)}
+      >
+        Level: {levelSummary}
+        <span aria-hidden="true" className="ml-1.5">▾</span>
+      </Button>
+      {isLevelMenuOpen && (
+        <div
+          role="group"
+          aria-label="Sentence difficulty level"
+          className="absolute right-0 z-10 mt-1 w-32 rounded-md border border-gray-200 bg-white p-2 shadow-md"
         >
-          {n}
-        </Button>
-      ))}
+          {LEVELS.map(n => (
+            <label key={n} className="flex items-center gap-2 py-1 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={selectedLevels.includes(n)}
+                onChange={() => toggleLevel(n)}
+                aria-label={`Level ${n}`}
+              />
+              Level {n}
+            </label>
+          ))}
+        </div>
+      )}
     </div>
   )
 
@@ -261,8 +304,7 @@ export default function Translator({ user }: Props) {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <div className="max-w-2xl mx-auto">
         <div className="mb-8">
-          <div className="flex items-center justify-end mb-2 gap-2">
-            {levelToggles}
+          <div className="flex items-center justify-end mb-2">
             <UserMenu user={user} />
           </div>
           <div className="flex items-center justify-center gap-2">
@@ -271,233 +313,234 @@ export default function Translator({ user }: Props) {
           </div>
         </div>
 
-        {loading ? (
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading...</p>
-          </div>
-        ) : error || !currentSentence ? (
-          <Card className="max-w-md mx-auto">
-            <CardHeader>
-              <CardTitle className="text-red-600">Error</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-700 mb-4">{error || 'Failed to load content'}</p>
-              <Button onClick={() => getRandomSentence()} className="w-full">
-                Try Again
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
         <div className="grid gap-6 mb-6">
           <Card>
-            <CardHeader>
-              <CardTitle>Translate this sentence</CardTitle>
-              <CardDescription>Translate the Japanese sentence below into English</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="text-center">
-                <div className="flex items-center justify-center gap-3 mb-2">
-                  <div className="text-3xl font-bold text-gray-900">
-                    {currentSentence.japanese}
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => speakJapanese(currentSentence.japanese)}
-                    disabled={isSpeaking}
-                    className="flex items-center px-2 py-1"
-                  >
-                    <Volume2 className="h-3 w-3" />
-                  </Button>
-                </div>
-                <div className="flex justify-center gap-4 text-sm text-gray-600 mt-2">
-                  <div className="flex items-center gap-1">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    <span>Correct: {correctCount}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <XCircle className="h-4 w-4 text-red-500" />
-                    <span>Incorrect: {incorrectCount}</span>
-                  </div>
-                </div>
+            <CardHeader className="flex flex-row items-start justify-between space-y-0">
+              <div>
+                <CardTitle>Translate this sentence</CardTitle>
+                <CardDescription>Translate the Japanese sentence below into English</CardDescription>
               </div>
+              {levelMenu}
+            </CardHeader>
+            {loading ? (
+              <CardContent>
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+                  <p className="text-gray-600">Loading...</p>
+                </div>
+              </CardContent>
+            ) : error || !currentSentence ? (
+              <CardContent>
+                <p className="text-gray-700 mb-4">{error || 'Failed to load content'}</p>
+                <Button onClick={() => getRandomSentence()} className="w-full">
+                  Try Again
+                </Button>
+              </CardContent>
+            ) : (
+              <>
+                <CardContent className="space-y-4">
+                  <div className="text-center">
+                    <div className="flex items-center justify-center gap-3 mb-2">
+                      <div className="text-3xl font-bold text-gray-900">
+                        {currentSentence.japanese}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => speakJapanese(currentSentence.japanese)}
+                        disabled={isSpeaking}
+                        className="flex items-center px-2 py-1"
+                      >
+                        <Volume2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    <div className="flex justify-center gap-4 text-sm text-gray-600 mt-2">
+                      <div className="flex items-center gap-1">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span>Correct: {correctCount}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <XCircle className="h-4 w-4 text-red-500" />
+                        <span>Incorrect: {incorrectCount}</span>
+                      </div>
+                    </div>
+                  </div>
 
-              <form
-                onSubmit={e => {
-                  e.preventDefault()
-                  if (userTranslation.trim() && !showAnswer) {
-                    checkTranslation()
-                  }
-                }}
-                className="space-y-4"
-              >
-                <div className="space-y-2">
-                  <Label htmlFor="translation">Your English translation:</Label>
-                  <Textarea
-                    id="translation"
-                    value={userTranslation}
-                    onChange={e => setUserTranslation(e.target.value)}
-                    placeholder="Enter your translation here..."
-                    disabled={showAnswer}
-                    onBlur={e => {
-                      if (e.target.value.trim() && !showAnswer) {
-                        const capitalizedTranslation = capitalizeFirstLetter(e.target.value.trim())
-                        setUserTranslation(capitalizedTranslation)
-                      }
-                    }}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' && e.ctrlKey && userTranslation.trim() && !showAnswer) {
+                  <form
+                    onSubmit={e => {
+                      e.preventDefault()
+                      if (userTranslation.trim() && !showAnswer) {
                         checkTranslation()
                       }
                     }}
-                    aria-label="Your English translation"
-                    aria-required="true"
-                  />
-                </div>
-
-                {feedback && (
-                  <Alert
-                    className={
-                      feedback === 'correct'
-                        ? 'border-green-500 bg-green-50'
-                        : 'border-red-500 bg-red-50'
-                    }
+                    className="space-y-4"
                   >
-                    <div className="flex items-center gap-2">
-                      {feedback === 'correct' ? (
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                      ) : (
-                        <XCircle className="h-4 w-4 text-red-600" />
-                      )}
-                      <AlertDescription
+                    <div className="space-y-2">
+                      <Label htmlFor="translation">Your English translation:</Label>
+                      <Textarea
+                        id="translation"
+                        value={userTranslation}
+                        onChange={e => setUserTranslation(e.target.value)}
+                        placeholder="Enter your translation here..."
+                        disabled={showAnswer}
+                        onBlur={e => {
+                          if (e.target.value.trim() && !showAnswer) {
+                            const capitalizedTranslation = capitalizeFirstLetter(e.target.value.trim())
+                            setUserTranslation(capitalizedTranslation)
+                          }
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && e.ctrlKey && userTranslation.trim() && !showAnswer) {
+                            checkTranslation()
+                          }
+                        }}
+                        aria-label="Your English translation"
+                        aria-required="true"
+                      />
+                    </div>
+
+                    {feedback && (
+                      <Alert
                         className={
-                          feedback === 'correct' ? 'text-green-800' : 'text-red-800'
+                          feedback === 'correct'
+                            ? 'border-green-500 bg-green-50'
+                            : 'border-red-500 bg-red-50'
                         }
                       >
-                        {feedback === 'correct'
-                          ? 'Correct! Well done!'
-                          : 'Not quite right. Try again!'}
-                      </AlertDescription>
-                    </div>
-                  </Alert>
-                )}
-
-                {!showAnswer && (
-                  <Button
-                    type="submit"
-                    disabled={!userTranslation.trim()}
-                    className="w-full bg-gray-500 hover:bg-black text-white"
-                  >
-                    Check Translation
-                  </Button>
-                )}
-              </form>
-
-              {showAnswer && (
-                <div className="space-y-4">
-                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <div className="font-semibold text-blue-900 mb-1">
-                      Correct Answer:
-                    </div>
-                    <div className="text-blue-800">{currentSentence.english}</div>
-                  </div>
-
-                  {histories.length > 0 && (
-                    <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                      <div className="font-semibold text-yellow-900 mb-2">
-                        Previous Incorrect Answers:
-                      </div>
-                      <ul className="text-yellow-800 space-y-1">
-                        {histories.map(history => (
-                          <li key={history.id} className="text-sm">
-                            &ldquo;{history.incorrect_answer}&rdquo;
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {feedback === 'incorrect' && (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => explainAnswer(explainLanguage)}
-                          disabled={explaining}
-                        >
-                          {explaining ? 'Explaining...' : 'Explain'}
-                        </Button>
-
-                        <div className="flex gap-1" role="group" aria-label="Explanation language">
-                          <Button
-                            type="button"
-                            variant={explainLanguage === 'en' ? 'default' : 'outline'}
-                            size="sm"
-                            aria-pressed={explainLanguage === 'en'}
-                            onClick={() => selectExplainLanguage('en')}
-                            disabled={explaining}
+                        <div className="flex items-center gap-2">
+                          {feedback === 'correct' ? (
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                          ) : (
+                            <XCircle className="h-4 w-4 text-red-600" />
+                          )}
+                          <AlertDescription
+                            className={
+                              feedback === 'correct' ? 'text-green-800' : 'text-red-800'
+                            }
                           >
-                            EN
-                          </Button>
-                          <Button
-                            type="button"
-                            variant={explainLanguage === 'ja' ? 'default' : 'outline'}
-                            size="sm"
-                            aria-pressed={explainLanguage === 'ja'}
-                            onClick={() => selectExplainLanguage('ja')}
-                            disabled={explaining}
-                          >
-                            JA
-                          </Button>
-                        </div>
-                      </div>
-
-                      {explainError && (
-                        <Alert className="border-red-500 bg-red-50">
-                          <AlertDescription className="text-red-800">
-                            {explainError}
+                            {feedback === 'correct'
+                              ? 'Correct! Well done!'
+                              : 'Not quite right. Try again!'}
                           </AlertDescription>
-                        </Alert>
+                        </div>
+                      </Alert>
+                    )}
+
+                    {!showAnswer && (
+                      <Button
+                        type="submit"
+                        disabled={!userTranslation.trim()}
+                        className="w-full bg-gray-500 hover:bg-black text-white"
+                      >
+                        Check Translation
+                      </Button>
+                    )}
+                  </form>
+
+                  {showAnswer && (
+                    <div className="space-y-4">
+                      <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                        <div className="font-semibold text-blue-900 mb-1">
+                          Correct Answer:
+                        </div>
+                        <div className="text-blue-800">{currentSentence.english}</div>
+                      </div>
+
+                      {histories.length > 0 && (
+                        <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                          <div className="font-semibold text-yellow-900 mb-2">
+                            Previous Incorrect Answers:
+                          </div>
+                          <ul className="text-yellow-800 space-y-1">
+                            {histories.map(history => (
+                              <li key={history.id} className="text-sm">
+                                &ldquo;{history.incorrect_answer}&rdquo;
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
                       )}
 
-                      {explanation && (
-                        <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-                          <div className="font-semibold text-purple-900 mb-1">Explanation:</div>
-                          <div className="text-purple-800 whitespace-pre-wrap">{explanation}</div>
+                      {feedback === 'incorrect' && (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => explainAnswer(explainLanguage)}
+                              disabled={explaining}
+                            >
+                              {explaining ? 'Explaining...' : 'Explain'}
+                            </Button>
+
+                            <div className="flex gap-1" role="group" aria-label="Explanation language">
+                              <Button
+                                type="button"
+                                variant={explainLanguage === 'en' ? 'default' : 'outline'}
+                                size="sm"
+                                aria-pressed={explainLanguage === 'en'}
+                                onClick={() => selectExplainLanguage('en')}
+                                disabled={explaining}
+                              >
+                                EN
+                              </Button>
+                              <Button
+                                type="button"
+                                variant={explainLanguage === 'ja' ? 'default' : 'outline'}
+                                size="sm"
+                                aria-pressed={explainLanguage === 'ja'}
+                                onClick={() => selectExplainLanguage('ja')}
+                                disabled={explaining}
+                              >
+                                JA
+                              </Button>
+                            </div>
+                          </div>
+
+                          {explainError && (
+                            <Alert className="border-red-500 bg-red-50">
+                              <AlertDescription className="text-red-800">
+                                {explainError}
+                              </AlertDescription>
+                            </Alert>
+                          )}
+
+                          {explanation && (
+                            <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                              <div className="font-semibold text-purple-900 mb-1">Explanation:</div>
+                              <div className="text-purple-800 whitespace-pre-wrap">{explanation}</div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
                   )}
-                </div>
-              )}
-            </CardContent>
-            <CardFooter className="flex gap-2">
-              {showAnswer && (
-                <>
-                  <Button onClick={nextSentence} className="flex-1">
-                    Next Sentence
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      if (currentSentence) {
-                        reportSentence(currentSentence.id)
-                      }
-                    }}
-                    disabled={isReported}
-                  >
-                    {isReported ? 'Reported' : 'Report'}
-                  </Button>
-                </>
-              )}
-            </CardFooter>
-
+                </CardContent>
+                <CardFooter className="flex gap-2">
+                  {showAnswer && (
+                    <>
+                      <Button onClick={nextSentence} className="flex-1">
+                        Next Sentence
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (currentSentence) {
+                            reportSentence(currentSentence.id)
+                          }
+                        }}
+                        disabled={isReported}
+                      >
+                        {isReported ? 'Reported' : 'Report'}
+                      </Button>
+                    </>
+                  )}
+                </CardFooter>
+              </>
+            )}
           </Card>
         </div>
-        )}
       </div>
     </div>
   )

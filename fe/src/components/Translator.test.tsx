@@ -55,44 +55,74 @@ async function answerIncorrectly() {
   await screen.findByText(/not quite right/i)
 }
 
-describe('Level toggles', () => {
+function openLevelMenu() {
+  fireEvent.click(screen.getByRole('button', { name: /^level:/i }))
+}
+
+describe('Level menu', () => {
   it('defaults to all levels selected and fetches with no level filter on mount', async () => {
     render(<Translator user={fakeUser} />)
     await screen.findByText(fakeSentence.japanese)
+    expect(screen.getByRole('button', { name: /^level:/i })).toHaveTextContent('Level: All')
+    openLevelMenu()
     for (const n of [1, 2, 3, 4, 5]) {
-      expect(screen.getByRole('button', { name: `Level ${n}` })).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByRole('checkbox', { name: `Level ${n}` })).toBeChecked()
     }
     expect(mockApi.getRandomSentence).toHaveBeenCalledWith(undefined)
   })
 
-  it('narrows the filter and persists the selection when a level is toggled off', async () => {
+  it('opens when the trigger is clicked and closes when clicking outside', async () => {
+    render(<Translator user={fakeUser} />)
+    await screen.findByText(fakeSentence.japanese)
+    openLevelMenu()
+    expect(screen.getByRole('checkbox', { name: 'Level 1' })).toBeInTheDocument()
+    fireEvent.mouseDown(document.body)
+    expect(screen.queryByRole('checkbox', { name: 'Level 1' })).not.toBeInTheDocument()
+  })
+
+  it('closes when Escape is pressed', async () => {
+    render(<Translator user={fakeUser} />)
+    await screen.findByText(fakeSentence.japanese)
+    openLevelMenu()
+    expect(screen.getByRole('checkbox', { name: 'Level 1' })).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('checkbox', { name: 'Level 1' })).not.toBeInTheDocument()
+  })
+
+  it('narrows the filter, updates the trigger label, and persists the selection when a level is unchecked', async () => {
     render(<Translator user={fakeUser} />)
     await screen.findByText(fakeSentence.japanese)
     const otherSentence = { ...fakeSentence, id: 2, japanese: '違う文です。', level: 3 }
     mockApi.getRandomSentence.mockResolvedValueOnce(otherSentence)
-    fireEvent.click(screen.getByRole('button', { name: 'Level 1' }))
+    openLevelMenu()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Level 1' }))
     await screen.findByText('違う文です。')
     expect(mockApi.getRandomSentence).toHaveBeenLastCalledWith([2, 3, 4, 5])
     expect(localStorage.getItem('eagle:selectedLevels')).toBe(JSON.stringify([2, 3, 4, 5]))
+    expect(screen.getByRole('button', { name: /^level:/i })).toHaveTextContent('Level: 2, 3, 4, 5')
   })
 
   it('treats deselecting every level the same as selecting them all (any level)', async () => {
     render(<Translator user={fakeUser} />)
     await screen.findByText(fakeSentence.japanese)
+    openLevelMenu()
     for (const n of [1, 2, 3, 4, 5]) {
       mockApi.getRandomSentence.mockResolvedValueOnce(fakeSentence)
-      fireEvent.click(screen.getByRole('button', { name: `Level ${n}` }))
+      fireEvent.click(screen.getByRole('checkbox', { name: `Level ${n}` }))
       await screen.findByText(fakeSentence.japanese)
     }
     expect(mockApi.getRandomSentence).toHaveBeenLastCalledWith(undefined)
+    expect(screen.getByRole('button', { name: /^level:/i })).toHaveTextContent('Level: All')
   })
 
   it('restores a previously persisted selection on mount', async () => {
     localStorage.setItem('eagle:selectedLevels', JSON.stringify([2, 4]))
     render(<Translator user={fakeUser} />)
     await screen.findByText(fakeSentence.japanese)
-    expect(screen.getByRole('button', { name: 'Level 2' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('button', { name: 'Level 1' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: /^level:/i })).toHaveTextContent('Level: 2, 4')
+    openLevelMenu()
+    expect(screen.getByRole('checkbox', { name: 'Level 2' })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Level 1' })).not.toBeChecked()
     expect(mockApi.getRandomSentence).toHaveBeenCalledWith([2, 4])
   })
 
@@ -104,7 +134,8 @@ describe('Level toggles', () => {
     })
     await answerIncorrectly()
     mockApi.getRandomSentence.mockResolvedValueOnce({ ...fakeSentence, id: 3, level: 1 })
-    fireEvent.click(screen.getByRole('button', { name: 'Level 1' }))
+    openLevelMenu()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Level 1' }))
     await screen.findByLabelText(/your english translation/i)
     expect(screen.queryByText(/not quite right/i)).not.toBeInTheDocument()
     expect(screen.getByLabelText(/your english translation/i)).toHaveValue('')
@@ -114,9 +145,10 @@ describe('Level toggles', () => {
     render(<Translator user={fakeUser} />)
     await screen.findByText(fakeSentence.japanese)
     mockApi.getRandomSentence.mockRejectedValueOnce(new Error('API error: 404'))
-    fireEvent.click(screen.getByRole('button', { name: 'Level 1' }))
+    openLevelMenu()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Level 1' }))
     await screen.findByText(/api error: 404/i)
-    expect(screen.getByRole('button', { name: 'Level 1' })).toBeEnabled()
+    expect(screen.getByRole('checkbox', { name: 'Level 1' })).toBeEnabled()
   })
 
   it('ignores a stale response that resolves after a newer request', async () => {
@@ -128,19 +160,21 @@ describe('Level toggles', () => {
     const staleSentence = { ...fakeSentence, id: 10, japanese: 'stale response' }
     const latestSentence = { ...fakeSentence, id: 20, japanese: 'latest response' }
 
+    openLevelMenu()
+
     mockApi.getRandomSentence.mockReturnValueOnce(
       new Promise(resolve => {
         resolveFirst = resolve
       })
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Level 1' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Level 1' }))
 
     mockApi.getRandomSentence.mockReturnValueOnce(
       new Promise(resolve => {
         resolveSecond = resolve
       })
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Level 2' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Level 2' }))
 
     // Resolve out of arrival order: the newer (second) request settles first,
     // then the older (first) request's stale response arrives afterward.
