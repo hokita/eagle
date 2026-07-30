@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label'
 import { CheckCircle, XCircle, Volume2 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import Image from 'next/image'
+import Link from 'next/link'
 import type { User } from 'firebase/auth'
 import { api, type Sentence, type AnswerHistory } from '@/lib/api'
 import UserMenu from './UserMenu'
@@ -320,7 +321,12 @@ export default function Translator({ user }: Props) {
                 <CardTitle>Translate this sentence</CardTitle>
                 <CardDescription>Translate the Japanese sentence below into English</CardDescription>
               </div>
-              {levelMenu}
+              <div className="flex items-center gap-2">
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/mistakes">Mistakes</Link>
+                </Button>
+                {levelMenu}
+              </div>
             </CardHeader>
             {loading ? (
               <CardContent>
