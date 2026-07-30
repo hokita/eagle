@@ -121,6 +121,33 @@ describe('api.explainAnswer', () => {
   })
 })
 
+describe('api.listMistakes', () => {
+  it('sends GET /api/mistakes with the Authorization header', async () => {
+    mockResponse({
+      mistakes: [
+        {
+          sentence_id: 1,
+          japanese: '時間がありません。',
+          correct_answer: "I don't have time.",
+          wrong_answers: [
+            { id: 1, incorrect_answer: 'I have no time.', created_at: '2026-01-03T00:00:00Z' },
+          ],
+        },
+      ],
+    })
+    const result = await api.listMistakes()
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/mistakes'),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer test-token' }),
+      })
+    )
+    expect(result.mistakes).toHaveLength(1)
+    expect(result.mistakes[0].sentence_id).toBe(1)
+    expect(result.mistakes[0].wrong_answers[0].incorrect_answer).toBe('I have no time.')
+  })
+})
+
 describe('api error handling', () => {
   it('throws when the response is not ok', async () => {
     mockResponse({}, 500)

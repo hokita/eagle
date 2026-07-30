@@ -18,6 +18,13 @@ export interface AnswerHistory {
   created_at: string
 }
 
+export interface Mistake {
+  sentence_id: number
+  japanese: string
+  correct_answer: string
+  wrong_answers: AnswerHistory[]
+}
+
 export interface CheckAnswerResponse {
   is_correct: boolean
   correct_answer: string
@@ -62,6 +69,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ sentence_id: sentenceId }),
     }),
+
+  listMistakes: () => request<{ mistakes: Mistake[] }>('/api/mistakes'),
 
   explainAnswer: (sentenceId: number, userAnswer: string, language: 'en' | 'ja') =>
     request<ExplainResponse>('/api/answer/explain', {
