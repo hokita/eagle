@@ -23,6 +23,17 @@ type AnswerHistory struct {
 	CreatedAt       string `json:"created_at"`
 }
 
+type MistakeSentence struct {
+	SentenceID    int             `json:"sentence_id"`
+	Japanese      string          `json:"japanese"`
+	CorrectAnswer string          `json:"correct_answer"`
+	WrongAnswers  []AnswerHistory `json:"wrong_answers"`
+}
+
+type ListMistakesResponse struct {
+	Mistakes []MistakeSentence `json:"mistakes"`
+}
+
 type CheckAnswerRequest struct {
 	SentenceID int    `json:"sentence_id"`
 	UserAnswer string `json:"user_answer"`
@@ -64,6 +75,9 @@ type SentenceRepository interface {
 	CorrectAnswer(ctx context.Context, id int) (string, error)
 	GetSentence(ctx context.Context, id int) (japanese, english string, err error)
 	ListIncorrectHistories(ctx context.Context, uid string, id int) ([]AnswerHistory, error)
+	// ListMistakes returns every sentence the user has ever answered
+	// incorrectly, most recently missed sentence first.
+	ListMistakes(ctx context.Context, uid string) ([]MistakeSentence, error)
 	RecordAnswer(ctx context.Context, uid string, id int, correct bool, answer string) error
 	Report(ctx context.Context, id int) error
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math/rand"
+	"sort"
 	"strconv"
 	"time"
 
@@ -145,8 +146,8 @@ func (r *firestoreRepo) GetSentence(ctx context.Context, id int) (string, string
 	return sd.Japanese, sd.English, nil
 }
 
-func (r *firestoreRepo) ListIncorrectHistories(ctx context.Context, uid string, id int) ([]AnswerHistory, error) {
-	it := r.userStats(uid).Doc(strconv.Itoa(id)).Collection("histories").
+func (r *firestoreRepo) incorrectHistories(ctx context.Context, statsRef *firestore.DocumentRef) ([]AnswerHistory, error) {
+	it := statsRef.Collection("histories").
 		Where("is_correct", "==", false).
 		OrderBy("created_at", firestore.Desc).Documents(ctx)
 	histories := make([]AnswerHistory, 0)
@@ -169,6 +170,69 @@ func (r *firestoreRepo) ListIncorrectHistories(ctx context.Context, uid string, 
 		})
 	}
 	return histories, nil
+}
+
+func (r *firestoreRepo) ListIncorrectHistories(ctx context.Context, uid string, id int) ([]AnswerHistory, error) {
+	return r.incorrectHistories(ctx, r.userStats(uid).Doc(strconv.Itoa(id)))
+}
+
+func (r *firestoreRepo) ListMistakes(ctx context.Context, uid string) ([]MistakeSentence, error) {
+	mistakes := make([]MistakeSentence, 0)
+	it := r.userStats(uid).Documents(ctx)
+	for {
+		ds, err := it.Next()
+		if errors.Is(err, iterator.Done) {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		id, convErr := strconv.Atoi(ds.Ref.ID)
+		if convErr != nil {
+			continue
+		}
+		var st statsDoc
+		if err := ds.DataTo(&st); err != nil {
+			return nil, err
+		}
+		if st.IncorrectCount == 0 {
+			continue
+		}
+
+		sentDs, err := r.client.Collection("sentences").Doc(ds.Ref.ID).Get(ctx)
+		if status.Code(err) == codes.NotFound {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		var sd sentenceDoc
+		if err := sentDs.DataTo(&sd); err != nil {
+			return nil, err
+		}
+
+		wrongAnswers, err := r.incorrectHistories(ctx, ds.Ref)
+		if err != nil {
+			return nil, err
+		}
+		if len(wrongAnswers) == 0 {
+			continue
+		}
+
+		mistakes = append(mistakes, MistakeSentence{
+			SentenceID:    id,
+			Japanese:      sd.Japanese,
+			CorrectAnswer: sd.English,
+			WrongAnswers:  wrongAnswers,
+		})
+	}
+
+	sort.Slice(mistakes, func(i, j int) bool {
+		ti, _ := time.Parse(time.RFC3339, mistakes[i].WrongAnswers[0].CreatedAt)
+		tj, _ := time.Parse(time.RFC3339, mistakes[j].WrongAnswers[0].CreatedAt)
+		return ti.After(tj)
+	})
+	return mistakes, nil
 }
 
 func (r *firestoreRepo) RecordAnswer(ctx context.Context, uid string, id int, correct bool, answer string) error {

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"testing"
+	"time"
 
 	"cloud.google.com/go/firestore"
 )
@@ -215,5 +216,92 @@ func TestFirestoreRandomCandidateFiltersByMultipleLevels(t *testing.T) {
 		if s.ID != 601 && s.ID != 602 {
 			t.Fatalf("expected level-1 or level-3 sentence, got %d", s.ID)
 		}
+	}
+}
+
+func TestFirestoreListMistakesGroupsWrongAnswersMostRecentSentenceFirst(t *testing.T) {
+	ctx := context.Background()
+	client := newEmulatorClient(t)
+	repo := NewFirestoreRepo(client)
+	uid := "user-mistakes"
+	seedSentence(t, client, "701", "1", "時間がありません。", "I don't have time.", 1, false)
+	seedSentence(t, client, "702", "1", "彼は毎朝走ります。", "He runs every morning.", 1, false)
+
+	repo.now = func() time.Time { return time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC) }
+	if err := repo.RecordAnswer(ctx, uid, 701, false, "I have no time."); err != nil {
+		t.Fatal(err)
+	}
+	repo.now = func() time.Time { return time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC) }
+	if err := repo.RecordAnswer(ctx, uid, 702, false, "He run every morning."); err != nil {
+		t.Fatal(err)
+	}
+	repo.now = func() time.Time { return time.Date(2026, 1, 3, 0, 0, 0, 0, time.UTC) }
+	if err := repo.RecordAnswer(ctx, uid, 701, false, "There is no time."); err != nil {
+		t.Fatal(err)
+	}
+
+	mistakes, err := repo.ListMistakes(ctx, uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mistakes) != 2 {
+		t.Fatalf("expected 2 mistaken sentences, got %d: %+v", len(mistakes), mistakes)
+	}
+	// 701's most recent wrong answer (Jan 3) is newer than 702's (Jan 2), so 701 sorts first.
+	if mistakes[0].SentenceID != 701 {
+		t.Fatalf("expected sentence 701 first (most recent mistake), got %+v", mistakes)
+	}
+	if mistakes[0].Japanese != "時間がありません。" || mistakes[0].CorrectAnswer != "I don't have time." {
+		t.Fatalf("unexpected sentence fields: %+v", mistakes[0])
+	}
+	if len(mistakes[0].WrongAnswers) != 2 {
+		t.Fatalf("expected 2 wrong answers for 701, got %+v", mistakes[0].WrongAnswers)
+	}
+	if mistakes[0].WrongAnswers[0].IncorrectAnswer != "There is no time." {
+		t.Fatalf("expected newest wrong answer first, got %+v", mistakes[0].WrongAnswers)
+	}
+	if mistakes[1].SentenceID != 702 {
+		t.Fatalf("expected sentence 702 second, got %+v", mistakes[1])
+	}
+}
+
+func TestFirestoreListMistakesExcludesSentencesNeverMissed(t *testing.T) {
+	ctx := context.Background()
+	client := newEmulatorClient(t)
+	repo := NewFirestoreRepo(client)
+	uid := "user-clean"
+	seedSentence(t, client, "801", "1", "A", "A-en", 1, false)
+	if err := repo.RecordAnswer(ctx, uid, 801, true, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	mistakes, err := repo.ListMistakes(ctx, uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mistakes) != 0 {
+		t.Fatalf("expected no mistakes for an all-correct sentence, got %+v", mistakes)
+	}
+}
+
+func TestFirestoreListMistakesSkipsDeletedSentence(t *testing.T) {
+	ctx := context.Background()
+	client := newEmulatorClient(t)
+	repo := NewFirestoreRepo(client)
+	uid := "user-deleted"
+	seedSentence(t, client, "901", "1", "A", "A-en", 1, false)
+	if err := repo.RecordAnswer(ctx, uid, 901, false, "wrong"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Collection("sentences").Doc("901").Delete(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	mistakes, err := repo.ListMistakes(ctx, uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mistakes) != 0 {
+		t.Fatalf("expected deleted sentence to be skipped, got %+v", mistakes)
 	}
 }

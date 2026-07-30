@@ -48,6 +48,9 @@ func (f *fakeRepo) ListIncorrectHistories(_ context.Context, _ string, _ int) ([
 	}
 	return f.histories, nil
 }
+func (f *fakeRepo) ListMistakes(_ context.Context, _ string) ([]MistakeSentence, error) {
+	return []MistakeSentence{}, nil
+}
 func (f *fakeRepo) RecordAnswer(_ context.Context, uid string, id int, correct bool, answer string) error {
 	f.recorded = append(f.recorded, recordedAnswer{uid, id, correct, answer})
 	return nil
