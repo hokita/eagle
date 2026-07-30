@@ -63,6 +63,13 @@ func (s *Server) getRandomSentence(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, sentence)
 }
 
+// normalizeWhitespace collapses any run of whitespace (including internal
+// newlines from multi-line input) into a single space, and trims the ends,
+// so answers that differ only in whitespace formatting compare as equal.
+func normalizeWhitespace(s string) string {
+	return strings.Join(strings.Fields(s), " ")
+}
+
 func (s *Server) checkAnswer(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -90,7 +97,7 @@ func (s *Server) checkAnswer(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	isCorrect := strings.EqualFold(strings.TrimSpace(req.UserAnswer), strings.TrimSpace(correct))
+	isCorrect := strings.EqualFold(normalizeWhitespace(req.UserAnswer), normalizeWhitespace(correct))
 	answer := ""
 	if !isCorrect {
 		answer = req.UserAnswer

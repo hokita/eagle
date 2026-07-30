@@ -202,6 +202,25 @@ func TestCheckAnswerCorrect(t *testing.T) {
 	}
 }
 
+func TestCheckAnswerCorrectDespiteInternalWhitespaceDifference(t *testing.T) {
+	repo := &fakeRepo{correct: "Do we have to read these books? Yes, you do."}
+	srv := NewServer(repo, &fakeExplainer{})
+	body := `{"sentence_id":1,"user_answer":"Do we have to read these books?\nYes, you do."}`
+	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/check", strings.NewReader(body)), "u1")
+	rec := httptest.NewRecorder()
+	srv.checkAnswer(rec, req)
+	var resp CheckAnswerResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if !resp.IsCorrect {
+		t.Fatal("expected correct despite newline instead of space")
+	}
+	if len(repo.recorded) != 1 || repo.recorded[0].correct != true {
+		t.Fatalf("expected correct answer recorded, got %+v", repo.recorded)
+	}
+}
+
 func TestCheckAnswerIncorrectRecordsAnswer(t *testing.T) {
 	repo := &fakeRepo{correct: "It's hot today."}
 	srv := NewServer(repo, &fakeExplainer{})
