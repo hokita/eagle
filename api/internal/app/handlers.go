@@ -112,6 +112,21 @@ func (s *Server) checkAnswer(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) getMistakes(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	uid, _ := uidFromContext(r.Context())
+	mistakes, err := s.repo.ListMistakes(r.Context(), uid)
+	if err != nil {
+		log.Printf("list mistakes error: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, ListMistakesResponse{Mistakes: mistakes})
+}
+
 func (s *Server) reportSentence(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
