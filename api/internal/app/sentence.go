@@ -34,6 +34,10 @@ type ListMistakesResponse struct {
 	Mistakes []MistakeSentence `json:"mistakes"`
 }
 
+type MistakesInsightResponse struct {
+	Insight string `json:"insight"`
+}
+
 type CheckAnswerRequest struct {
 	SentenceID int    `json:"sentence_id"`
 	UserAnswer string `json:"user_answer"`
