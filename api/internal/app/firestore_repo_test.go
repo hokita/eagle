@@ -284,6 +284,46 @@ func TestFirestoreListMistakesExcludesSentencesNeverMissed(t *testing.T) {
 	}
 }
 
+func TestFirestoreListMistakesOrdersBySubSecondPrecisionWithinSameSecond(t *testing.T) {
+	ctx := context.Background()
+	client := newEmulatorClient(t)
+	repo := NewFirestoreRepo(client)
+	uid := "user-subsecond"
+	// IDs chosen so ascending doc-ID order (Firestore's default iteration
+	// order for an unordered collection scan) is the OPPOSITE of the correct
+	// time-based order, so this test only passes if sub-second precision is
+	// actually preserved through storage and the sort, not by coincidence.
+	seedSentence(t, client, "1001", "1", "A", "A-en", 1, false)
+	seedSentence(t, client, "1002", "1", "B", "B-en", 1, false)
+
+	sameSecond := time.Date(2026, 2, 1, 12, 0, 0, 0, time.UTC)
+	repo.now = func() time.Time { return sameSecond.Add(100 * time.Millisecond) }
+	if err := repo.RecordAnswer(ctx, uid, 1001, false, "wrong A"); err != nil {
+		t.Fatal(err)
+	}
+	repo.now = func() time.Time { return sameSecond.Add(900 * time.Millisecond) }
+	if err := repo.RecordAnswer(ctx, uid, 1002, false, "wrong B"); err != nil {
+		t.Fatal(err)
+	}
+
+	mistakes, err := repo.ListMistakes(ctx, uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mistakes) != 2 {
+		t.Fatalf("expected 2 mistaken sentences, got %d: %+v", len(mistakes), mistakes)
+	}
+	// Both wrong answers land in the same wall-clock second (12:00:00), but
+	// 1002's is 800ms later. Sub-second precision must survive storage and
+	// the sort for 1002 to correctly rank first.
+	if mistakes[0].SentenceID != 1002 {
+		t.Fatalf("expected sentence 1002 first (later within the same second), got %+v", mistakes)
+	}
+	if mistakes[1].SentenceID != 1001 {
+		t.Fatalf("expected sentence 1001 second, got %+v", mistakes)
+	}
+}
+
 func TestFirestoreListMistakesSkipsDeletedSentence(t *testing.T) {
 	ctx := context.Background()
 	client := newEmulatorClient(t)

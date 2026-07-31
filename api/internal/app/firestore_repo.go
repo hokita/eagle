@@ -166,7 +166,7 @@ func (r *firestoreRepo) incorrectHistories(ctx context.Context, statsRef *firest
 		histories = append(histories, AnswerHistory{
 			ID:              hd.CreatedAt.UnixMicro(),
 			IncorrectAnswer: hd.IncorrectAnswer,
-			CreatedAt:       hd.CreatedAt.UTC().Format(time.RFC3339),
+			CreatedAt:       hd.CreatedAt.UTC().Format(time.RFC3339Nano),
 		})
 	}
 	return histories, nil
