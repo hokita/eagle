@@ -10,3 +10,5 @@ api/eagle
 api/cmd/seed/seed
 
 .worktrees
+
+.superpowers

@@ -391,3 +391,12 @@ describe('Explain button', () => {
     expect(screen.getByRole('button', { name: 'JA' })).not.toBeDisabled()
   })
 })
+
+describe('Mistakes link', () => {
+  it('links to the mistakes page', async () => {
+    render(<Translator user={fakeUser} />)
+    await screen.findByText(fakeSentence.japanese)
+    const link = screen.getByRole('link', { name: /mistakes/i })
+    expect(link).toHaveAttribute('href', '/mistakes')
+  })
+})

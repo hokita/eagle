@@ -30,6 +30,8 @@ type fakeRepo struct {
 	histories        []AnswerHistory
 	recorded         []recordedAnswer
 	reported         []int
+	mistakes         []MistakeSentence
+	mistakesErr      error
 }
 
 func (f *fakeRepo) RandomCandidate(_ context.Context, _ string, levels []int) (*Sentence, error) {
@@ -47,6 +49,15 @@ func (f *fakeRepo) ListIncorrectHistories(_ context.Context, _ string, _ int) ([
 		return []AnswerHistory{}, nil
 	}
 	return f.histories, nil
+}
+func (f *fakeRepo) ListMistakes(_ context.Context, _ string) ([]MistakeSentence, error) {
+	if f.mistakesErr != nil {
+		return nil, f.mistakesErr
+	}
+	if f.mistakes == nil {
+		return []MistakeSentence{}, nil
+	}
+	return f.mistakes, nil
 }
 func (f *fakeRepo) RecordAnswer(_ context.Context, uid string, id int, correct bool, answer string) error {
 	f.recorded = append(f.recorded, recordedAnswer{uid, id, correct, answer})
@@ -456,6 +467,72 @@ func TestExplainAnswerMethodNotAllowed(t *testing.T) {
 	srv := NewServer(&fakeRepo{}, &fakeExplainer{})
 	rec := httptest.NewRecorder()
 	srv.explainAnswer(rec, authed(httptest.NewRequest(http.MethodGet, "/api/answer/explain", nil), "u1"))
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d", rec.Code)
+	}
+}
+
+func TestGetMistakesOK(t *testing.T) {
+	repo := &fakeRepo{mistakes: []MistakeSentence{
+		{
+			SentenceID:    701,
+			Japanese:      "時間がありません。",
+			CorrectAnswer: "I don't have time.",
+			WrongAnswers: []AnswerHistory{
+				{ID: 1, IncorrectAnswer: "I have no time.", CreatedAt: "2026-01-03T00:00:00Z"},
+			},
+		},
+	}}
+	srv := NewServer(repo, &fakeExplainer{})
+	rec := httptest.NewRecorder()
+	srv.getMistakes(rec, authed(httptest.NewRequest(http.MethodGet, "/api/mistakes", nil), "u1"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var resp ListMistakesResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(resp.Mistakes) != 1 || resp.Mistakes[0].SentenceID != 701 {
+		t.Fatalf("unexpected body: %+v", resp)
+	}
+	if len(resp.Mistakes[0].WrongAnswers) != 1 || resp.Mistakes[0].WrongAnswers[0].IncorrectAnswer != "I have no time." {
+		t.Fatalf("unexpected wrong answers: %+v", resp.Mistakes[0])
+	}
+}
+
+func TestGetMistakesEmpty(t *testing.T) {
+	srv := NewServer(&fakeRepo{}, &fakeExplainer{})
+	rec := httptest.NewRecorder()
+	srv.getMistakes(rec, authed(httptest.NewRequest(http.MethodGet, "/api/mistakes", nil), "u1"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var resp ListMistakesResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.Mistakes == nil {
+		t.Fatal("mistakes must not be null")
+	}
+	if len(resp.Mistakes) != 0 {
+		t.Fatalf("expected empty list, got %+v", resp.Mistakes)
+	}
+}
+
+func TestGetMistakesRepoError(t *testing.T) {
+	srv := NewServer(&fakeRepo{mistakesErr: errors.New("boom")}, &fakeExplainer{})
+	rec := httptest.NewRecorder()
+	srv.getMistakes(rec, authed(httptest.NewRequest(http.MethodGet, "/api/mistakes", nil), "u1"))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rec.Code)
+	}
+}
+
+func TestGetMistakesMethodNotAllowed(t *testing.T) {
+	srv := NewServer(&fakeRepo{}, &fakeExplainer{})
+	rec := httptest.NewRecorder()
+	srv.getMistakes(rec, authed(httptest.NewRequest(http.MethodPost, "/api/mistakes", nil), "u1"))
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("expected 405, got %d", rec.Code)
 	}

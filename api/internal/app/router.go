@@ -12,6 +12,7 @@ func NewMux(srv *Server, verifier TokenVerifier, allowedEmails []string, fronten
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/sentence/random", auth(srv.getRandomSentence))
 	mux.HandleFunc("/api/answer/check", auth(srv.checkAnswer))
+	mux.HandleFunc("/api/mistakes", auth(srv.getMistakes))
 	mux.HandleFunc("/api/answer/explain", auth(srv.explainAnswer))
 	mux.HandleFunc("/api/sentence/report", auth(srv.reportSentence))
 	mux.HandleFunc("/api/liveness", livenessHandler)
