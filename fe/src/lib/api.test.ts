@@ -148,6 +148,20 @@ describe('api.listMistakes', () => {
   })
 })
 
+describe('api.getMistakesInsight', () => {
+  it('sends GET /api/mistakes/insight with the language query param', async () => {
+    mockResponse({ insight: 'You often drop articles.' })
+    const result = await api.getMistakesInsight('en')
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/mistakes/insight?language=en'),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer test-token' }),
+      })
+    )
+    expect(result.insight).toBe('You often drop articles.')
+  })
+})
+
 describe('api error handling', () => {
   it('throws when the response is not ok', async () => {
     mockResponse({}, 500)
