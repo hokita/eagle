@@ -23,10 +23,11 @@ const (
 type Server struct {
 	repo      SentenceRepository
 	explainer Explainer
+	analyzer  WeaknessAnalyzer
 }
 
-func NewServer(repo SentenceRepository, explainer Explainer) *Server {
-	return &Server{repo: repo, explainer: explainer}
+func NewServer(repo SentenceRepository, explainer Explainer, analyzer WeaknessAnalyzer) *Server {
+	return &Server{repo: repo, explainer: explainer, analyzer: analyzer}
 }
 
 func (s *Server) getRandomSentence(w http.ResponseWriter, r *http.Request) {

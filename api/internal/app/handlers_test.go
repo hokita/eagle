@@ -86,13 +86,29 @@ func (f *fakeExplainer) Explain(_ context.Context, japanese, correctAnswer, user
 	return f.explanation, f.err
 }
 
+type analyzeCall struct {
+	mistakes []MistakeSentence
+	language string
+}
+
+type fakeAnalyzer struct {
+	insight    string
+	err        error
+	calledWith []analyzeCall
+}
+
+func (f *fakeAnalyzer) Analyze(_ context.Context, mistakes []MistakeSentence, language string) (string, error) {
+	f.calledWith = append(f.calledWith, analyzeCall{mistakes, language})
+	return f.insight, f.err
+}
+
 func authed(req *http.Request, uid string) *http.Request {
 	return req.WithContext(withUID(req.Context(), uid))
 }
 
 func TestGetRandomSentenceOK(t *testing.T) {
 	repo := &fakeRepo{random: &Sentence{ID: 7, Japanese: "犬", English: "dog", Page: "3"}}
-	srv := NewServer(repo, &fakeExplainer{})
+	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
 	rec := httptest.NewRecorder()
 	srv.getRandomSentence(rec, authed(httptest.NewRequest(http.MethodGet, "/api/sentence/random", nil), "u1"))
 	if rec.Code != http.StatusOK {
@@ -109,7 +125,7 @@ func TestGetRandomSentenceOK(t *testing.T) {
 
 func TestGetRandomSentencePassesLevelsToRepo(t *testing.T) {
 	repo := &fakeRepo{random: &Sentence{ID: 7}}
-	srv := NewServer(repo, &fakeExplainer{})
+	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
 	rec := httptest.NewRecorder()
 	srv.getRandomSentence(rec, authed(httptest.NewRequest(http.MethodGet, "/api/sentence/random?levels=3", nil), "u1"))
 	if rec.Code != http.StatusOK {
@@ -122,7 +138,7 @@ func TestGetRandomSentencePassesLevelsToRepo(t *testing.T) {
 
 func TestGetRandomSentencePassesMultipleLevelsToRepo(t *testing.T) {
 	repo := &fakeRepo{random: &Sentence{ID: 7}}
-	srv := NewServer(repo, &fakeExplainer{})
+	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
 	rec := httptest.NewRecorder()
 	srv.getRandomSentence(rec, authed(httptest.NewRequest(http.MethodGet, "/api/sentence/random?levels=1,3,5", nil), "u1"))
 	if rec.Code != http.StatusOK {
@@ -138,7 +154,7 @@ func TestGetRandomSentencePassesMultipleLevelsToRepo(t *testing.T) {
 
 func TestGetRandomSentenceDedupesLevels(t *testing.T) {
 	repo := &fakeRepo{random: &Sentence{ID: 7}}
-	srv := NewServer(repo, &fakeExplainer{})
+	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
 	rec := httptest.NewRecorder()
 	srv.getRandomSentence(rec, authed(httptest.NewRequest(http.MethodGet, "/api/sentence/random?levels=2,2,3", nil), "u1"))
 	if rec.Code != http.StatusOK {
@@ -151,7 +167,7 @@ func TestGetRandomSentenceDedupesLevels(t *testing.T) {
 
 func TestGetRandomSentenceNoLevelsDefaultsToAny(t *testing.T) {
 	repo := &fakeRepo{random: &Sentence{ID: 7}}
-	srv := NewServer(repo, &fakeExplainer{})
+	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
 	rec := httptest.NewRecorder()
 	srv.getRandomSentence(rec, authed(httptest.NewRequest(http.MethodGet, "/api/sentence/random", nil), "u1"))
 	if rec.Code != http.StatusOK {
@@ -166,7 +182,7 @@ func TestGetRandomSentenceInvalidLevels(t *testing.T) {
 	for _, levels := range []string{"0", "6", "-1", "abc", "3.5", "1,6", "1,abc", "1,,3"} {
 		t.Run(levels, func(t *testing.T) {
 			repo := &fakeRepo{random: &Sentence{ID: 7}}
-			srv := NewServer(repo, &fakeExplainer{})
+			srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
 			rec := httptest.NewRecorder()
 			srv.getRandomSentence(rec, authed(httptest.NewRequest(http.MethodGet, "/api/sentence/random?levels="+levels, nil), "u1"))
 			if rec.Code != http.StatusBadRequest {
@@ -180,7 +196,7 @@ func TestGetRandomSentenceInvalidLevels(t *testing.T) {
 }
 
 func TestGetRandomSentenceNoCandidate(t *testing.T) {
-	srv := NewServer(&fakeRepo{randomErr: ErrNoCandidate}, &fakeExplainer{})
+	srv := NewServer(&fakeRepo{randomErr: ErrNoCandidate}, &fakeExplainer{}, &fakeAnalyzer{})
 	rec := httptest.NewRecorder()
 	srv.getRandomSentence(rec, authed(httptest.NewRequest(http.MethodGet, "/api/sentence/random", nil), "u1"))
 	if rec.Code != http.StatusNotFound {
@@ -190,7 +206,7 @@ func TestGetRandomSentenceNoCandidate(t *testing.T) {
 
 func TestCheckAnswerCorrect(t *testing.T) {
 	repo := &fakeRepo{correct: "I don't have time."}
-	srv := NewServer(repo, &fakeExplainer{})
+	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
 	body := `{"sentence_id":1,"user_answer":"  i don't have TIME. "}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/check", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
@@ -215,7 +231,7 @@ func TestCheckAnswerCorrect(t *testing.T) {
 
 func TestCheckAnswerCorrectDespiteInternalWhitespaceDifference(t *testing.T) {
 	repo := &fakeRepo{correct: "Do we have to read these books? Yes, you do."}
-	srv := NewServer(repo, &fakeExplainer{})
+	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
 	body := `{"sentence_id":1,"user_answer":"Do we have to read these books?\nYes, you do."}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/check", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
@@ -234,7 +250,7 @@ func TestCheckAnswerCorrectDespiteInternalWhitespaceDifference(t *testing.T) {
 
 func TestCheckAnswerIncorrectRecordsAnswer(t *testing.T) {
 	repo := &fakeRepo{correct: "It's hot today."}
-	srv := NewServer(repo, &fakeExplainer{})
+	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
 	body := `{"sentence_id":2,"user_answer":"It is hot today."}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/check", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
@@ -250,7 +266,7 @@ func TestCheckAnswerIncorrectRecordsAnswer(t *testing.T) {
 }
 
 func TestCheckAnswerNotFound(t *testing.T) {
-	srv := NewServer(&fakeRepo{correctErr: ErrNotFound}, &fakeExplainer{})
+	srv := NewServer(&fakeRepo{correctErr: ErrNotFound}, &fakeExplainer{}, &fakeAnalyzer{})
 	body := `{"sentence_id":999,"user_answer":"x"}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/check", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
@@ -262,7 +278,7 @@ func TestCheckAnswerNotFound(t *testing.T) {
 
 func TestReportSentence(t *testing.T) {
 	repo := &fakeRepo{}
-	srv := NewServer(repo, &fakeExplainer{})
+	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
 	body := `{"sentence_id":5}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/sentence/report", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
@@ -276,7 +292,7 @@ func TestReportSentence(t *testing.T) {
 }
 
 func TestMethodNotAllowed(t *testing.T) {
-	srv := NewServer(&fakeRepo{}, &fakeExplainer{})
+	srv := NewServer(&fakeRepo{}, &fakeExplainer{}, &fakeAnalyzer{})
 	rec := httptest.NewRecorder()
 	srv.getRandomSentence(rec, authed(httptest.NewRequest(http.MethodPost, "/api/sentence/random", nil), "u1"))
 	if rec.Code != http.StatusMethodNotAllowed {
@@ -287,7 +303,7 @@ func TestMethodNotAllowed(t *testing.T) {
 func TestExplainAnswerOK(t *testing.T) {
 	explainer := &fakeExplainer{explanation: "Your answer is also natural; the reference is just more formal."}
 	repo := &fakeRepo{sentenceJapanese: "時間がありません。", sentenceEnglish: "I don't have time."}
-	srv := NewServer(repo, explainer)
+	srv := NewServer(repo, explainer, &fakeAnalyzer{})
 	body := `{"sentence_id":1,"user_answer":"I have no time.","language":"en"}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
@@ -320,7 +336,7 @@ func TestExplainAnswerOK(t *testing.T) {
 func TestExplainAnswerIgnoresClientSuppliedSentenceData(t *testing.T) {
 	explainer := &fakeExplainer{explanation: "explanation"}
 	repo := &fakeRepo{sentenceJapanese: "本物の文", sentenceEnglish: "the real sentence"}
-	srv := NewServer(repo, explainer)
+	srv := NewServer(repo, explainer, &fakeAnalyzer{})
 	body := `{"sentence_id":1,"japanese":"injected","correct_answer":"injected","user_answer":"my answer"}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
@@ -336,7 +352,7 @@ func TestExplainAnswerIgnoresClientSuppliedSentenceData(t *testing.T) {
 func TestExplainAnswerSentenceNotFound(t *testing.T) {
 	explainer := &fakeExplainer{}
 	repo := &fakeRepo{sentenceErr: ErrNotFound}
-	srv := NewServer(repo, explainer)
+	srv := NewServer(repo, explainer, &fakeAnalyzer{})
 	body := `{"sentence_id":999,"user_answer":"x","language":"en"}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
@@ -352,7 +368,7 @@ func TestExplainAnswerSentenceNotFound(t *testing.T) {
 func TestExplainAnswerEmptyUserAnswer(t *testing.T) {
 	explainer := &fakeExplainer{}
 	repo := &fakeRepo{sentenceJapanese: "x", sentenceEnglish: "y"}
-	srv := NewServer(repo, explainer)
+	srv := NewServer(repo, explainer, &fakeAnalyzer{})
 	body := `{"sentence_id":1,"user_answer":"   "}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
@@ -368,7 +384,7 @@ func TestExplainAnswerEmptyUserAnswer(t *testing.T) {
 func TestExplainAnswerUserAnswerTooLong(t *testing.T) {
 	explainer := &fakeExplainer{}
 	repo := &fakeRepo{sentenceJapanese: "x", sentenceEnglish: "y"}
-	srv := NewServer(repo, explainer)
+	srv := NewServer(repo, explainer, &fakeAnalyzer{})
 	longAnswer := strings.Repeat("a", maxUserAnswerLength+1)
 	bodyBytes, err := json.Marshal(map[string]any{"sentence_id": 1, "user_answer": longAnswer})
 	if err != nil {
@@ -388,7 +404,7 @@ func TestExplainAnswerUserAnswerTooLong(t *testing.T) {
 func TestExplainAnswerBodyTooLarge(t *testing.T) {
 	explainer := &fakeExplainer{}
 	repo := &fakeRepo{sentenceJapanese: "x", sentenceEnglish: "y"}
-	srv := NewServer(repo, explainer)
+	srv := NewServer(repo, explainer, &fakeAnalyzer{})
 	huge := strings.Repeat("a", maxExplainRequestBytes+1)
 	body := `{"sentence_id":1,"user_answer":"` + huge + `"}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
@@ -405,7 +421,7 @@ func TestExplainAnswerBodyTooLarge(t *testing.T) {
 func TestExplainAnswerLLMError(t *testing.T) {
 	explainer := &fakeExplainer{err: errors.New("gemini unavailable")}
 	repo := &fakeRepo{sentenceJapanese: "x", sentenceEnglish: "y"}
-	srv := NewServer(repo, explainer)
+	srv := NewServer(repo, explainer, &fakeAnalyzer{})
 	body := `{"sentence_id":1,"user_answer":"z","language":"en"}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
@@ -418,7 +434,7 @@ func TestExplainAnswerLLMError(t *testing.T) {
 func TestExplainAnswerLanguageJapanese(t *testing.T) {
 	explainer := &fakeExplainer{explanation: "日本語での説明。"}
 	repo := &fakeRepo{sentenceJapanese: "時間がありません。", sentenceEnglish: "I don't have time."}
-	srv := NewServer(repo, explainer)
+	srv := NewServer(repo, explainer, &fakeAnalyzer{})
 	body := `{"sentence_id":1,"user_answer":"I have no time.","language":"ja"}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
@@ -434,7 +450,7 @@ func TestExplainAnswerLanguageJapanese(t *testing.T) {
 func TestExplainAnswerInvalidLanguage(t *testing.T) {
 	explainer := &fakeExplainer{}
 	repo := &fakeRepo{sentenceJapanese: "x", sentenceEnglish: "y"}
-	srv := NewServer(repo, explainer)
+	srv := NewServer(repo, explainer, &fakeAnalyzer{})
 	body := `{"sentence_id":1,"user_answer":"z","language":"fr"}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
@@ -450,7 +466,7 @@ func TestExplainAnswerInvalidLanguage(t *testing.T) {
 func TestExplainAnswerMissingLanguage(t *testing.T) {
 	explainer := &fakeExplainer{}
 	repo := &fakeRepo{sentenceJapanese: "x", sentenceEnglish: "y"}
-	srv := NewServer(repo, explainer)
+	srv := NewServer(repo, explainer, &fakeAnalyzer{})
 	body := `{"sentence_id":1,"user_answer":"z"}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
@@ -464,7 +480,7 @@ func TestExplainAnswerMissingLanguage(t *testing.T) {
 }
 
 func TestExplainAnswerMethodNotAllowed(t *testing.T) {
-	srv := NewServer(&fakeRepo{}, &fakeExplainer{})
+	srv := NewServer(&fakeRepo{}, &fakeExplainer{}, &fakeAnalyzer{})
 	rec := httptest.NewRecorder()
 	srv.explainAnswer(rec, authed(httptest.NewRequest(http.MethodGet, "/api/answer/explain", nil), "u1"))
 	if rec.Code != http.StatusMethodNotAllowed {
@@ -483,7 +499,7 @@ func TestGetMistakesOK(t *testing.T) {
 			},
 		},
 	}}
-	srv := NewServer(repo, &fakeExplainer{})
+	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
 	rec := httptest.NewRecorder()
 	srv.getMistakes(rec, authed(httptest.NewRequest(http.MethodGet, "/api/mistakes", nil), "u1"))
 	if rec.Code != http.StatusOK {
@@ -502,7 +518,7 @@ func TestGetMistakesOK(t *testing.T) {
 }
 
 func TestGetMistakesEmpty(t *testing.T) {
-	srv := NewServer(&fakeRepo{}, &fakeExplainer{})
+	srv := NewServer(&fakeRepo{}, &fakeExplainer{}, &fakeAnalyzer{})
 	rec := httptest.NewRecorder()
 	srv.getMistakes(rec, authed(httptest.NewRequest(http.MethodGet, "/api/mistakes", nil), "u1"))
 	if rec.Code != http.StatusOK {
@@ -521,7 +537,7 @@ func TestGetMistakesEmpty(t *testing.T) {
 }
 
 func TestGetMistakesRepoError(t *testing.T) {
-	srv := NewServer(&fakeRepo{mistakesErr: errors.New("boom")}, &fakeExplainer{})
+	srv := NewServer(&fakeRepo{mistakesErr: errors.New("boom")}, &fakeExplainer{}, &fakeAnalyzer{})
 	rec := httptest.NewRecorder()
 	srv.getMistakes(rec, authed(httptest.NewRequest(http.MethodGet, "/api/mistakes", nil), "u1"))
 	if rec.Code != http.StatusInternalServerError {
@@ -530,7 +546,7 @@ func TestGetMistakesRepoError(t *testing.T) {
 }
 
 func TestGetMistakesMethodNotAllowed(t *testing.T) {
-	srv := NewServer(&fakeRepo{}, &fakeExplainer{})
+	srv := NewServer(&fakeRepo{}, &fakeExplainer{}, &fakeAnalyzer{})
 	rec := httptest.NewRecorder()
 	srv.getMistakes(rec, authed(httptest.NewRequest(http.MethodPost, "/api/mistakes", nil), "u1"))
 	if rec.Code != http.StatusMethodNotAllowed {
