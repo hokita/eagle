@@ -553,3 +553,105 @@ func TestGetMistakesMethodNotAllowed(t *testing.T) {
 		t.Fatalf("expected 405, got %d", rec.Code)
 	}
 }
+
+func TestGetMistakesInsightOK(t *testing.T) {
+	analyzer := &fakeAnalyzer{insight: "You often drop articles like 'the'."}
+	repo := &fakeRepo{mistakes: []MistakeSentence{
+		{SentenceID: 1, Japanese: "犬", CorrectAnswer: "a dog", WrongAnswers: []AnswerHistory{{ID: 1, IncorrectAnswer: "dog"}}},
+	}}
+	srv := NewServer(repo, &fakeExplainer{}, analyzer)
+	rec := httptest.NewRecorder()
+	srv.getMistakesInsight(rec, authed(httptest.NewRequest(http.MethodGet, "/api/mistakes/insight?language=en", nil), "u1"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var resp MistakesInsightResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.Insight != analyzer.insight {
+		t.Fatalf("unexpected insight: %q", resp.Insight)
+	}
+	if len(analyzer.calledWith) != 1 || analyzer.calledWith[0].language != "en" {
+		t.Fatalf("expected Analyze called once with language=en, got %+v", analyzer.calledWith)
+	}
+}
+
+func TestGetMistakesInsightEmptySkipsAnalyzer(t *testing.T) {
+	analyzer := &fakeAnalyzer{insight: "should not be used"}
+	srv := NewServer(&fakeRepo{}, &fakeExplainer{}, analyzer)
+	rec := httptest.NewRecorder()
+	srv.getMistakesInsight(rec, authed(httptest.NewRequest(http.MethodGet, "/api/mistakes/insight?language=en", nil), "u1"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var resp MistakesInsightResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.Insight != "" {
+		t.Fatalf("expected empty insight, got %q", resp.Insight)
+	}
+	if len(analyzer.calledWith) != 0 {
+		t.Fatal("analyzer must not be called when there are no mistakes")
+	}
+}
+
+func TestGetMistakesInsightCapsToMostRecent(t *testing.T) {
+	many := make([]MistakeSentence, maxInsightMistakes+10)
+	for i := range many {
+		many[i] = MistakeSentence{SentenceID: i, Japanese: "x", CorrectAnswer: "y", WrongAnswers: []AnswerHistory{{IncorrectAnswer: "z"}}}
+	}
+	analyzer := &fakeAnalyzer{insight: "ok"}
+	srv := NewServer(&fakeRepo{mistakes: many}, &fakeExplainer{}, analyzer)
+	rec := httptest.NewRecorder()
+	srv.getMistakesInsight(rec, authed(httptest.NewRequest(http.MethodGet, "/api/mistakes/insight?language=en", nil), "u1"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if len(analyzer.calledWith) != 1 || len(analyzer.calledWith[0].mistakes) != maxInsightMistakes {
+		t.Fatalf("expected analyzer called with %d mistakes, got %d", maxInsightMistakes, len(analyzer.calledWith[0].mistakes))
+	}
+}
+
+func TestGetMistakesInsightRepoError(t *testing.T) {
+	srv := NewServer(&fakeRepo{mistakesErr: errors.New("boom")}, &fakeExplainer{}, &fakeAnalyzer{})
+	rec := httptest.NewRecorder()
+	srv.getMistakesInsight(rec, authed(httptest.NewRequest(http.MethodGet, "/api/mistakes/insight?language=en", nil), "u1"))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rec.Code)
+	}
+}
+
+func TestGetMistakesInsightAnalyzerError(t *testing.T) {
+	repo := &fakeRepo{mistakes: []MistakeSentence{{SentenceID: 1, Japanese: "x", CorrectAnswer: "y", WrongAnswers: []AnswerHistory{{IncorrectAnswer: "z"}}}}}
+	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{err: errors.New("gemini down")})
+	rec := httptest.NewRecorder()
+	srv.getMistakesInsight(rec, authed(httptest.NewRequest(http.MethodGet, "/api/mistakes/insight?language=en", nil), "u1"))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rec.Code)
+	}
+}
+
+func TestGetMistakesInsightInvalidLanguage(t *testing.T) {
+	analyzer := &fakeAnalyzer{}
+	repo := &fakeRepo{mistakes: []MistakeSentence{{SentenceID: 1, Japanese: "x", CorrectAnswer: "y", WrongAnswers: []AnswerHistory{{IncorrectAnswer: "z"}}}}}
+	srv := NewServer(repo, &fakeExplainer{}, analyzer)
+	rec := httptest.NewRecorder()
+	srv.getMistakesInsight(rec, authed(httptest.NewRequest(http.MethodGet, "/api/mistakes/insight?language=fr", nil), "u1"))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+	if len(analyzer.calledWith) != 0 {
+		t.Fatal("analyzer must not be called for an invalid language")
+	}
+}
+
+func TestGetMistakesInsightMethodNotAllowed(t *testing.T) {
+	srv := NewServer(&fakeRepo{}, &fakeExplainer{}, &fakeAnalyzer{})
+	rec := httptest.NewRecorder()
+	srv.getMistakesInsight(rec, authed(httptest.NewRequest(http.MethodPost, "/api/mistakes/insight", nil), "u1"))
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d", rec.Code)
+	}
+}

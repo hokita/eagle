@@ -18,6 +18,10 @@ const (
 	// maxUserAnswerLength bounds the submitted translation attempt itself,
 	// independent of the overall body size limit.
 	maxUserAnswerLength = 2000
+	// maxInsightMistakes bounds how many recent mistakes are sent to the
+	// weakness analyzer, keeping prompt size and Gemini cost predictable as a
+	// learner's mistake history grows.
+	maxInsightMistakes = 50
 )
 
 type Server struct {
@@ -126,6 +130,39 @@ func (s *Server) getMistakes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, ListMistakesResponse{Mistakes: mistakes})
+}
+
+func (s *Server) getMistakesInsight(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	language := r.URL.Query().Get("language")
+	if !validExplainLanguages[language] {
+		http.Error(w, "Invalid language", http.StatusBadRequest)
+		return
+	}
+	uid, _ := uidFromContext(r.Context())
+	mistakes, err := s.repo.ListMistakes(r.Context(), uid)
+	if err != nil {
+		log.Printf("list mistakes error: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	if len(mistakes) == 0 {
+		writeJSON(w, MistakesInsightResponse{Insight: ""})
+		return
+	}
+	if len(mistakes) > maxInsightMistakes {
+		mistakes = mistakes[:maxInsightMistakes]
+	}
+	insight, err := s.analyzer.Analyze(r.Context(), mistakes, language)
+	if err != nil {
+		log.Printf("analyze mistakes error: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, MistakesInsightResponse{Insight: insight})
 }
 
 func (s *Server) reportSentence(w http.ResponseWriter, r *http.Request) {
