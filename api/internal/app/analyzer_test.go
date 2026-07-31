@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -34,6 +35,37 @@ func TestBuildWeaknessPromptFocusesOnPatternsAndIgnoresTypos(t *testing.T) {
 	}
 	if !strings.Contains(strings.ToLower(prompt), "typo") {
 		t.Fatal("expected prompt to instruct ignoring typos")
+	}
+}
+
+func TestBuildWeaknessPromptCapsWrongAnswersPerSentence(t *testing.T) {
+	var wrongAnswers []AnswerHistory
+	for i := 0; i < 20; i++ {
+		wrongAnswers = append(wrongAnswers, AnswerHistory{IncorrectAnswer: "wrong answer"})
+	}
+	mistakes := []MistakeSentence{
+		{SentenceID: 1, Japanese: "x", CorrectAnswer: "y", WrongAnswers: wrongAnswers},
+	}
+	prompt := buildWeaknessPrompt(mistakes, "en")
+	if got := strings.Count(prompt, "Learner wrote:"); got != 5 {
+		t.Fatalf("expected at most 5 wrong answers per sentence in the prompt, got %d", got)
+	}
+}
+
+func TestBuildWeaknessPromptKeepsMostRecentWrongAnswersWhenCapping(t *testing.T) {
+	var wrongAnswers []AnswerHistory
+	for i := 0; i < 8; i++ {
+		wrongAnswers = append(wrongAnswers, AnswerHistory{IncorrectAnswer: fmt.Sprintf("attempt-%d", i)})
+	}
+	mistakes := []MistakeSentence{
+		{SentenceID: 1, Japanese: "x", CorrectAnswer: "y", WrongAnswers: wrongAnswers},
+	}
+	prompt := buildWeaknessPrompt(mistakes, "en")
+	if !strings.Contains(prompt, "attempt-0") {
+		t.Fatal("expected the most recent wrong answer (attempt-0, first in the already-sorted slice) to be kept")
+	}
+	if strings.Contains(prompt, "attempt-7") {
+		t.Fatal("expected older wrong answers beyond the cap to be dropped")
 	}
 }
 

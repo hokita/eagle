@@ -12,6 +12,11 @@ type WeaknessAnalyzer interface {
 	Analyze(ctx context.Context, mistakes []MistakeSentence, language string) (string, error)
 }
 
+// maxWrongAnswersPerSentence bounds how many of a sentence's most recent
+// wrong answers are included in the weakness-analysis prompt, so a single
+// sentence missed many times doesn't blow up prompt size on its own.
+const maxWrongAnswersPerSentence = 5
+
 // buildWeaknessPrompt is a pure function (kept separate from the Gemini
 // client so it is unit-testable without network access) that renders the
 // learner's mistakes into an analysis prompt. It reuses validExplainLanguages
@@ -25,7 +30,11 @@ func buildWeaknessPrompt(mistakes []MistakeSentence, language string) string {
 	for _, m := range mistakes {
 		b.WriteString(fmt.Sprintf("Japanese: %s\n", m.Japanese))
 		b.WriteString(fmt.Sprintf("Reference English: %s\n", m.CorrectAnswer))
-		for _, w := range m.WrongAnswers {
+		wrongAnswers := m.WrongAnswers
+		if len(wrongAnswers) > maxWrongAnswersPerSentence {
+			wrongAnswers = wrongAnswers[:maxWrongAnswersPerSentence]
+		}
+		for _, w := range wrongAnswers {
 			b.WriteString(fmt.Sprintf("Learner wrote: %s\n", w.IncorrectAnswer))
 		}
 		b.WriteString("\n")

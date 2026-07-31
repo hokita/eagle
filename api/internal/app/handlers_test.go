@@ -633,6 +633,27 @@ func TestGetMistakesInsightAnalyzerError(t *testing.T) {
 	}
 }
 
+// TestGetMistakesInsightEmptyAnalyzerResultIsTreatedAsError is a regression
+// test: Gemini can return a successful response with no text (e.g. content
+// filtered by safety settings), which the analyzer passes through as ("",
+// nil). Without this check that empty-but-successful result is
+// indistinguishable on the wire from the "no mistakes" response, so the
+// frontend silently renders nothing even though mistakes exist and a real
+// Gemini call was made.
+func TestGetMistakesInsightEmptyAnalyzerResultIsTreatedAsError(t *testing.T) {
+	repo := &fakeRepo{mistakes: []MistakeSentence{{SentenceID: 1, Japanese: "x", CorrectAnswer: "y", WrongAnswers: []AnswerHistory{{IncorrectAnswer: "z"}}}}}
+	analyzer := &fakeAnalyzer{insight: ""}
+	srv := NewServer(repo, &fakeExplainer{}, analyzer)
+	rec := httptest.NewRecorder()
+	srv.getMistakesInsight(rec, authed(httptest.NewRequest(http.MethodGet, "/api/mistakes/insight?language=en", nil), "u1"))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rec.Code)
+	}
+	if len(analyzer.calledWith) != 1 {
+		t.Fatalf("expected analyzer to be called once, got %d", len(analyzer.calledWith))
+	}
+}
+
 func TestGetMistakesInsightInvalidLanguage(t *testing.T) {
 	analyzer := &fakeAnalyzer{}
 	repo := &fakeRepo{mistakes: []MistakeSentence{{SentenceID: 1, Japanese: "x", CorrectAnswer: "y", WrongAnswers: []AnswerHistory{{IncorrectAnswer: "z"}}}}}
