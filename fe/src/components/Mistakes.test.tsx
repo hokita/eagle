@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('@/lib/api', () => ({
   api: {
     listMistakes: vi.fn(),
+    getMistakesInsight: vi.fn(),
   },
 }))
 
@@ -12,10 +13,12 @@ import Mistakes from './Mistakes'
 
 const mockApi = api as unknown as {
   listMistakes: ReturnType<typeof vi.fn>
+  getMistakesInsight: ReturnType<typeof vi.fn>
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockApi.getMistakesInsight.mockResolvedValue({ insight: '' })
 })
 
 describe('Mistakes', () => {
@@ -59,5 +62,64 @@ describe('Mistakes', () => {
     mockApi.listMistakes.mockResolvedValueOnce({ mistakes: [] })
     fireEvent.click(screen.getByRole('button', { name: /try again/i }))
     await screen.findByText(/no mistakes yet/i)
+  })
+
+  it('fetches and renders the weakness insight above the list', async () => {
+    mockApi.listMistakes.mockResolvedValue({
+      mistakes: [
+        {
+          sentence_id: 1,
+          japanese: '時間がありません。',
+          correct_answer: "I don't have time.",
+          wrong_answers: [{ id: 1, incorrect_answer: 'I have no time.', created_at: '2026-01-03T00:00:00Z' }],
+        },
+      ],
+    })
+    mockApi.getMistakesInsight.mockResolvedValue({ insight: 'You often drop articles.' })
+    render(<Mistakes />)
+    await screen.findByText('You often drop articles.')
+    expect(screen.getByText('時間がありません。')).toBeInTheDocument()
+  })
+
+  it('shows an insight loading state while the insight is pending', async () => {
+    mockApi.listMistakes.mockResolvedValue({
+      mistakes: [
+        {
+          sentence_id: 1,
+          japanese: '時間がありません。',
+          correct_answer: "I don't have time.",
+          wrong_answers: [{ id: 1, incorrect_answer: 'I have no time.', created_at: '2026-01-03T00:00:00Z' }],
+        },
+      ],
+    })
+    mockApi.getMistakesInsight.mockReturnValue(new Promise(() => {}))
+    render(<Mistakes />)
+    await screen.findByText(/analyzing your mistakes/i)
+  })
+
+  it('shows an insight error with a working retry button', async () => {
+    mockApi.listMistakes.mockResolvedValue({
+      mistakes: [
+        {
+          sentence_id: 1,
+          japanese: '時間がありません。',
+          correct_answer: "I don't have time.",
+          wrong_answers: [{ id: 1, incorrect_answer: 'I have no time.', created_at: '2026-01-03T00:00:00Z' }],
+        },
+      ],
+    })
+    mockApi.getMistakesInsight.mockRejectedValueOnce(new Error('insight boom'))
+    render(<Mistakes />)
+    await screen.findByText('insight boom')
+    mockApi.getMistakesInsight.mockResolvedValueOnce({ insight: 'You often drop articles.' })
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    await screen.findByText('You often drop articles.')
+  })
+
+  it('does not fetch an insight when there are no mistakes', async () => {
+    mockApi.listMistakes.mockResolvedValue({ mistakes: [] })
+    render(<Mistakes />)
+    await screen.findByText(/no mistakes yet/i)
+    expect(mockApi.getMistakesInsight).not.toHaveBeenCalled()
   })
 })

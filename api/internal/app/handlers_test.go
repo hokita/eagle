@@ -32,6 +32,9 @@ type fakeRepo struct {
 	reported         []int
 	mistakes         []MistakeSentence
 	mistakesErr      error
+
+	listMistakesCalls           int
+	listMistakesForInsightCalls int
 }
 
 func (f *fakeRepo) RandomCandidate(_ context.Context, _ string, levels []int) (*Sentence, error) {
@@ -51,6 +54,24 @@ func (f *fakeRepo) ListIncorrectHistories(_ context.Context, _ string, _ int) ([
 	return f.histories, nil
 }
 func (f *fakeRepo) ListMistakes(_ context.Context, _ string) ([]MistakeSentence, error) {
+	f.listMistakesCalls++
+	if f.mistakesErr != nil {
+		return nil, f.mistakesErr
+	}
+	if f.mistakes == nil {
+		return []MistakeSentence{}, nil
+	}
+	return f.mistakes, nil
+}
+
+// ListMistakesForInsight shares fakeRepo's mistakes/mistakesErr fixtures
+// with ListMistakes — the query-level Limit() that distinguishes the two in
+// the real Firestore implementation is covered by the emulator tests in
+// firestore_repo_test.go, not by this fake. The separate call counters let
+// handler tests assert getMistakesInsight calls this method specifically,
+// not ListMistakes (see TestGetMistakesInsightOK).
+func (f *fakeRepo) ListMistakesForInsight(_ context.Context, _ string) ([]MistakeSentence, error) {
+	f.listMistakesForInsightCalls++
 	if f.mistakesErr != nil {
 		return nil, f.mistakesErr
 	}
@@ -86,13 +107,29 @@ func (f *fakeExplainer) Explain(_ context.Context, japanese, correctAnswer, user
 	return f.explanation, f.err
 }
 
+type analyzeCall struct {
+	mistakes []MistakeSentence
+	language string
+}
+
+type fakeAnalyzer struct {
+	insight    string
+	err        error
+	calledWith []analyzeCall
+}
+
+func (f *fakeAnalyzer) Analyze(_ context.Context, mistakes []MistakeSentence, language string) (string, error) {
+	f.calledWith = append(f.calledWith, analyzeCall{mistakes, language})
+	return f.insight, f.err
+}
+
 func authed(req *http.Request, uid string) *http.Request {
 	return req.WithContext(withUID(req.Context(), uid))
 }
 
 func TestGetRandomSentenceOK(t *testing.T) {
 	repo := &fakeRepo{random: &Sentence{ID: 7, Japanese: "犬", English: "dog", Page: "3"}}
-	srv := NewServer(repo, &fakeExplainer{})
+	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
 	rec := httptest.NewRecorder()
 	srv.getRandomSentence(rec, authed(httptest.NewRequest(http.MethodGet, "/api/sentence/random", nil), "u1"))
 	if rec.Code != http.StatusOK {
@@ -109,7 +146,7 @@ func TestGetRandomSentenceOK(t *testing.T) {
 
 func TestGetRandomSentencePassesLevelsToRepo(t *testing.T) {
 	repo := &fakeRepo{random: &Sentence{ID: 7}}
-	srv := NewServer(repo, &fakeExplainer{})
+	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
 	rec := httptest.NewRecorder()
 	srv.getRandomSentence(rec, authed(httptest.NewRequest(http.MethodGet, "/api/sentence/random?levels=3", nil), "u1"))
 	if rec.Code != http.StatusOK {
@@ -122,7 +159,7 @@ func TestGetRandomSentencePassesLevelsToRepo(t *testing.T) {
 
 func TestGetRandomSentencePassesMultipleLevelsToRepo(t *testing.T) {
 	repo := &fakeRepo{random: &Sentence{ID: 7}}
-	srv := NewServer(repo, &fakeExplainer{})
+	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
 	rec := httptest.NewRecorder()
 	srv.getRandomSentence(rec, authed(httptest.NewRequest(http.MethodGet, "/api/sentence/random?levels=1,3,5", nil), "u1"))
 	if rec.Code != http.StatusOK {
@@ -138,7 +175,7 @@ func TestGetRandomSentencePassesMultipleLevelsToRepo(t *testing.T) {
 
 func TestGetRandomSentenceDedupesLevels(t *testing.T) {
 	repo := &fakeRepo{random: &Sentence{ID: 7}}
-	srv := NewServer(repo, &fakeExplainer{})
+	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
 	rec := httptest.NewRecorder()
 	srv.getRandomSentence(rec, authed(httptest.NewRequest(http.MethodGet, "/api/sentence/random?levels=2,2,3", nil), "u1"))
 	if rec.Code != http.StatusOK {
@@ -151,7 +188,7 @@ func TestGetRandomSentenceDedupesLevels(t *testing.T) {
 
 func TestGetRandomSentenceNoLevelsDefaultsToAny(t *testing.T) {
 	repo := &fakeRepo{random: &Sentence{ID: 7}}
-	srv := NewServer(repo, &fakeExplainer{})
+	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
 	rec := httptest.NewRecorder()
 	srv.getRandomSentence(rec, authed(httptest.NewRequest(http.MethodGet, "/api/sentence/random", nil), "u1"))
 	if rec.Code != http.StatusOK {
@@ -166,7 +203,7 @@ func TestGetRandomSentenceInvalidLevels(t *testing.T) {
 	for _, levels := range []string{"0", "6", "-1", "abc", "3.5", "1,6", "1,abc", "1,,3"} {
 		t.Run(levels, func(t *testing.T) {
 			repo := &fakeRepo{random: &Sentence{ID: 7}}
-			srv := NewServer(repo, &fakeExplainer{})
+			srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
 			rec := httptest.NewRecorder()
 			srv.getRandomSentence(rec, authed(httptest.NewRequest(http.MethodGet, "/api/sentence/random?levels="+levels, nil), "u1"))
 			if rec.Code != http.StatusBadRequest {
@@ -180,7 +217,7 @@ func TestGetRandomSentenceInvalidLevels(t *testing.T) {
 }
 
 func TestGetRandomSentenceNoCandidate(t *testing.T) {
-	srv := NewServer(&fakeRepo{randomErr: ErrNoCandidate}, &fakeExplainer{})
+	srv := NewServer(&fakeRepo{randomErr: ErrNoCandidate}, &fakeExplainer{}, &fakeAnalyzer{})
 	rec := httptest.NewRecorder()
 	srv.getRandomSentence(rec, authed(httptest.NewRequest(http.MethodGet, "/api/sentence/random", nil), "u1"))
 	if rec.Code != http.StatusNotFound {
@@ -190,7 +227,7 @@ func TestGetRandomSentenceNoCandidate(t *testing.T) {
 
 func TestCheckAnswerCorrect(t *testing.T) {
 	repo := &fakeRepo{correct: "I don't have time."}
-	srv := NewServer(repo, &fakeExplainer{})
+	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
 	body := `{"sentence_id":1,"user_answer":"  i don't have TIME. "}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/check", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
@@ -215,7 +252,7 @@ func TestCheckAnswerCorrect(t *testing.T) {
 
 func TestCheckAnswerCorrectDespiteInternalWhitespaceDifference(t *testing.T) {
 	repo := &fakeRepo{correct: "Do we have to read these books? Yes, you do."}
-	srv := NewServer(repo, &fakeExplainer{})
+	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
 	body := `{"sentence_id":1,"user_answer":"Do we have to read these books?\nYes, you do."}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/check", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
@@ -234,7 +271,7 @@ func TestCheckAnswerCorrectDespiteInternalWhitespaceDifference(t *testing.T) {
 
 func TestCheckAnswerIncorrectRecordsAnswer(t *testing.T) {
 	repo := &fakeRepo{correct: "It's hot today."}
-	srv := NewServer(repo, &fakeExplainer{})
+	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
 	body := `{"sentence_id":2,"user_answer":"It is hot today."}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/check", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
@@ -249,8 +286,31 @@ func TestCheckAnswerIncorrectRecordsAnswer(t *testing.T) {
 	}
 }
 
+// TestCheckAnswerUserAnswerTooLong is a regression test: without a length
+// bound, an authenticated caller could persist arbitrarily large answer text
+// via RecordAnswer, which later flows unbounded into the weakness-insight
+// Gemini prompt (see buildWeaknessPrompt).
+func TestCheckAnswerUserAnswerTooLong(t *testing.T) {
+	repo := &fakeRepo{correct: "It's hot today."}
+	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
+	longAnswer := strings.Repeat("a", maxUserAnswerLength+1)
+	bodyBytes, err := json.Marshal(map[string]any{"sentence_id": 2, "user_answer": longAnswer})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/check", bytes.NewReader(bodyBytes)), "u1")
+	rec := httptest.NewRecorder()
+	srv.checkAnswer(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+	if len(repo.recorded) != 0 {
+		t.Fatalf("expected no answer recorded for an over-length user_answer, got %+v", repo.recorded)
+	}
+}
+
 func TestCheckAnswerNotFound(t *testing.T) {
-	srv := NewServer(&fakeRepo{correctErr: ErrNotFound}, &fakeExplainer{})
+	srv := NewServer(&fakeRepo{correctErr: ErrNotFound}, &fakeExplainer{}, &fakeAnalyzer{})
 	body := `{"sentence_id":999,"user_answer":"x"}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/check", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
@@ -262,7 +322,7 @@ func TestCheckAnswerNotFound(t *testing.T) {
 
 func TestReportSentence(t *testing.T) {
 	repo := &fakeRepo{}
-	srv := NewServer(repo, &fakeExplainer{})
+	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
 	body := `{"sentence_id":5}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/sentence/report", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
@@ -276,7 +336,7 @@ func TestReportSentence(t *testing.T) {
 }
 
 func TestMethodNotAllowed(t *testing.T) {
-	srv := NewServer(&fakeRepo{}, &fakeExplainer{})
+	srv := NewServer(&fakeRepo{}, &fakeExplainer{}, &fakeAnalyzer{})
 	rec := httptest.NewRecorder()
 	srv.getRandomSentence(rec, authed(httptest.NewRequest(http.MethodPost, "/api/sentence/random", nil), "u1"))
 	if rec.Code != http.StatusMethodNotAllowed {
@@ -287,7 +347,7 @@ func TestMethodNotAllowed(t *testing.T) {
 func TestExplainAnswerOK(t *testing.T) {
 	explainer := &fakeExplainer{explanation: "Your answer is also natural; the reference is just more formal."}
 	repo := &fakeRepo{sentenceJapanese: "時間がありません。", sentenceEnglish: "I don't have time."}
-	srv := NewServer(repo, explainer)
+	srv := NewServer(repo, explainer, &fakeAnalyzer{})
 	body := `{"sentence_id":1,"user_answer":"I have no time.","language":"en"}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
@@ -320,7 +380,7 @@ func TestExplainAnswerOK(t *testing.T) {
 func TestExplainAnswerIgnoresClientSuppliedSentenceData(t *testing.T) {
 	explainer := &fakeExplainer{explanation: "explanation"}
 	repo := &fakeRepo{sentenceJapanese: "本物の文", sentenceEnglish: "the real sentence"}
-	srv := NewServer(repo, explainer)
+	srv := NewServer(repo, explainer, &fakeAnalyzer{})
 	body := `{"sentence_id":1,"japanese":"injected","correct_answer":"injected","user_answer":"my answer"}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
@@ -336,7 +396,7 @@ func TestExplainAnswerIgnoresClientSuppliedSentenceData(t *testing.T) {
 func TestExplainAnswerSentenceNotFound(t *testing.T) {
 	explainer := &fakeExplainer{}
 	repo := &fakeRepo{sentenceErr: ErrNotFound}
-	srv := NewServer(repo, explainer)
+	srv := NewServer(repo, explainer, &fakeAnalyzer{})
 	body := `{"sentence_id":999,"user_answer":"x","language":"en"}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
@@ -352,7 +412,7 @@ func TestExplainAnswerSentenceNotFound(t *testing.T) {
 func TestExplainAnswerEmptyUserAnswer(t *testing.T) {
 	explainer := &fakeExplainer{}
 	repo := &fakeRepo{sentenceJapanese: "x", sentenceEnglish: "y"}
-	srv := NewServer(repo, explainer)
+	srv := NewServer(repo, explainer, &fakeAnalyzer{})
 	body := `{"sentence_id":1,"user_answer":"   "}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
@@ -368,7 +428,7 @@ func TestExplainAnswerEmptyUserAnswer(t *testing.T) {
 func TestExplainAnswerUserAnswerTooLong(t *testing.T) {
 	explainer := &fakeExplainer{}
 	repo := &fakeRepo{sentenceJapanese: "x", sentenceEnglish: "y"}
-	srv := NewServer(repo, explainer)
+	srv := NewServer(repo, explainer, &fakeAnalyzer{})
 	longAnswer := strings.Repeat("a", maxUserAnswerLength+1)
 	bodyBytes, err := json.Marshal(map[string]any{"sentence_id": 1, "user_answer": longAnswer})
 	if err != nil {
@@ -388,7 +448,7 @@ func TestExplainAnswerUserAnswerTooLong(t *testing.T) {
 func TestExplainAnswerBodyTooLarge(t *testing.T) {
 	explainer := &fakeExplainer{}
 	repo := &fakeRepo{sentenceJapanese: "x", sentenceEnglish: "y"}
-	srv := NewServer(repo, explainer)
+	srv := NewServer(repo, explainer, &fakeAnalyzer{})
 	huge := strings.Repeat("a", maxExplainRequestBytes+1)
 	body := `{"sentence_id":1,"user_answer":"` + huge + `"}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
@@ -405,7 +465,7 @@ func TestExplainAnswerBodyTooLarge(t *testing.T) {
 func TestExplainAnswerLLMError(t *testing.T) {
 	explainer := &fakeExplainer{err: errors.New("gemini unavailable")}
 	repo := &fakeRepo{sentenceJapanese: "x", sentenceEnglish: "y"}
-	srv := NewServer(repo, explainer)
+	srv := NewServer(repo, explainer, &fakeAnalyzer{})
 	body := `{"sentence_id":1,"user_answer":"z","language":"en"}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
@@ -418,7 +478,7 @@ func TestExplainAnswerLLMError(t *testing.T) {
 func TestExplainAnswerLanguageJapanese(t *testing.T) {
 	explainer := &fakeExplainer{explanation: "日本語での説明。"}
 	repo := &fakeRepo{sentenceJapanese: "時間がありません。", sentenceEnglish: "I don't have time."}
-	srv := NewServer(repo, explainer)
+	srv := NewServer(repo, explainer, &fakeAnalyzer{})
 	body := `{"sentence_id":1,"user_answer":"I have no time.","language":"ja"}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
@@ -434,7 +494,7 @@ func TestExplainAnswerLanguageJapanese(t *testing.T) {
 func TestExplainAnswerInvalidLanguage(t *testing.T) {
 	explainer := &fakeExplainer{}
 	repo := &fakeRepo{sentenceJapanese: "x", sentenceEnglish: "y"}
-	srv := NewServer(repo, explainer)
+	srv := NewServer(repo, explainer, &fakeAnalyzer{})
 	body := `{"sentence_id":1,"user_answer":"z","language":"fr"}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
@@ -450,7 +510,7 @@ func TestExplainAnswerInvalidLanguage(t *testing.T) {
 func TestExplainAnswerMissingLanguage(t *testing.T) {
 	explainer := &fakeExplainer{}
 	repo := &fakeRepo{sentenceJapanese: "x", sentenceEnglish: "y"}
-	srv := NewServer(repo, explainer)
+	srv := NewServer(repo, explainer, &fakeAnalyzer{})
 	body := `{"sentence_id":1,"user_answer":"z"}`
 	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/explain", strings.NewReader(body)), "u1")
 	rec := httptest.NewRecorder()
@@ -464,7 +524,7 @@ func TestExplainAnswerMissingLanguage(t *testing.T) {
 }
 
 func TestExplainAnswerMethodNotAllowed(t *testing.T) {
-	srv := NewServer(&fakeRepo{}, &fakeExplainer{})
+	srv := NewServer(&fakeRepo{}, &fakeExplainer{}, &fakeAnalyzer{})
 	rec := httptest.NewRecorder()
 	srv.explainAnswer(rec, authed(httptest.NewRequest(http.MethodGet, "/api/answer/explain", nil), "u1"))
 	if rec.Code != http.StatusMethodNotAllowed {
@@ -483,7 +543,7 @@ func TestGetMistakesOK(t *testing.T) {
 			},
 		},
 	}}
-	srv := NewServer(repo, &fakeExplainer{})
+	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
 	rec := httptest.NewRecorder()
 	srv.getMistakes(rec, authed(httptest.NewRequest(http.MethodGet, "/api/mistakes", nil), "u1"))
 	if rec.Code != http.StatusOK {
@@ -499,10 +559,16 @@ func TestGetMistakesOK(t *testing.T) {
 	if len(resp.Mistakes[0].WrongAnswers) != 1 || resp.Mistakes[0].WrongAnswers[0].IncorrectAnswer != "I have no time." {
 		t.Fatalf("unexpected wrong answers: %+v", resp.Mistakes[0])
 	}
+	// Regression guard: the raw list must use the unbounded ListMistakes,
+	// never the insight-specific, query-bounded ListMistakesForInsight.
+	if repo.listMistakesCalls != 1 || repo.listMistakesForInsightCalls != 0 {
+		t.Fatalf("expected ListMistakes called once and ListMistakesForInsight not called, got ListMistakes=%d, ForInsight=%d",
+			repo.listMistakesCalls, repo.listMistakesForInsightCalls)
+	}
 }
 
 func TestGetMistakesEmpty(t *testing.T) {
-	srv := NewServer(&fakeRepo{}, &fakeExplainer{})
+	srv := NewServer(&fakeRepo{}, &fakeExplainer{}, &fakeAnalyzer{})
 	rec := httptest.NewRecorder()
 	srv.getMistakes(rec, authed(httptest.NewRequest(http.MethodGet, "/api/mistakes", nil), "u1"))
 	if rec.Code != http.StatusOK {
@@ -521,7 +587,7 @@ func TestGetMistakesEmpty(t *testing.T) {
 }
 
 func TestGetMistakesRepoError(t *testing.T) {
-	srv := NewServer(&fakeRepo{mistakesErr: errors.New("boom")}, &fakeExplainer{})
+	srv := NewServer(&fakeRepo{mistakesErr: errors.New("boom")}, &fakeExplainer{}, &fakeAnalyzer{})
 	rec := httptest.NewRecorder()
 	srv.getMistakes(rec, authed(httptest.NewRequest(http.MethodGet, "/api/mistakes", nil), "u1"))
 	if rec.Code != http.StatusInternalServerError {
@@ -530,9 +596,140 @@ func TestGetMistakesRepoError(t *testing.T) {
 }
 
 func TestGetMistakesMethodNotAllowed(t *testing.T) {
-	srv := NewServer(&fakeRepo{}, &fakeExplainer{})
+	srv := NewServer(&fakeRepo{}, &fakeExplainer{}, &fakeAnalyzer{})
 	rec := httptest.NewRecorder()
 	srv.getMistakes(rec, authed(httptest.NewRequest(http.MethodPost, "/api/mistakes", nil), "u1"))
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d", rec.Code)
+	}
+}
+
+func TestGetMistakesInsightOK(t *testing.T) {
+	analyzer := &fakeAnalyzer{insight: "You often drop articles like 'the'."}
+	repo := &fakeRepo{mistakes: []MistakeSentence{
+		{SentenceID: 1, Japanese: "犬", CorrectAnswer: "a dog", WrongAnswers: []AnswerHistory{{ID: 1, IncorrectAnswer: "dog"}}},
+	}}
+	srv := NewServer(repo, &fakeExplainer{}, analyzer)
+	rec := httptest.NewRecorder()
+	srv.getMistakesInsight(rec, authed(httptest.NewRequest(http.MethodGet, "/api/mistakes/insight?language=en", nil), "u1"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var resp MistakesInsightResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.Insight != analyzer.insight {
+		t.Fatalf("unexpected insight: %q", resp.Insight)
+	}
+	if len(analyzer.calledWith) != 1 || analyzer.calledWith[0].language != "en" {
+		t.Fatalf("expected Analyze called once with language=en, got %+v", analyzer.calledWith)
+	}
+	// Regression guard: getMistakesInsight must use the query-bounded
+	// ListMistakesForInsight, not the unbounded ListMistakes the raw
+	// /api/mistakes list uses (see firestore_repo_test.go for why the two
+	// must stay distinct).
+	if repo.listMistakesForInsightCalls != 1 || repo.listMistakesCalls != 0 {
+		t.Fatalf("expected ListMistakesForInsight called once and ListMistakes not called, got ForInsight=%d, ListMistakes=%d",
+			repo.listMistakesForInsightCalls, repo.listMistakesCalls)
+	}
+}
+
+func TestGetMistakesInsightEmptySkipsAnalyzer(t *testing.T) {
+	analyzer := &fakeAnalyzer{insight: "should not be used"}
+	srv := NewServer(&fakeRepo{}, &fakeExplainer{}, analyzer)
+	rec := httptest.NewRecorder()
+	srv.getMistakesInsight(rec, authed(httptest.NewRequest(http.MethodGet, "/api/mistakes/insight?language=en", nil), "u1"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var resp MistakesInsightResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.Insight != "" {
+		t.Fatalf("expected empty insight, got %q", resp.Insight)
+	}
+	if len(analyzer.calledWith) != 0 {
+		t.Fatal("analyzer must not be called when there are no mistakes")
+	}
+}
+
+func TestGetMistakesInsightCapsToMostRecent(t *testing.T) {
+	many := make([]MistakeSentence, maxInsightMistakes+10)
+	for i := range many {
+		many[i] = MistakeSentence{SentenceID: i, Japanese: "x", CorrectAnswer: "y", WrongAnswers: []AnswerHistory{{IncorrectAnswer: "z"}}}
+	}
+	analyzer := &fakeAnalyzer{insight: "ok"}
+	srv := NewServer(&fakeRepo{mistakes: many}, &fakeExplainer{}, analyzer)
+	rec := httptest.NewRecorder()
+	srv.getMistakesInsight(rec, authed(httptest.NewRequest(http.MethodGet, "/api/mistakes/insight?language=en", nil), "u1"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if len(analyzer.calledWith) != 1 || len(analyzer.calledWith[0].mistakes) != maxInsightMistakes {
+		t.Fatalf("expected analyzer called with %d mistakes, got %d", maxInsightMistakes, len(analyzer.calledWith[0].mistakes))
+	}
+}
+
+func TestGetMistakesInsightRepoError(t *testing.T) {
+	srv := NewServer(&fakeRepo{mistakesErr: errors.New("boom")}, &fakeExplainer{}, &fakeAnalyzer{})
+	rec := httptest.NewRecorder()
+	srv.getMistakesInsight(rec, authed(httptest.NewRequest(http.MethodGet, "/api/mistakes/insight?language=en", nil), "u1"))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rec.Code)
+	}
+}
+
+func TestGetMistakesInsightAnalyzerError(t *testing.T) {
+	repo := &fakeRepo{mistakes: []MistakeSentence{{SentenceID: 1, Japanese: "x", CorrectAnswer: "y", WrongAnswers: []AnswerHistory{{IncorrectAnswer: "z"}}}}}
+	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{err: errors.New("gemini down")})
+	rec := httptest.NewRecorder()
+	srv.getMistakesInsight(rec, authed(httptest.NewRequest(http.MethodGet, "/api/mistakes/insight?language=en", nil), "u1"))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rec.Code)
+	}
+}
+
+// TestGetMistakesInsightEmptyAnalyzerResultIsTreatedAsError is a regression
+// test: Gemini can return a successful response with no text (e.g. content
+// filtered by safety settings), which the analyzer passes through as ("",
+// nil). Without this check that empty-but-successful result is
+// indistinguishable on the wire from the "no mistakes" response, so the
+// frontend silently renders nothing even though mistakes exist and a real
+// Gemini call was made.
+func TestGetMistakesInsightEmptyAnalyzerResultIsTreatedAsError(t *testing.T) {
+	repo := &fakeRepo{mistakes: []MistakeSentence{{SentenceID: 1, Japanese: "x", CorrectAnswer: "y", WrongAnswers: []AnswerHistory{{IncorrectAnswer: "z"}}}}}
+	analyzer := &fakeAnalyzer{insight: ""}
+	srv := NewServer(repo, &fakeExplainer{}, analyzer)
+	rec := httptest.NewRecorder()
+	srv.getMistakesInsight(rec, authed(httptest.NewRequest(http.MethodGet, "/api/mistakes/insight?language=en", nil), "u1"))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rec.Code)
+	}
+	if len(analyzer.calledWith) != 1 {
+		t.Fatalf("expected analyzer to be called once, got %d", len(analyzer.calledWith))
+	}
+}
+
+func TestGetMistakesInsightInvalidLanguage(t *testing.T) {
+	analyzer := &fakeAnalyzer{}
+	repo := &fakeRepo{mistakes: []MistakeSentence{{SentenceID: 1, Japanese: "x", CorrectAnswer: "y", WrongAnswers: []AnswerHistory{{IncorrectAnswer: "z"}}}}}
+	srv := NewServer(repo, &fakeExplainer{}, analyzer)
+	rec := httptest.NewRecorder()
+	srv.getMistakesInsight(rec, authed(httptest.NewRequest(http.MethodGet, "/api/mistakes/insight?language=fr", nil), "u1"))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+	if len(analyzer.calledWith) != 0 {
+		t.Fatal("analyzer must not be called for an invalid language")
+	}
+}
+
+func TestGetMistakesInsightMethodNotAllowed(t *testing.T) {
+	srv := NewServer(&fakeRepo{}, &fakeExplainer{}, &fakeAnalyzer{})
+	rec := httptest.NewRecorder()
+	srv.getMistakesInsight(rec, authed(httptest.NewRequest(http.MethodPost, "/api/mistakes/insight", nil), "u1"))
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("expected 405, got %d", rec.Code)
 	}

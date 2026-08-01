@@ -146,10 +146,20 @@ func (r *firestoreRepo) GetSentence(ctx context.Context, id int) (string, string
 	return sd.Japanese, sd.English, nil
 }
 
-func (r *firestoreRepo) incorrectHistories(ctx context.Context, statsRef *firestore.DocumentRef) ([]AnswerHistory, error) {
-	it := statsRef.Collection("histories").
+// incorrectHistories reads a sentence's wrong-answer history, newest first.
+// limit > 0 applies Limit(limit) at the query level, bounding the read
+// itself rather than just the slice returned to the caller; limit <= 0
+// leaves the read unbounded. Only the insight-specific path passes a limit
+// — ListIncorrectHistories and ListMistakes stay unbounded, since they back
+// UI that has always shown a learner's complete history.
+func (r *firestoreRepo) incorrectHistories(ctx context.Context, statsRef *firestore.DocumentRef, limit int) ([]AnswerHistory, error) {
+	q := statsRef.Collection("histories").
 		Where("is_correct", "==", false).
-		OrderBy("created_at", firestore.Desc).Documents(ctx)
+		OrderBy("created_at", firestore.Desc)
+	if limit > 0 {
+		q = q.Limit(limit)
+	}
+	it := q.Documents(ctx)
 	histories := make([]AnswerHistory, 0)
 	for {
 		ds, err := it.Next()
@@ -173,10 +183,13 @@ func (r *firestoreRepo) incorrectHistories(ctx context.Context, statsRef *firest
 }
 
 func (r *firestoreRepo) ListIncorrectHistories(ctx context.Context, uid string, id int) ([]AnswerHistory, error) {
-	return r.incorrectHistories(ctx, r.userStats(uid).Doc(strconv.Itoa(id)))
+	return r.incorrectHistories(ctx, r.userStats(uid).Doc(strconv.Itoa(id)), 0)
 }
 
-func (r *firestoreRepo) ListMistakes(ctx context.Context, uid string) ([]MistakeSentence, error) {
+// listMistakes is the shared implementation behind ListMistakes and
+// ListMistakesForInsight; historyLimit is threaded straight into
+// incorrectHistories (see its doc comment for the limit<=0 convention).
+func (r *firestoreRepo) listMistakes(ctx context.Context, uid string, historyLimit int) ([]MistakeSentence, error) {
 	mistakes := make([]MistakeSentence, 0)
 	it := r.userStats(uid).Documents(ctx)
 	for {
@@ -211,7 +224,7 @@ func (r *firestoreRepo) ListMistakes(ctx context.Context, uid string) ([]Mistake
 			return nil, err
 		}
 
-		wrongAnswers, err := r.incorrectHistories(ctx, ds.Ref)
+		wrongAnswers, err := r.incorrectHistories(ctx, ds.Ref, historyLimit)
 		if err != nil {
 			return nil, err
 		}
@@ -233,6 +246,20 @@ func (r *firestoreRepo) ListMistakes(ctx context.Context, uid string) ([]Mistake
 		return ti.After(tj)
 	})
 	return mistakes, nil
+}
+
+// ListMistakes returns every sentence the user has ever answered
+// incorrectly, with its complete wrong-answer history, most recently missed
+// sentence first. Backs the raw /api/mistakes list.
+func (r *firestoreRepo) ListMistakes(ctx context.Context, uid string) ([]MistakeSentence, error) {
+	return r.listMistakes(ctx, uid, 0)
+}
+
+// ListMistakesForInsight is the same as ListMistakes but caps each
+// sentence's wrong-answer history to maxWrongAnswersPerSentence at the
+// query level. Backs GET /api/mistakes/insight only.
+func (r *firestoreRepo) ListMistakesForInsight(ctx context.Context, uid string) ([]MistakeSentence, error) {
+	return r.listMistakes(ctx, uid, maxWrongAnswersPerSentence)
 }
 
 func (r *firestoreRepo) RecordAnswer(ctx context.Context, uid string, id int, correct bool, answer string) error {

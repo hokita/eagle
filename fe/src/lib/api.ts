@@ -35,6 +35,10 @@ export interface ExplainResponse {
   explanation: string
 }
 
+export interface MistakesInsightResponse {
+  insight: string
+}
+
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? ''
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -71,6 +75,9 @@ export const api = {
     }),
 
   listMistakes: () => request<{ mistakes: Mistake[] }>('/api/mistakes'),
+
+  getMistakesInsight: (language: 'en' | 'ja') =>
+    request<MistakesInsightResponse>(`/api/mistakes/insight?language=${language}`),
 
   explainAnswer: (sentenceId: number, userAnswer: string, language: 'en' | 'ja') =>
     request<ExplainResponse>('/api/answer/explain', {

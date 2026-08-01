@@ -10,6 +10,24 @@ export default function Mistakes() {
   const [mistakes, setMistakes] = useState<Mistake[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [insight, setInsight] = useState<string | null>(null)
+  const [insightLoading, setInsightLoading] = useState(false)
+  const [insightError, setInsightError] = useState<string | null>(null)
+
+  const loadInsight = async () => {
+    setInsightLoading(true)
+    setInsightError(null)
+    try {
+      const stored = typeof window !== 'undefined' ? localStorage.getItem('eagle:explainLanguage') : null
+      const language = stored === 'ja' ? 'ja' : 'en'
+      const result = await api.getMistakesInsight(language)
+      setInsight(result.insight)
+    } catch (err) {
+      setInsightError(err instanceof Error ? err.message : 'Failed to load insight')
+    } finally {
+      setInsightLoading(false)
+    }
+  }
 
   const loadMistakes = async () => {
     try {
@@ -17,6 +35,9 @@ export default function Mistakes() {
       setError(null)
       const result = await api.listMistakes()
       setMistakes(result.mistakes)
+      if (result.mistakes.length > 0) {
+        loadInsight()
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load mistakes')
     } finally {
@@ -60,6 +81,27 @@ export default function Mistakes() {
           </Card>
         ) : (
           <div className="space-y-3">
+            {(insightLoading || insight || insightError) && (
+              <Card className="border-indigo-300">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base text-indigo-900">Weakness Insight</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {insightLoading ? (
+                    <p className="text-sm text-gray-600">Analyzing your mistakes…</p>
+                  ) : insightError ? (
+                    <div className="space-y-2">
+                      <p className="text-sm text-red-700">{insightError}</p>
+                      <Button variant="outline" size="sm" onClick={loadInsight}>
+                        Try Again
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="whitespace-pre-wrap text-sm text-gray-800">{insight}</div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
             {mistakes?.map(mistake => (
               <Card key={mistake.sentence_id}>
                 <CardHeader className="pb-2">

@@ -16,17 +16,25 @@ const (
 	// size via an arbitrarily large payload.
 	maxExplainRequestBytes = 4096
 	// maxUserAnswerLength bounds the submitted translation attempt itself,
-	// independent of the overall body size limit.
+	// independent of the overall body size limit. Enforced both when an
+	// answer is checked (so oversized text is never persisted to Firestore
+	// and later fanned into the weakness-insight prompt) and when it is
+	// explained.
 	maxUserAnswerLength = 2000
+	// maxInsightMistakes bounds how many recent mistakes are sent to the
+	// weakness analyzer, keeping prompt size and Gemini cost predictable as a
+	// learner's mistake history grows.
+	maxInsightMistakes = 50
 )
 
 type Server struct {
 	repo      SentenceRepository
 	explainer Explainer
+	analyzer  WeaknessAnalyzer
 }
 
-func NewServer(repo SentenceRepository, explainer Explainer) *Server {
-	return &Server{repo: repo, explainer: explainer}
+func NewServer(repo SentenceRepository, explainer Explainer, analyzer WeaknessAnalyzer) *Server {
+	return &Server{repo: repo, explainer: explainer, analyzer: analyzer}
 }
 
 func (s *Server) getRandomSentence(w http.ResponseWriter, r *http.Request) {
@@ -81,6 +89,10 @@ func (s *Server) checkAnswer(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
+	if len(req.UserAnswer) > maxUserAnswerLength {
+		http.Error(w, "Invalid user_answer", http.StatusBadRequest)
+		return
+	}
 	correct, err := s.repo.CorrectAnswer(r.Context(), req.SentenceID)
 	if errors.Is(err, ErrNotFound) {
 		http.Error(w, "Sentence not found", http.StatusNotFound)
@@ -125,6 +137,44 @@ func (s *Server) getMistakes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, ListMistakesResponse{Mistakes: mistakes})
+}
+
+func (s *Server) getMistakesInsight(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	language := r.URL.Query().Get("language")
+	if !validExplainLanguages[language] {
+		http.Error(w, "Invalid language", http.StatusBadRequest)
+		return
+	}
+	uid, _ := uidFromContext(r.Context())
+	mistakes, err := s.repo.ListMistakesForInsight(r.Context(), uid)
+	if err != nil {
+		log.Printf("list mistakes error: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	if len(mistakes) == 0 {
+		writeJSON(w, MistakesInsightResponse{Insight: ""})
+		return
+	}
+	if len(mistakes) > maxInsightMistakes {
+		mistakes = mistakes[:maxInsightMistakes]
+	}
+	insight, err := s.analyzer.Analyze(r.Context(), mistakes, language)
+	if err != nil {
+		log.Printf("analyze mistakes error: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	if insight == "" {
+		log.Printf("analyze mistakes returned an empty insight for %d mistakes", len(mistakes))
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, MistakesInsightResponse{Insight: insight})
 }
 
 func (s *Server) reportSentence(w http.ResponseWriter, r *http.Request) {

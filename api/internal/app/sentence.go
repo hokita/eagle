@@ -34,6 +34,10 @@ type ListMistakesResponse struct {
 	Mistakes []MistakeSentence `json:"mistakes"`
 }
 
+type MistakesInsightResponse struct {
+	Insight string `json:"insight"`
+}
+
 type CheckAnswerRequest struct {
 	SentenceID int    `json:"sentence_id"`
 	UserAnswer string `json:"user_answer"`
@@ -78,6 +82,14 @@ type SentenceRepository interface {
 	// ListMistakes returns every sentence the user has ever answered
 	// incorrectly, most recently missed sentence first.
 	ListMistakes(ctx context.Context, uid string) ([]MistakeSentence, error)
+	// ListMistakesForInsight returns the same shape as ListMistakes but caps
+	// each sentence's wrong-answer history to maxWrongAnswersPerSentence at
+	// the query level, bounding Firestore read cost for the weakness-insight
+	// path. ListMistakes and ListIncorrectHistories stay unbounded — they
+	// back the raw mistakes list and the "Previous Incorrect Answers" panel,
+	// which have always shown a learner's complete history and are unrelated
+	// to Gemini's cost bound.
+	ListMistakesForInsight(ctx context.Context, uid string) ([]MistakeSentence, error)
 	RecordAnswer(ctx context.Context, uid string, id int, correct bool, answer string) error
 	Report(ctx context.Context, id int) error
 }
