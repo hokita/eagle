@@ -32,6 +32,9 @@ type fakeRepo struct {
 	reported         []int
 	mistakes         []MistakeSentence
 	mistakesErr      error
+
+	listMistakesCalls           int
+	listMistakesForInsightCalls int
 }
 
 func (f *fakeRepo) RandomCandidate(_ context.Context, _ string, levels []int) (*Sentence, error) {
@@ -51,6 +54,24 @@ func (f *fakeRepo) ListIncorrectHistories(_ context.Context, _ string, _ int) ([
 	return f.histories, nil
 }
 func (f *fakeRepo) ListMistakes(_ context.Context, _ string) ([]MistakeSentence, error) {
+	f.listMistakesCalls++
+	if f.mistakesErr != nil {
+		return nil, f.mistakesErr
+	}
+	if f.mistakes == nil {
+		return []MistakeSentence{}, nil
+	}
+	return f.mistakes, nil
+}
+
+// ListMistakesForInsight shares fakeRepo's mistakes/mistakesErr fixtures
+// with ListMistakes — the query-level Limit() that distinguishes the two in
+// the real Firestore implementation is covered by the emulator tests in
+// firestore_repo_test.go, not by this fake. The separate call counters let
+// handler tests assert getMistakesInsight calls this method specifically,
+// not ListMistakes (see TestGetMistakesInsightOK).
+func (f *fakeRepo) ListMistakesForInsight(_ context.Context, _ string) ([]MistakeSentence, error) {
+	f.listMistakesForInsightCalls++
 	if f.mistakesErr != nil {
 		return nil, f.mistakesErr
 	}
@@ -538,6 +559,12 @@ func TestGetMistakesOK(t *testing.T) {
 	if len(resp.Mistakes[0].WrongAnswers) != 1 || resp.Mistakes[0].WrongAnswers[0].IncorrectAnswer != "I have no time." {
 		t.Fatalf("unexpected wrong answers: %+v", resp.Mistakes[0])
 	}
+	// Regression guard: the raw list must use the unbounded ListMistakes,
+	// never the insight-specific, query-bounded ListMistakesForInsight.
+	if repo.listMistakesCalls != 1 || repo.listMistakesForInsightCalls != 0 {
+		t.Fatalf("expected ListMistakes called once and ListMistakesForInsight not called, got ListMistakes=%d, ForInsight=%d",
+			repo.listMistakesCalls, repo.listMistakesForInsightCalls)
+	}
 }
 
 func TestGetMistakesEmpty(t *testing.T) {
@@ -597,6 +624,14 @@ func TestGetMistakesInsightOK(t *testing.T) {
 	}
 	if len(analyzer.calledWith) != 1 || analyzer.calledWith[0].language != "en" {
 		t.Fatalf("expected Analyze called once with language=en, got %+v", analyzer.calledWith)
+	}
+	// Regression guard: getMistakesInsight must use the query-bounded
+	// ListMistakesForInsight, not the unbounded ListMistakes the raw
+	// /api/mistakes list uses (see firestore_repo_test.go for why the two
+	// must stay distinct).
+	if repo.listMistakesForInsightCalls != 1 || repo.listMistakesCalls != 0 {
+		t.Fatalf("expected ListMistakesForInsight called once and ListMistakes not called, got ForInsight=%d, ListMistakes=%d",
+			repo.listMistakesForInsightCalls, repo.listMistakesCalls)
 	}
 }
 

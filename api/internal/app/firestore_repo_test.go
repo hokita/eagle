@@ -68,13 +68,36 @@ func TestFirestoreCorrectAnswerNotFound(t *testing.T) {
 	}
 }
 
-// TestFirestoreIncorrectHistoriesBoundedAtQueryLevel is a regression test:
-// without a Firestore-side limit, a learner who repeatedly submits wrong
-// answers to the same sentence forces an ever-larger read (and, via
-// ListMistakes, an ever-larger weakness-insight prompt) on every request.
-// The cap must live in the query itself, not just be applied to the results
-// in Go after they've already been read.
-func TestFirestoreIncorrectHistoriesBoundedAtQueryLevel(t *testing.T) {
+// seedManyWrongAnswers records attempts incorrect attempts at the given
+// sentence for uid, one minute apart starting at base, and returns the
+// expected newest-first order of their IncorrectAnswer text.
+func seedManyWrongAnswers(t *testing.T, ctx context.Context, repo *firestoreRepo, uid string, sentenceID int, base time.Time, attempts int) []string {
+	t.Helper()
+	for i := 0; i < attempts; i++ {
+		repo.now = func(i int) func() time.Time {
+			return func() time.Time { return base.Add(time.Duration(i) * time.Minute) }
+		}(i)
+		if err := repo.RecordAnswer(ctx, uid, sentenceID, false, fmt.Sprintf("wrong-%d", i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want := make([]string, attempts)
+	for i := 0; i < attempts; i++ {
+		want[i] = fmt.Sprintf("wrong-%d", attempts-1-i) // newest (highest i) first
+	}
+	return want
+}
+
+// TestFirestoreListMistakesForInsightBoundedAtQueryLevel is a regression
+// test: without a Firestore-side limit, a learner who repeatedly submits
+// wrong answers to the same sentence forces an ever-larger read (and an
+// ever-larger weakness-insight prompt) on every request. The cap must live
+// in the query itself, not just be applied to the results in Go after
+// they've already been read — but only for the insight-specific path (see
+// TestFirestoreListIncorrectHistoriesRemainsUnboundedForCheckAnswer and
+// TestFirestoreListMistakesRemainsUnboundedForRawList below, which guard
+// against that cap leaking into the unrelated existing-history APIs).
+func TestFirestoreListMistakesForInsightBoundedAtQueryLevel(t *testing.T) {
 	ctx := context.Background()
 	client := newEmulatorClient(t)
 	repo := NewFirestoreRepo(client)
@@ -83,31 +106,85 @@ func TestFirestoreIncorrectHistoriesBoundedAtQueryLevel(t *testing.T) {
 
 	base := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 	const attempts = maxWrongAnswersPerSentence + 3
-	for i := 0; i < attempts; i++ {
-		repo.now = func(i int) func() time.Time {
-			return func() time.Time { return base.Add(time.Duration(i) * time.Minute) }
-		}(i)
-		if err := repo.RecordAnswer(ctx, uid, 301, false, fmt.Sprintf("wrong-%d", i)); err != nil {
-			t.Fatal(err)
-		}
-	}
+	want := seedManyWrongAnswers(t, ctx, repo, uid, 301, base, attempts)
 
-	hs, err := repo.ListIncorrectHistories(ctx, uid, 301)
+	mistakes, err := repo.ListMistakesForInsight(ctx, uid)
 	if err != nil {
 		t.Fatal(err)
 	}
+	if len(mistakes) != 1 {
+		t.Fatalf("expected 1 mistaken sentence, got %d: %+v", len(mistakes), mistakes)
+	}
+	hs := mistakes[0].WrongAnswers
 	if len(hs) != maxWrongAnswersPerSentence {
 		t.Fatalf("expected the query itself to cap results at %d, got %d: %+v", maxWrongAnswersPerSentence, len(hs), hs)
 	}
-	// Newest first (attempt attempts-1 was recorded last), so the most
-	// recent maxWrongAnswersPerSentence attempts must be the ones kept.
-	if hs[0].IncorrectAnswer != fmt.Sprintf("wrong-%d", attempts-1) {
+	// Newest first: want[0] is the most recently recorded attempt.
+	if hs[0].IncorrectAnswer != want[0] {
 		t.Fatalf("expected the most recent attempt to be kept, got %+v", hs[0])
 	}
 	for _, h := range hs {
 		if h.IncorrectAnswer == "wrong-0" {
 			t.Fatalf("expected the oldest attempt to be dropped by the query limit, got %+v", hs)
 		}
+	}
+}
+
+// TestFirestoreListIncorrectHistoriesRemainsUnboundedForCheckAnswer is a
+// regression test for a bug caught in PR review: the insight path's query
+// limit must not leak into ListIncorrectHistories, which backs the
+// "Previous Incorrect Answers" panel shown after checking an answer. That
+// panel has always shown a learner's complete history for the current
+// sentence, unrelated to weakness-insight's Gemini cost bound.
+func TestFirestoreListIncorrectHistoriesRemainsUnboundedForCheckAnswer(t *testing.T) {
+	ctx := context.Background()
+	client := newEmulatorClient(t)
+	repo := NewFirestoreRepo(client)
+	uid := "user-many-wrong"
+	seedSentence(t, client, "301", "1", "多い間違い", "Many mistakes", 1, false)
+
+	base := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	const attempts = maxWrongAnswersPerSentence + 3
+	want := seedManyWrongAnswers(t, ctx, repo, uid, 301, base, attempts)
+
+	hs, err := repo.ListIncorrectHistories(ctx, uid, 301)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hs) != attempts {
+		t.Fatalf("expected all %d attempts (unbounded), got %d: %+v", attempts, len(hs), hs)
+	}
+	for i, h := range hs {
+		if h.IncorrectAnswer != want[i] {
+			t.Fatalf("attempt %d: expected %q, got %q", i, want[i], h.IncorrectAnswer)
+		}
+	}
+}
+
+// TestFirestoreListMistakesRemainsUnboundedForRawList is a regression test
+// for the same bug: ListMistakes backs the plain /api/mistakes list page,
+// which has always shown a learner's complete wrong-answer history per
+// sentence. Only the insight-specific ListMistakesForInsight bounds it.
+func TestFirestoreListMistakesRemainsUnboundedForRawList(t *testing.T) {
+	ctx := context.Background()
+	client := newEmulatorClient(t)
+	repo := NewFirestoreRepo(client)
+	uid := "user-many-wrong"
+	seedSentence(t, client, "301", "1", "多い間違い", "Many mistakes", 1, false)
+
+	base := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	const attempts = maxWrongAnswersPerSentence + 3
+	seedManyWrongAnswers(t, ctx, repo, uid, 301, base, attempts)
+
+	mistakes, err := repo.ListMistakes(ctx, uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mistakes) != 1 {
+		t.Fatalf("expected 1 mistaken sentence, got %d: %+v", len(mistakes), mistakes)
+	}
+	if len(mistakes[0].WrongAnswers) != attempts {
+		t.Fatalf("expected all %d attempts (unbounded), got %d: %+v", attempts, len(mistakes[0].WrongAnswers), mistakes[0].WrongAnswers)
 	}
 }
 

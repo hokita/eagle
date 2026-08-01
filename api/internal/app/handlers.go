@@ -150,7 +150,7 @@ func (s *Server) getMistakesInsight(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	uid, _ := uidFromContext(r.Context())
-	mistakes, err := s.repo.ListMistakes(r.Context(), uid)
+	mistakes, err := s.repo.ListMistakesForInsight(r.Context(), uid)
 	if err != nil {
 		log.Printf("list mistakes error: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
