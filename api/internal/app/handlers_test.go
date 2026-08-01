@@ -265,6 +265,29 @@ func TestCheckAnswerIncorrectRecordsAnswer(t *testing.T) {
 	}
 }
 
+// TestCheckAnswerUserAnswerTooLong is a regression test: without a length
+// bound, an authenticated caller could persist arbitrarily large answer text
+// via RecordAnswer, which later flows unbounded into the weakness-insight
+// Gemini prompt (see buildWeaknessPrompt).
+func TestCheckAnswerUserAnswerTooLong(t *testing.T) {
+	repo := &fakeRepo{correct: "It's hot today."}
+	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
+	longAnswer := strings.Repeat("a", maxUserAnswerLength+1)
+	bodyBytes, err := json.Marshal(map[string]any{"sentence_id": 2, "user_answer": longAnswer})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/check", bytes.NewReader(bodyBytes)), "u1")
+	rec := httptest.NewRecorder()
+	srv.checkAnswer(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+	if len(repo.recorded) != 0 {
+		t.Fatalf("expected no answer recorded for an over-length user_answer, got %+v", repo.recorded)
+	}
+}
+
 func TestCheckAnswerNotFound(t *testing.T) {
 	srv := NewServer(&fakeRepo{correctErr: ErrNotFound}, &fakeExplainer{}, &fakeAnalyzer{})
 	body := `{"sentence_id":999,"user_answer":"x"}`

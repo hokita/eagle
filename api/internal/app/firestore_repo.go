@@ -147,9 +147,15 @@ func (r *firestoreRepo) GetSentence(ctx context.Context, id int) (string, string
 }
 
 func (r *firestoreRepo) incorrectHistories(ctx context.Context, statsRef *firestore.DocumentRef) ([]AnswerHistory, error) {
+	// Limit(maxWrongAnswersPerSentence) bounds the read itself, not just the
+	// slice returned to the caller — otherwise a learner who repeatedly
+	// submits wrong answers to one sentence forces an ever-larger Firestore
+	// read (and, via ListMistakes, an ever-larger weakness-insight prompt)
+	// on every request.
 	it := statsRef.Collection("histories").
 		Where("is_correct", "==", false).
-		OrderBy("created_at", firestore.Desc).Documents(ctx)
+		OrderBy("created_at", firestore.Desc).
+		Limit(maxWrongAnswersPerSentence).Documents(ctx)
 	histories := make([]AnswerHistory, 0)
 	for {
 		ds, err := it.Next()

@@ -68,6 +68,49 @@ func TestFirestoreCorrectAnswerNotFound(t *testing.T) {
 	}
 }
 
+// TestFirestoreIncorrectHistoriesBoundedAtQueryLevel is a regression test:
+// without a Firestore-side limit, a learner who repeatedly submits wrong
+// answers to the same sentence forces an ever-larger read (and, via
+// ListMistakes, an ever-larger weakness-insight prompt) on every request.
+// The cap must live in the query itself, not just be applied to the results
+// in Go after they've already been read.
+func TestFirestoreIncorrectHistoriesBoundedAtQueryLevel(t *testing.T) {
+	ctx := context.Background()
+	client := newEmulatorClient(t)
+	repo := NewFirestoreRepo(client)
+	uid := "user-many-wrong"
+	seedSentence(t, client, "301", "1", "多い間違い", "Many mistakes", 1, false)
+
+	base := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	const attempts = maxWrongAnswersPerSentence + 3
+	for i := 0; i < attempts; i++ {
+		repo.now = func(i int) func() time.Time {
+			return func() time.Time { return base.Add(time.Duration(i) * time.Minute) }
+		}(i)
+		if err := repo.RecordAnswer(ctx, uid, 301, false, fmt.Sprintf("wrong-%d", i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	hs, err := repo.ListIncorrectHistories(ctx, uid, 301)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hs) != maxWrongAnswersPerSentence {
+		t.Fatalf("expected the query itself to cap results at %d, got %d: %+v", maxWrongAnswersPerSentence, len(hs), hs)
+	}
+	// Newest first (attempt attempts-1 was recorded last), so the most
+	// recent maxWrongAnswersPerSentence attempts must be the ones kept.
+	if hs[0].IncorrectAnswer != fmt.Sprintf("wrong-%d", attempts-1) {
+		t.Fatalf("expected the most recent attempt to be kept, got %+v", hs[0])
+	}
+	for _, h := range hs {
+		if h.IncorrectAnswer == "wrong-0" {
+			t.Fatalf("expected the oldest attempt to be dropped by the query limit, got %+v", hs)
+		}
+	}
+}
+
 func TestFirestoreRecordListAndCount(t *testing.T) {
 	ctx := context.Background()
 	client := newEmulatorClient(t)

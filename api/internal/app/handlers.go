@@ -16,7 +16,10 @@ const (
 	// size via an arbitrarily large payload.
 	maxExplainRequestBytes = 4096
 	// maxUserAnswerLength bounds the submitted translation attempt itself,
-	// independent of the overall body size limit.
+	// independent of the overall body size limit. Enforced both when an
+	// answer is checked (so oversized text is never persisted to Firestore
+	// and later fanned into the weakness-insight prompt) and when it is
+	// explained.
 	maxUserAnswerLength = 2000
 	// maxInsightMistakes bounds how many recent mistakes are sent to the
 	// weakness analyzer, keeping prompt size and Gemini cost predictable as a
@@ -84,6 +87,10 @@ func (s *Server) checkAnswer(w http.ResponseWriter, r *http.Request) {
 	var req CheckAnswerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if len(req.UserAnswer) > maxUserAnswerLength {
+		http.Error(w, "Invalid user_answer", http.StatusBadRequest)
 		return
 	}
 	correct, err := s.repo.CorrectAnswer(r.Context(), req.SentenceID)
