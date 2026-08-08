@@ -8,13 +8,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { api, type Mistake } from '@/lib/api'
 import { auth } from '@/lib/firebase'
 
-// insightCacheKey scopes the cached insight to both the viewing user and the
-// language it was generated in, so switching accounts or explain-language on
-// a shared browser never serves someone else's (or the wrong language's)
-// cached analysis.
-function insightCacheKey(language: string): string | null {
+// insightCacheKey scopes the cached insight to the viewing user, the
+// language it was generated in (so switching accounts or explain-language on
+// a shared browser never serves someone else's, or the wrong language's,
+// cached analysis), and a fingerprint of the mistake history. Mistakes only
+// ever accumulate (a sentence's IncorrectCount never resets), and the list is
+// sorted most-recently-missed first, so the most recent wrong answer's id
+// (a strictly increasing timestamp) changes the instant a new mistake is
+// recorded — any change to it naturally misses the old cache entry instead
+// of serving a stale insight generated before that mistake happened.
+function insightCacheKey(language: string, mistakes: Mistake[]): string | null {
   const uid = auth.currentUser?.uid
-  return uid ? `eagle:mistakesInsight:${uid}:${language}` : null
+  if (!uid) return null
+  const fingerprint = mistakes[0]?.wrong_answers[0]?.id ?? 0
+  return `eagle:mistakesInsight:${uid}:${language}:${fingerprint}`
 }
 
 const insightMarkdownComponents = {
@@ -39,10 +46,10 @@ export default function Mistakes() {
   const [insightLoading, setInsightLoading] = useState(false)
   const [insightError, setInsightError] = useState<string | null>(null)
 
-  const loadInsight = async () => {
+  const loadInsight = async (currentMistakes: Mistake[]) => {
     const stored = typeof window !== 'undefined' ? localStorage.getItem('eagle:explainLanguage') : null
     const language = stored === 'ja' ? 'ja' : 'en'
-    const cacheKey = insightCacheKey(language)
+    const cacheKey = insightCacheKey(language, currentMistakes)
 
     if (cacheKey) {
       const cached = sessionStorage.getItem(cacheKey)
@@ -74,7 +81,7 @@ export default function Mistakes() {
       const result = await api.listMistakes()
       setMistakes(result.mistakes)
       if (result.mistakes.length > 0) {
-        loadInsight()
+        loadInsight(result.mistakes)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load mistakes')
@@ -130,7 +137,7 @@ export default function Mistakes() {
                   ) : insightError ? (
                     <div className="space-y-2">
                       <p className="text-sm text-red-700">{insightError}</p>
-                      <Button variant="outline" size="sm" onClick={loadInsight}>
+                      <Button variant="outline" size="sm" onClick={() => loadInsight(mistakes ?? [])}>
                         Try Again
                       </Button>
                     </div>

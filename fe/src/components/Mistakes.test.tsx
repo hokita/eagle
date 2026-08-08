@@ -185,6 +185,47 @@ describe('Mistakes', () => {
     expect(mockApi.getMistakesInsight).toHaveBeenCalledTimes(1)
   })
 
+  it('does not reuse a cached insight when the mistake history has changed since it was cached', async () => {
+    mockApi.listMistakes
+      .mockResolvedValueOnce({
+        mistakes: [
+          {
+            sentence_id: 1,
+            japanese: '時間がありません。',
+            correct_answer: "I don't have time.",
+            wrong_answers: [{ id: 1, incorrect_answer: 'I have no time.', created_at: '2026-01-01T00:00:00Z' }],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        mistakes: [
+          {
+            sentence_id: 1,
+            japanese: '時間がありません。',
+            correct_answer: "I don't have time.",
+            wrong_answers: [
+              { id: 2, incorrect_answer: 'There is no time.', created_at: '2026-01-02T00:00:00Z' },
+              { id: 1, incorrect_answer: 'I have no time.', created_at: '2026-01-01T00:00:00Z' },
+            ],
+          },
+        ],
+      })
+    mockApi.getMistakesInsight
+      .mockResolvedValueOnce({ insight: 'First insight.' })
+      .mockResolvedValueOnce({ insight: 'Updated insight after a new mistake.' })
+
+    const { unmount } = render(<Mistakes />)
+    await screen.findByText('First insight.')
+    expect(mockApi.getMistakesInsight).toHaveBeenCalledTimes(1)
+    unmount()
+
+    // Simulates returning to /mistakes after recording a new wrong answer
+    // (a new history entry, id 2, sorted first) since the insight was cached.
+    render(<Mistakes />)
+    await screen.findByText('Updated insight after a new mistake.')
+    expect(mockApi.getMistakesInsight).toHaveBeenCalledTimes(2)
+  })
+
   it('does not fetch an insight when there are no mistakes', async () => {
     mockApi.listMistakes.mockResolvedValue({ mistakes: [] })
     render(<Mistakes />)
