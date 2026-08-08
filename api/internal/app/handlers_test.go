@@ -712,6 +712,22 @@ func TestGetMistakesInsightEmptyAnalyzerResultIsTreatedAsError(t *testing.T) {
 	}
 }
 
+// TestGetMistakesInsightWhitespaceOnlyAnalyzerResultIsTreatedAsError is a
+// regression test: the emptiness guard above must not be satisfied only by
+// the exact empty string. A whitespace-only response ("\n\n") is just as
+// empty from the user's perspective — it renders as a blank card with no
+// error and no retry option — but `insight == ""` alone doesn't catch it.
+func TestGetMistakesInsightWhitespaceOnlyAnalyzerResultIsTreatedAsError(t *testing.T) {
+	repo := &fakeRepo{mistakes: []MistakeSentence{{SentenceID: 1, Japanese: "x", CorrectAnswer: "y", WrongAnswers: []AnswerHistory{{IncorrectAnswer: "z"}}}}}
+	analyzer := &fakeAnalyzer{insight: "\n\n "}
+	srv := NewServer(repo, &fakeExplainer{}, analyzer)
+	rec := httptest.NewRecorder()
+	srv.getMistakesInsight(rec, authed(httptest.NewRequest(http.MethodGet, "/api/mistakes/insight?language=en", nil), "u1"))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rec.Code)
+	}
+}
+
 func TestGetMistakesInsightInvalidLanguage(t *testing.T) {
 	analyzer := &fakeAnalyzer{}
 	repo := &fakeRepo{mistakes: []MistakeSentence{{SentenceID: 1, Japanese: "x", CorrectAnswer: "y", WrongAnswers: []AnswerHistory{{IncorrectAnswer: "z"}}}}}

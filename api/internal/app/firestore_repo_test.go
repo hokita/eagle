@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -127,6 +128,75 @@ func TestFirestoreListMistakesForInsightBoundedAtQueryLevel(t *testing.T) {
 		if h.IncorrectAnswer == "wrong-0" {
 			t.Fatalf("expected the oldest attempt to be dropped by the query limit, got %+v", hs)
 		}
+	}
+}
+
+// TestFirestoreListMistakesForInsightBoundsSentenceScanAtQueryLevel is a
+// regression test: TestFirestoreListMistakesForInsightBoundedAtQueryLevel
+// above only caps wrong-answer history per sentence. Without a separate
+// cap on the outer sentence_stats scan, a learner who has ever missed many
+// distinct sentences still forces a read (stats doc + sentence doc per
+// mistake) that scales with their entire lifetime mistake count on every
+// insight request. The cap must live in the query itself.
+func TestFirestoreListMistakesForInsightBoundsSentenceScanAtQueryLevel(t *testing.T) {
+	ctx := context.Background()
+	client := newEmulatorClient(t)
+	repo := NewFirestoreRepo(client)
+	uid := "user-many-sentences"
+
+	const extra = 5
+	total := maxInsightStatsScan + extra
+	base := time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC)
+	for i := 0; i < total; i++ {
+		id := 2000 + i
+		seedSentence(t, client, strconv.Itoa(id), "1", fmt.Sprintf("文%d", i), fmt.Sprintf("sentence %d", i), 1, false)
+		repo.now = func(i int) func() time.Time {
+			return func() time.Time { return base.Add(time.Duration(i) * time.Minute) }
+		}(i)
+		if err := repo.RecordAnswer(ctx, uid, id, false, "wrong"); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	mistakes, err := repo.ListMistakesForInsight(ctx, uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mistakes) != maxInsightStatsScan {
+		t.Fatalf("expected the sentence scan itself to be capped at %d, got %d", maxInsightStatsScan, len(mistakes))
+	}
+}
+
+// TestFirestoreListMistakesSentenceScanRemainsUnboundedForRawList is a
+// regression test for the same bug: the insight-only scan cap must not leak
+// into ListMistakes, which backs the raw /api/mistakes list and has always
+// shown every sentence a learner has ever missed.
+func TestFirestoreListMistakesSentenceScanRemainsUnboundedForRawList(t *testing.T) {
+	ctx := context.Background()
+	client := newEmulatorClient(t)
+	repo := NewFirestoreRepo(client)
+	uid := "user-many-sentences"
+
+	const extra = 5
+	total := maxInsightStatsScan + extra
+	base := time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC)
+	for i := 0; i < total; i++ {
+		id := 2000 + i
+		seedSentence(t, client, strconv.Itoa(id), "1", fmt.Sprintf("文%d", i), fmt.Sprintf("sentence %d", i), 1, false)
+		repo.now = func(i int) func() time.Time {
+			return func() time.Time { return base.Add(time.Duration(i) * time.Minute) }
+		}(i)
+		if err := repo.RecordAnswer(ctx, uid, id, false, "wrong"); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	mistakes, err := repo.ListMistakes(ctx, uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mistakes) != total {
+		t.Fatalf("expected all %d mistaken sentences (unbounded), got %d", total, len(mistakes))
 	}
 }
 

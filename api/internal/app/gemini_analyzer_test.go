@@ -35,6 +35,29 @@ func TestGeminiWeaknessAnalyzerReturnsText(t *testing.T) {
 	}
 }
 
+func TestGeminiWeaknessAnalyzerCapsMaxOutputTokens(t *testing.T) {
+	fake := &fakeContentGenerator{
+		resp: &genai.GenerateContentResponse{
+			Candidates: []*genai.Candidate{
+				{Content: &genai.Content{Parts: []*genai.Part{{Text: "insight text"}}}},
+			},
+		},
+	}
+	g := &GeminiWeaknessAnalyzer{models: fake, model: "gemini-test"}
+
+	if _, err := g.Analyze(context.Background(),
+		[]MistakeSentence{{Japanese: "x", CorrectAnswer: "y", WrongAnswers: []AnswerHistory{{IncorrectAnswer: "z"}}}},
+		"en"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if fake.gotConfig == nil {
+		t.Fatal("expected a non-nil GenerateContentConfig bounding the response size")
+	}
+	if fake.gotConfig.MaxOutputTokens != maxInsightOutputTokens {
+		t.Fatalf("expected MaxOutputTokens=%d, got %d", maxInsightOutputTokens, fake.gotConfig.MaxOutputTokens)
+	}
+}
+
 func TestGeminiWeaknessAnalyzerPropagatesError(t *testing.T) {
 	fake := &fakeContentGenerator{err: errors.New("network error")}
 	g := &GeminiWeaknessAnalyzer{models: fake, model: "gemini-test"}

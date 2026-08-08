@@ -2,9 +2,34 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import ReactMarkdown from 'react-markdown'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { api, type Mistake } from '@/lib/api'
+import { auth } from '@/lib/firebase'
+
+// insightCacheKey scopes the cached insight to both the viewing user and the
+// language it was generated in, so switching accounts or explain-language on
+// a shared browser never serves someone else's (or the wrong language's)
+// cached analysis.
+function insightCacheKey(language: string): string | null {
+  const uid = auth.currentUser?.uid
+  return uid ? `eagle:mistakesInsight:${uid}:${language}` : null
+}
+
+const insightMarkdownComponents = {
+  p: (props: React.ComponentPropsWithoutRef<'p'>) => <p className="mb-2 last:mb-0" {...props} />,
+  ul: (props: React.ComponentPropsWithoutRef<'ul'>) => (
+    <ul className="list-disc pl-5 space-y-1 mb-2 last:mb-0" {...props} />
+  ),
+  ol: (props: React.ComponentPropsWithoutRef<'ol'>) => (
+    <ol className="list-decimal pl-5 space-y-1 mb-2 last:mb-0" {...props} />
+  ),
+  li: (props: React.ComponentPropsWithoutRef<'li'>) => <li {...props} />,
+  strong: (props: React.ComponentPropsWithoutRef<'strong'>) => (
+    <strong className="font-semibold text-indigo-900" {...props} />
+  ),
+}
 
 export default function Mistakes() {
   const [mistakes, setMistakes] = useState<Mistake[] | null>(null)
@@ -15,13 +40,26 @@ export default function Mistakes() {
   const [insightError, setInsightError] = useState<string | null>(null)
 
   const loadInsight = async () => {
+    const stored = typeof window !== 'undefined' ? localStorage.getItem('eagle:explainLanguage') : null
+    const language = stored === 'ja' ? 'ja' : 'en'
+    const cacheKey = insightCacheKey(language)
+
+    if (cacheKey) {
+      const cached = sessionStorage.getItem(cacheKey)
+      if (cached !== null) {
+        setInsight(cached)
+        return
+      }
+    }
+
     setInsightLoading(true)
     setInsightError(null)
     try {
-      const stored = typeof window !== 'undefined' ? localStorage.getItem('eagle:explainLanguage') : null
-      const language = stored === 'ja' ? 'ja' : 'en'
       const result = await api.getMistakesInsight(language)
       setInsight(result.insight)
+      if (cacheKey) {
+        sessionStorage.setItem(cacheKey, result.insight)
+      }
     } catch (err) {
       setInsightError(err instanceof Error ? err.message : 'Failed to load insight')
     } finally {
@@ -97,7 +135,11 @@ export default function Mistakes() {
                       </Button>
                     </div>
                   ) : (
-                    <div className="whitespace-pre-wrap text-sm text-gray-800">{insight}</div>
+                    <div className="text-sm text-gray-800">
+                      <ReactMarkdown components={insightMarkdownComponents} disallowedElements={['a', 'img']}>
+                        {insight}
+                      </ReactMarkdown>
+                    </div>
                   )}
                 </CardContent>
               </Card>

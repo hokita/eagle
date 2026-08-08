@@ -169,7 +169,7 @@ func (s *Server) getMistakesInsight(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	if insight == "" {
+	if strings.TrimSpace(insight) == "" {
 		log.Printf("analyze mistakes returned an empty insight for %d mistakes", len(mistakes))
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return

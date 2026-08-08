@@ -16,11 +16,13 @@ type fakeContentGenerator struct {
 
 	gotModel    string
 	gotContents []*genai.Content
+	gotConfig   *genai.GenerateContentConfig
 }
 
-func (f *fakeContentGenerator) GenerateContent(_ context.Context, model string, contents []*genai.Content, _ *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
+func (f *fakeContentGenerator) GenerateContent(_ context.Context, model string, contents []*genai.Content, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
 	f.gotModel = model
 	f.gotContents = contents
+	f.gotConfig = config
 	return f.resp, f.err
 }
 

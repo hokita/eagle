@@ -67,6 +67,7 @@ func buildWeaknessPrompt(mistakes []MistakeSentence, language string) string {
 	footer.WriteString("represent a repeated pattern.\n")
 	footer.WriteString("Respond with a 1-2 sentence summary, then a short bulleted list of the top weakness ")
 	footer.WriteString("areas, each with a brief, actionable tip.\n")
+	footer.WriteString("Format the response as Markdown (use \"- \" for bullets and \"**text**\" for emphasis).\n")
 	if language == "ja" {
 		footer.WriteString("Write your analysis in Japanese.")
 	} else {
