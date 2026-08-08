@@ -2,9 +2,41 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import ReactMarkdown from 'react-markdown'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { api, type Mistake } from '@/lib/api'
+import { auth } from '@/lib/firebase'
+
+// insightCacheKey scopes the cached insight to the viewing user, the
+// language it was generated in (so switching accounts or explain-language on
+// a shared browser never serves someone else's, or the wrong language's,
+// cached analysis), and a fingerprint of the mistake history. Mistakes only
+// ever accumulate (a sentence's IncorrectCount never resets), and the list is
+// sorted most-recently-missed first, so the most recent wrong answer's id
+// (a strictly increasing timestamp) changes the instant a new mistake is
+// recorded — any change to it naturally misses the old cache entry instead
+// of serving a stale insight generated before that mistake happened.
+function insightCacheKey(language: string, mistakes: Mistake[]): string | null {
+  const uid = auth.currentUser?.uid
+  if (!uid) return null
+  const fingerprint = mistakes[0]?.wrong_answers[0]?.id ?? 0
+  return `eagle:mistakesInsight:${uid}:${language}:${fingerprint}`
+}
+
+const insightMarkdownComponents = {
+  p: (props: React.ComponentPropsWithoutRef<'p'>) => <p className="mb-2 last:mb-0" {...props} />,
+  ul: (props: React.ComponentPropsWithoutRef<'ul'>) => (
+    <ul className="list-disc pl-5 space-y-1 mb-2 last:mb-0" {...props} />
+  ),
+  ol: (props: React.ComponentPropsWithoutRef<'ol'>) => (
+    <ol className="list-decimal pl-5 space-y-1 mb-2 last:mb-0" {...props} />
+  ),
+  li: (props: React.ComponentPropsWithoutRef<'li'>) => <li {...props} />,
+  strong: (props: React.ComponentPropsWithoutRef<'strong'>) => (
+    <strong className="font-semibold text-indigo-900" {...props} />
+  ),
+}
 
 export default function Mistakes() {
   const [mistakes, setMistakes] = useState<Mistake[] | null>(null)
@@ -14,14 +46,27 @@ export default function Mistakes() {
   const [insightLoading, setInsightLoading] = useState(false)
   const [insightError, setInsightError] = useState<string | null>(null)
 
-  const loadInsight = async () => {
+  const loadInsight = async (currentMistakes: Mistake[]) => {
+    const stored = typeof window !== 'undefined' ? localStorage.getItem('eagle:explainLanguage') : null
+    const language = stored === 'ja' ? 'ja' : 'en'
+    const cacheKey = insightCacheKey(language, currentMistakes)
+
+    if (cacheKey) {
+      const cached = sessionStorage.getItem(cacheKey)
+      if (cached !== null) {
+        setInsight(cached)
+        return
+      }
+    }
+
     setInsightLoading(true)
     setInsightError(null)
     try {
-      const stored = typeof window !== 'undefined' ? localStorage.getItem('eagle:explainLanguage') : null
-      const language = stored === 'ja' ? 'ja' : 'en'
       const result = await api.getMistakesInsight(language)
       setInsight(result.insight)
+      if (cacheKey) {
+        sessionStorage.setItem(cacheKey, result.insight)
+      }
     } catch (err) {
       setInsightError(err instanceof Error ? err.message : 'Failed to load insight')
     } finally {
@@ -36,7 +81,7 @@ export default function Mistakes() {
       const result = await api.listMistakes()
       setMistakes(result.mistakes)
       if (result.mistakes.length > 0) {
-        loadInsight()
+        loadInsight(result.mistakes)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load mistakes')
@@ -92,12 +137,16 @@ export default function Mistakes() {
                   ) : insightError ? (
                     <div className="space-y-2">
                       <p className="text-sm text-red-700">{insightError}</p>
-                      <Button variant="outline" size="sm" onClick={loadInsight}>
+                      <Button variant="outline" size="sm" onClick={() => loadInsight(mistakes ?? [])}>
                         Try Again
                       </Button>
                     </div>
                   ) : (
-                    <div className="whitespace-pre-wrap text-sm text-gray-800">{insight}</div>
+                    <div className="text-sm text-gray-800">
+                      <ReactMarkdown components={insightMarkdownComponents} disallowedElements={['a', 'img']}>
+                        {insight}
+                      </ReactMarkdown>
+                    </div>
                   )}
                 </CardContent>
               </Card>

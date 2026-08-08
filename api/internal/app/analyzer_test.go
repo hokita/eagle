@@ -102,6 +102,13 @@ func TestBuildWeaknessPromptEnforcesTotalCharacterBudget(t *testing.T) {
 	}
 }
 
+func TestBuildWeaknessPromptRequestsMarkdownFormatting(t *testing.T) {
+	prompt := buildWeaknessPrompt(mistakesFixture(), "en")
+	if !strings.Contains(strings.ToLower(prompt), "markdown") {
+		t.Fatal("expected prompt to explicitly ask for a Markdown-formatted response")
+	}
+}
+
 func TestBuildWeaknessPromptWritesInRequestedLanguage(t *testing.T) {
 	en := buildWeaknessPrompt(mistakesFixture(), "en")
 	if !strings.HasSuffix(en, "in English.") {
