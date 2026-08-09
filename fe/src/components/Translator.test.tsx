@@ -269,6 +269,22 @@ describe('Explain button', () => {
     ).toBeInTheDocument()
   })
 
+  it('renders a markdown-formatted explanation as real bold text', async () => {
+    mockApi.checkAnswer.mockResolvedValue({
+      is_correct: false,
+      correct_answer: fakeSentence.english,
+      histories: [],
+    })
+    mockApi.explainAnswer.mockResolvedValue({
+      explanation: 'Your answer drops the **negative** form used in the reference.',
+    })
+    await answerIncorrectly()
+    fireEvent.click(screen.getByRole('button', { name: /^explain$/i }))
+    await screen.findByText('negative')
+    expect(screen.getByText('negative').tagName).toBe('STRONG')
+    expect(screen.queryByText(/\*\*negative\*\*/)).not.toBeInTheDocument()
+  })
+
   it('shows an error and keeps the button clickable when the call fails', async () => {
     mockApi.checkAnswer.mockResolvedValue({
       is_correct: false,

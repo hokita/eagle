@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import ReactMarkdown from 'react-markdown'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -21,6 +22,20 @@ import { api, type Sentence, type AnswerHistory } from '@/lib/api'
 import UserMenu from './UserMenu'
 
 const EXPLAIN_LANGUAGE_STORAGE_KEY = 'eagle:explainLanguage'
+
+const explanationMarkdownComponents = {
+  p: (props: React.ComponentPropsWithoutRef<'p'>) => <p className="mb-2 last:mb-0" {...props} />,
+  ul: (props: React.ComponentPropsWithoutRef<'ul'>) => (
+    <ul className="list-disc pl-5 space-y-1 mb-2 last:mb-0" {...props} />
+  ),
+  ol: (props: React.ComponentPropsWithoutRef<'ol'>) => (
+    <ol className="list-decimal pl-5 space-y-1 mb-2 last:mb-0" {...props} />
+  ),
+  li: (props: React.ComponentPropsWithoutRef<'li'>) => <li {...props} />,
+  strong: (props: React.ComponentPropsWithoutRef<'strong'>) => (
+    <strong className="font-semibold text-purple-900" {...props} />
+  ),
+}
 
 interface Props {
   user: User
@@ -514,7 +529,11 @@ export default function Translator({ user }: Props) {
                           {explanation && (
                             <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
                               <div className="font-semibold text-purple-900 mb-1">Explanation:</div>
-                              <div className="text-purple-800 whitespace-pre-wrap">{explanation}</div>
+                              <div className="text-purple-800">
+                                <ReactMarkdown components={explanationMarkdownComponents} disallowedElements={['a', 'img']}>
+                                  {explanation}
+                                </ReactMarkdown>
+                              </div>
                             </div>
                           )}
                         </div>

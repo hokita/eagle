@@ -25,6 +25,13 @@ func TestBuildExplainPromptInstructsJudgingOnMerits(t *testing.T) {
 	}
 }
 
+func TestBuildExplainPromptRequestsMarkdownFormatting(t *testing.T) {
+	prompt := buildExplainPrompt("日本語", "reference", "answer", "en")
+	if !strings.Contains(strings.ToLower(prompt), "markdown") {
+		t.Fatal("expected prompt to explicitly ask for a Markdown-formatted response")
+	}
+}
+
 func TestBuildExplainPromptWritesInRequestedLanguage(t *testing.T) {
 	enPrompt := buildExplainPrompt("日本語", "reference", "answer", "en")
 	if !strings.HasSuffix(enPrompt, "write it in English.") {

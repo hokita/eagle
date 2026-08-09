@@ -33,6 +33,7 @@ func buildExplainPrompt(japanese, correctAnswer, userAnswer, language string) st
 	b.WriteString("formality, or phrasing compared to the reference — do not imply it was wrong just because it differs.\n")
 	b.WriteString("If the learner's translation has a real grammar, vocabulary, or meaning error, explain what is wrong ")
 	b.WriteString("and why the reference translation is more correct.\n\n")
+	b.WriteString("Format the response as Markdown (use \"**text**\" to emphasize key words or example sentences).\n")
 	if language == "ja" {
 		b.WriteString("Keep the explanation concise (2-4 sentences) and write it in Japanese.")
 	} else {
