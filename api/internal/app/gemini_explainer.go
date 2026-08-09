@@ -11,6 +11,12 @@ import (
 const (
 	geminiExplainModel = "gemini-3.1-flash-lite"
 	explainTimeout     = 20 * time.Second
+
+	// maxExplainOutputTokens bounds the size of the explanation response
+	// itself. buildExplainPrompt asks for a concise 2-4 sentence answer, but
+	// nothing stops the model from ignoring that instruction — mirrors the
+	// same safeguard on the weakness-insight path (maxInsightOutputTokens).
+	maxExplainOutputTokens = 512
 )
 
 // contentGenerator is the seam between GeminiExplainer and the genai SDK, so
@@ -44,7 +50,8 @@ func (g *GeminiExplainer) Explain(ctx context.Context, japanese, correctAnswer, 
 	prompt := buildExplainPrompt(japanese, correctAnswer, userAnswer, language)
 	contents := []*genai.Content{{Parts: []*genai.Part{{Text: prompt}}}}
 
-	resp, err := g.models.GenerateContent(ctx, g.model, contents, nil)
+	config := &genai.GenerateContentConfig{MaxOutputTokens: maxExplainOutputTokens}
+	resp, err := g.models.GenerateContent(ctx, g.model, contents, config)
 	if err != nil {
 		return "", fmt.Errorf("gemini generate content: %w", err)
 	}

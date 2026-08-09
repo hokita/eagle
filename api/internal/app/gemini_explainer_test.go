@@ -54,6 +54,28 @@ func TestGeminiExplainerExplainReturnsText(t *testing.T) {
 	}
 }
 
+func TestGeminiExplainerCapsMaxOutputTokens(t *testing.T) {
+	fake := &fakeContentGenerator{
+		resp: &genai.GenerateContentResponse{
+			Candidates: []*genai.Candidate{
+				{Content: &genai.Content{Parts: []*genai.Part{{Text: "explanation text"}}}},
+			},
+		},
+	}
+	g := &GeminiExplainer{models: fake, model: "gemini-2.5-flash"}
+
+	if _, err := g.Explain(context.Background(), "japanese", "correct", "user", "en"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if fake.gotConfig == nil {
+		t.Fatal("expected a GenerateContentConfig to be passed, got nil")
+	}
+	if fake.gotConfig.MaxOutputTokens != maxExplainOutputTokens {
+		t.Fatalf("expected MaxOutputTokens=%d, got %d", maxExplainOutputTokens, fake.gotConfig.MaxOutputTokens)
+	}
+}
+
 func TestGeminiExplainerExplainPropagatesError(t *testing.T) {
 	fake := &fakeContentGenerator{err: errors.New("network error")}
 	g := &GeminiExplainer{models: fake, model: "gemini-2.5-flash"}

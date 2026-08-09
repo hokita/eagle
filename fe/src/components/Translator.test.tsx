@@ -269,6 +269,69 @@ describe('Explain button', () => {
     ).toBeInTheDocument()
   })
 
+  it('renders a markdown-formatted explanation as real bold text', async () => {
+    mockApi.checkAnswer.mockResolvedValue({
+      is_correct: false,
+      correct_answer: fakeSentence.english,
+      histories: [],
+    })
+    mockApi.explainAnswer.mockResolvedValue({
+      explanation: 'Your answer drops the **negative** form used in the reference.',
+    })
+    await answerIncorrectly()
+    fireEvent.click(screen.getByRole('button', { name: /^explain$/i }))
+    await screen.findByText('negative')
+    expect(screen.getByText('negative').tagName).toBe('STRONG')
+    expect(screen.queryByText(/\*\*negative\*\*/)).not.toBeInTheDocument()
+  })
+
+  it('preserves single-newline sentence breaks in the explanation', async () => {
+    mockApi.checkAnswer.mockResolvedValue({
+      is_correct: false,
+      correct_answer: fakeSentence.english,
+      histories: [],
+    })
+    mockApi.explainAnswer.mockResolvedValue({
+      explanation: 'Sentence one.\nSentence two.',
+    })
+    await answerIncorrectly()
+    fireEvent.click(screen.getByRole('button', { name: /^explain$/i }))
+    const paragraph = await screen.findByText(/Sentence one\./)
+    expect(paragraph.className).toContain('whitespace-pre-line')
+  })
+
+  it('does not render a stale explanation for a previous sentence after moving on', async () => {
+    mockApi.checkAnswer.mockResolvedValue({
+      is_correct: false,
+      correct_answer: fakeSentence.english,
+      histories: [],
+    })
+    let resolveExplain: (value: { explanation: string }) => void = () => {}
+    mockApi.explainAnswer.mockReturnValue(
+      new Promise(resolve => {
+        resolveExplain = resolve
+      })
+    )
+    await answerIncorrectly()
+    fireEvent.click(screen.getByRole('button', { name: /^explain$/i }))
+    await screen.findByRole('button', { name: /explaining/i })
+
+    const otherSentence = { ...fakeSentence, id: 2, japanese: '違う文です。' }
+    mockApi.getRandomSentence.mockResolvedValueOnce(otherSentence)
+    fireEvent.click(screen.getByRole('button', { name: /next sentence/i }))
+    await screen.findByText('違う文です。')
+
+    fireEvent.change(screen.getByLabelText(/your english translation/i), {
+      target: { value: 'wrong again' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /check translation/i }))
+    await screen.findByText(/not quite right/i)
+
+    await act(async () => resolveExplain({ explanation: 'STALE EXPLANATION FROM OLD SENTENCE' }))
+
+    expect(screen.queryByText('STALE EXPLANATION FROM OLD SENTENCE')).not.toBeInTheDocument()
+  })
+
   it('shows an error and keeps the button clickable when the call fails', async () => {
     mockApi.checkAnswer.mockResolvedValue({
       is_correct: false,
