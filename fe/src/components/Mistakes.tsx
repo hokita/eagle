@@ -54,6 +54,7 @@ export default function Mistakes() {
 
   const loadInsight = async (currentMistakes: Mistake[], language: 'en' | 'ja') => {
     const cacheKey = insightCacheKey(language, currentMistakes)
+    setInsightError(null)
 
     if (cacheKey) {
       const cached = sessionStorage.getItem(cacheKey)
@@ -64,7 +65,6 @@ export default function Mistakes() {
     }
 
     setInsightLoading(true)
-    setInsightError(null)
     try {
       const result = await api.getMistakesInsight(language)
       setInsight(result.insight)

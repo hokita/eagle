@@ -163,6 +163,32 @@ describe('Mistakes', () => {
     await screen.findByText('You often drop articles.')
   })
 
+  it('clears a stale insight error when switching to a cache-hit language', async () => {
+    mockApi.listMistakes.mockResolvedValue({
+      mistakes: [
+        {
+          sentence_id: 1,
+          japanese: '時間がありません。',
+          correct_answer: "I don't have time.",
+          wrong_answers: [{ id: 1, incorrect_answer: 'I have no time.', created_at: '2026-01-03T00:00:00Z' }],
+        },
+      ],
+    })
+    mockApi.getMistakesInsight
+      .mockResolvedValueOnce({ insight: 'English insight.' })
+      .mockRejectedValueOnce(new Error('insight boom'))
+    render(<Mistakes />)
+    await screen.findByText('English insight.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'JA' }))
+    await screen.findByText('insight boom')
+
+    fireEvent.click(screen.getByRole('button', { name: 'EN' }))
+    await screen.findByText('English insight.')
+    expect(screen.queryByText('insight boom')).not.toBeInTheDocument()
+    expect(mockApi.getMistakesInsight).toHaveBeenCalledTimes(2)
+  })
+
   it('reuses a cached insight on remount instead of calling the API again', async () => {
     mockApi.listMistakes.mockResolvedValue({
       mistakes: [
@@ -257,6 +283,7 @@ describe('Mistakes', () => {
 
     expect(mockApi.getMistakesInsight).toHaveBeenLastCalledWith('ja')
     expect(screen.getByRole('button', { name: 'JA' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'EN' })).toHaveAttribute('aria-pressed', 'false')
     expect(localStorage.getItem('eagle:explainLanguage')).toBe('ja')
   })
 
