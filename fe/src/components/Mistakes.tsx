@@ -47,7 +47,10 @@ export default function Mistakes() {
   const [insight, setInsight] = useState<string | null>(null)
   const [insightLoading, setInsightLoading] = useState(false)
   const [insightError, setInsightError] = useState<string | null>(null)
-  const [insightLanguage, setInsightLanguage] = useState<'en' | 'ja'>('en')
+  const [insightLanguage, setInsightLanguage] = useState<'en' | 'ja'>(() => {
+    const stored = typeof window !== 'undefined' ? localStorage.getItem(EXPLAIN_LANGUAGE_STORAGE_KEY) : null
+    return stored === 'ja' ? 'ja' : 'en'
+  })
 
   const loadInsight = async (currentMistakes: Mistake[], language: 'en' | 'ja') => {
     const cacheKey = insightCacheKey(language, currentMistakes)

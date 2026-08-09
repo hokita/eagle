@@ -277,4 +277,23 @@ describe('Mistakes', () => {
     expect(screen.getByRole('button', { name: 'EN' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'JA' })).toBeDisabled()
   })
+
+  it('restores a stored ja preference on mount and fetches the insight in Japanese', async () => {
+    localStorage.setItem('eagle:explainLanguage', 'ja')
+    mockApi.listMistakes.mockResolvedValue({
+      mistakes: [
+        {
+          sentence_id: 1,
+          japanese: '時間がありません。',
+          correct_answer: "I don't have time.",
+          wrong_answers: [{ id: 1, incorrect_answer: 'I have no time.', created_at: '2026-01-03T00:00:00Z' }],
+        },
+      ],
+    })
+    mockApi.getMistakesInsight.mockResolvedValue({ insight: '日本語のインサイト。' })
+    render(<Mistakes />)
+    await screen.findByText('日本語のインサイト。')
+    expect(mockApi.getMistakesInsight).toHaveBeenCalledWith('ja')
+    expect(screen.getByRole('button', { name: 'JA' })).toHaveAttribute('aria-pressed', 'true')
+  })
 })
