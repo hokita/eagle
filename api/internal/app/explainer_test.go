@@ -32,6 +32,13 @@ func TestBuildExplainPromptRequestsMarkdownFormatting(t *testing.T) {
 	}
 }
 
+func TestBuildExplainPromptInstructsPlainTextQuoting(t *testing.T) {
+	prompt := buildExplainPrompt("日本語", "reference", "answer", "en")
+	if !strings.Contains(prompt, "without adding markdown formatting") {
+		t.Fatal("expected prompt to instruct the model not to add markdown emphasis when quoting the learner's own wording")
+	}
+}
+
 func TestBuildExplainPromptWritesInRequestedLanguage(t *testing.T) {
 	enPrompt := buildExplainPrompt("日本語", "reference", "answer", "en")
 	if !strings.HasSuffix(enPrompt, "write it in English.") {
