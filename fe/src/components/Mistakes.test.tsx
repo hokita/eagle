@@ -296,4 +296,30 @@ describe('Mistakes', () => {
     expect(mockApi.getMistakesInsight).toHaveBeenCalledWith('ja')
     expect(screen.getByRole('button', { name: 'JA' })).toHaveAttribute('aria-pressed', 'true')
   })
+
+  it('reuses the cached insight when toggling back to a language already fetched this session', async () => {
+    mockApi.listMistakes.mockResolvedValue({
+      mistakes: [
+        {
+          sentence_id: 1,
+          japanese: '時間がありません。',
+          correct_answer: "I don't have time.",
+          wrong_answers: [{ id: 1, incorrect_answer: 'I have no time.', created_at: '2026-01-03T00:00:00Z' }],
+        },
+      ],
+    })
+    mockApi.getMistakesInsight
+      .mockResolvedValueOnce({ insight: 'English insight.' })
+      .mockResolvedValueOnce({ insight: '日本語のインサイト。' })
+    render(<Mistakes />)
+    await screen.findByText('English insight.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'JA' }))
+    await screen.findByText('日本語のインサイト。')
+    expect(mockApi.getMistakesInsight).toHaveBeenCalledTimes(2)
+
+    fireEvent.click(screen.getByRole('button', { name: 'EN' }))
+    await screen.findByText('English insight.')
+    expect(mockApi.getMistakesInsight).toHaveBeenCalledTimes(2)
+  })
 })
