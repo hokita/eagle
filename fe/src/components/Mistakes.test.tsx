@@ -20,6 +20,7 @@ const mockApi = api as unknown as {
 beforeEach(() => {
   vi.clearAllMocks()
   sessionStorage.clear()
+  localStorage.clear()
   mockApi.getMistakesInsight.mockResolvedValue({ insight: '' })
 })
 
@@ -162,6 +163,32 @@ describe('Mistakes', () => {
     await screen.findByText('You often drop articles.')
   })
 
+  it('clears a stale insight error when switching to a cache-hit language', async () => {
+    mockApi.listMistakes.mockResolvedValue({
+      mistakes: [
+        {
+          sentence_id: 1,
+          japanese: '時間がありません。',
+          correct_answer: "I don't have time.",
+          wrong_answers: [{ id: 1, incorrect_answer: 'I have no time.', created_at: '2026-01-03T00:00:00Z' }],
+        },
+      ],
+    })
+    mockApi.getMistakesInsight
+      .mockResolvedValueOnce({ insight: 'English insight.' })
+      .mockRejectedValueOnce(new Error('insight boom'))
+    render(<Mistakes />)
+    await screen.findByText('English insight.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'JA' }))
+    await screen.findByText('insight boom')
+
+    fireEvent.click(screen.getByRole('button', { name: 'EN' }))
+    await screen.findByText('English insight.')
+    expect(screen.queryByText('insight boom')).not.toBeInTheDocument()
+    expect(mockApi.getMistakesInsight).toHaveBeenCalledTimes(2)
+  })
+
   it('reuses a cached insight on remount instead of calling the API again', async () => {
     mockApi.listMistakes.mockResolvedValue({
       mistakes: [
@@ -231,5 +258,95 @@ describe('Mistakes', () => {
     render(<Mistakes />)
     await screen.findByText(/no mistakes yet/i)
     expect(mockApi.getMistakesInsight).not.toHaveBeenCalled()
+  })
+
+  it('shows an EN/JA insight-language toggle that persists the choice and re-fetches in the new language', async () => {
+    mockApi.listMistakes.mockResolvedValue({
+      mistakes: [
+        {
+          sentence_id: 1,
+          japanese: '時間がありません。',
+          correct_answer: "I don't have time.",
+          wrong_answers: [{ id: 1, incorrect_answer: 'I have no time.', created_at: '2026-01-03T00:00:00Z' }],
+        },
+      ],
+    })
+    mockApi.getMistakesInsight.mockResolvedValueOnce({ insight: 'English insight.' })
+    render(<Mistakes />)
+    await screen.findByText('English insight.')
+    expect(screen.getByRole('button', { name: 'EN' })).toHaveAttribute('aria-pressed', 'true')
+    expect(mockApi.getMistakesInsight).toHaveBeenLastCalledWith('en')
+
+    mockApi.getMistakesInsight.mockResolvedValueOnce({ insight: '日本語のインサイト。' })
+    fireEvent.click(screen.getByRole('button', { name: 'JA' }))
+    await screen.findByText('日本語のインサイト。')
+
+    expect(mockApi.getMistakesInsight).toHaveBeenLastCalledWith('ja')
+    expect(screen.getByRole('button', { name: 'JA' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'EN' })).toHaveAttribute('aria-pressed', 'false')
+    expect(localStorage.getItem('eagle:explainLanguage')).toBe('ja')
+  })
+
+  it('disables the insight-language toggle while the insight is loading', async () => {
+    mockApi.listMistakes.mockResolvedValue({
+      mistakes: [
+        {
+          sentence_id: 1,
+          japanese: '時間がありません。',
+          correct_answer: "I don't have time.",
+          wrong_answers: [{ id: 1, incorrect_answer: 'I have no time.', created_at: '2026-01-03T00:00:00Z' }],
+        },
+      ],
+    })
+    mockApi.getMistakesInsight.mockReturnValue(new Promise(() => {}))
+    render(<Mistakes />)
+    await screen.findByText(/analyzing your mistakes/i)
+    expect(screen.getByRole('button', { name: 'EN' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'JA' })).toBeDisabled()
+  })
+
+  it('restores a stored ja preference on mount and fetches the insight in Japanese', async () => {
+    localStorage.setItem('eagle:explainLanguage', 'ja')
+    mockApi.listMistakes.mockResolvedValue({
+      mistakes: [
+        {
+          sentence_id: 1,
+          japanese: '時間がありません。',
+          correct_answer: "I don't have time.",
+          wrong_answers: [{ id: 1, incorrect_answer: 'I have no time.', created_at: '2026-01-03T00:00:00Z' }],
+        },
+      ],
+    })
+    mockApi.getMistakesInsight.mockResolvedValue({ insight: '日本語のインサイト。' })
+    render(<Mistakes />)
+    await screen.findByText('日本語のインサイト。')
+    expect(mockApi.getMistakesInsight).toHaveBeenCalledWith('ja')
+    expect(screen.getByRole('button', { name: 'JA' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('reuses the cached insight when toggling back to a language already fetched this session', async () => {
+    mockApi.listMistakes.mockResolvedValue({
+      mistakes: [
+        {
+          sentence_id: 1,
+          japanese: '時間がありません。',
+          correct_answer: "I don't have time.",
+          wrong_answers: [{ id: 1, incorrect_answer: 'I have no time.', created_at: '2026-01-03T00:00:00Z' }],
+        },
+      ],
+    })
+    mockApi.getMistakesInsight
+      .mockResolvedValueOnce({ insight: 'English insight.' })
+      .mockResolvedValueOnce({ insight: '日本語のインサイト。' })
+    render(<Mistakes />)
+    await screen.findByText('English insight.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'JA' }))
+    await screen.findByText('日本語のインサイト。')
+    expect(mockApi.getMistakesInsight).toHaveBeenCalledTimes(2)
+
+    fireEvent.click(screen.getByRole('button', { name: 'EN' }))
+    await screen.findByText('English insight.')
+    expect(mockApi.getMistakesInsight).toHaveBeenCalledTimes(2)
   })
 })

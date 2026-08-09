@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { api, type Mistake } from '@/lib/api'
 import { auth } from '@/lib/firebase'
 
+const EXPLAIN_LANGUAGE_STORAGE_KEY = 'eagle:explainLanguage'
+
 // insightCacheKey scopes the cached insight to the viewing user, the
 // language it was generated in (so switching accounts or explain-language on
 // a shared browser never serves someone else's, or the wrong language's,
@@ -45,11 +47,14 @@ export default function Mistakes() {
   const [insight, setInsight] = useState<string | null>(null)
   const [insightLoading, setInsightLoading] = useState(false)
   const [insightError, setInsightError] = useState<string | null>(null)
+  const [insightLanguage, setInsightLanguage] = useState<'en' | 'ja'>(() => {
+    const stored = typeof window !== 'undefined' ? localStorage.getItem(EXPLAIN_LANGUAGE_STORAGE_KEY) : null
+    return stored === 'ja' ? 'ja' : 'en'
+  })
 
-  const loadInsight = async (currentMistakes: Mistake[]) => {
-    const stored = typeof window !== 'undefined' ? localStorage.getItem('eagle:explainLanguage') : null
-    const language = stored === 'ja' ? 'ja' : 'en'
+  const loadInsight = async (currentMistakes: Mistake[], language: 'en' | 'ja') => {
     const cacheKey = insightCacheKey(language, currentMistakes)
+    setInsightError(null)
 
     if (cacheKey) {
       const cached = sessionStorage.getItem(cacheKey)
@@ -60,7 +65,6 @@ export default function Mistakes() {
     }
 
     setInsightLoading(true)
-    setInsightError(null)
     try {
       const result = await api.getMistakesInsight(language)
       setInsight(result.insight)
@@ -74,6 +78,16 @@ export default function Mistakes() {
     }
   }
 
+  const selectInsightLanguage = (language: 'en' | 'ja') => {
+    setInsightLanguage(language)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(EXPLAIN_LANGUAGE_STORAGE_KEY, language)
+    }
+    if (mistakes && mistakes.length > 0) {
+      loadInsight(mistakes, language)
+    }
+  }
+
   const loadMistakes = async () => {
     try {
       setLoading(true)
@@ -81,7 +95,7 @@ export default function Mistakes() {
       const result = await api.listMistakes()
       setMistakes(result.mistakes)
       if (result.mistakes.length > 0) {
-        loadInsight(result.mistakes)
+        loadInsight(result.mistakes, insightLanguage)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load mistakes')
@@ -128,8 +142,30 @@ export default function Mistakes() {
           <div className="space-y-3">
             {(insightLoading || insight || insightError) && (
               <Card className="border-indigo-300">
-                <CardHeader className="pb-2">
+                <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
                   <CardTitle className="text-base text-indigo-900">Weakness Insight</CardTitle>
+                  <div className="flex gap-1" role="group" aria-label="Insight language">
+                    <Button
+                      type="button"
+                      variant={insightLanguage === 'en' ? 'default' : 'outline'}
+                      size="sm"
+                      aria-pressed={insightLanguage === 'en'}
+                      onClick={() => selectInsightLanguage('en')}
+                      disabled={insightLoading}
+                    >
+                      EN
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={insightLanguage === 'ja' ? 'default' : 'outline'}
+                      size="sm"
+                      aria-pressed={insightLanguage === 'ja'}
+                      onClick={() => selectInsightLanguage('ja')}
+                      disabled={insightLoading}
+                    >
+                      JA
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   {insightLoading ? (
@@ -137,7 +173,7 @@ export default function Mistakes() {
                   ) : insightError ? (
                     <div className="space-y-2">
                       <p className="text-sm text-red-700">{insightError}</p>
-                      <Button variant="outline" size="sm" onClick={() => loadInsight(mistakes ?? [])}>
+                      <Button variant="outline" size="sm" onClick={() => loadInsight(mistakes ?? [], insightLanguage)}>
                         Try Again
                       </Button>
                     </div>
