@@ -20,6 +20,7 @@ const mockApi = api as unknown as {
 beforeEach(() => {
   vi.clearAllMocks()
   sessionStorage.clear()
+  localStorage.clear()
   mockApi.getMistakesInsight.mockResolvedValue({ insight: '' })
 })
 
@@ -231,5 +232,49 @@ describe('Mistakes', () => {
     render(<Mistakes />)
     await screen.findByText(/no mistakes yet/i)
     expect(mockApi.getMistakesInsight).not.toHaveBeenCalled()
+  })
+
+  it('shows an EN/JA insight-language toggle that persists the choice and re-fetches in the new language', async () => {
+    mockApi.listMistakes.mockResolvedValue({
+      mistakes: [
+        {
+          sentence_id: 1,
+          japanese: '時間がありません。',
+          correct_answer: "I don't have time.",
+          wrong_answers: [{ id: 1, incorrect_answer: 'I have no time.', created_at: '2026-01-03T00:00:00Z' }],
+        },
+      ],
+    })
+    mockApi.getMistakesInsight.mockResolvedValueOnce({ insight: 'English insight.' })
+    render(<Mistakes />)
+    await screen.findByText('English insight.')
+    expect(screen.getByRole('button', { name: 'EN' })).toHaveAttribute('aria-pressed', 'true')
+    expect(mockApi.getMistakesInsight).toHaveBeenLastCalledWith('en')
+
+    mockApi.getMistakesInsight.mockResolvedValueOnce({ insight: '日本語のインサイト。' })
+    fireEvent.click(screen.getByRole('button', { name: 'JA' }))
+    await screen.findByText('日本語のインサイト。')
+
+    expect(mockApi.getMistakesInsight).toHaveBeenLastCalledWith('ja')
+    expect(screen.getByRole('button', { name: 'JA' })).toHaveAttribute('aria-pressed', 'true')
+    expect(localStorage.getItem('eagle:explainLanguage')).toBe('ja')
+  })
+
+  it('disables the insight-language toggle while the insight is loading', async () => {
+    mockApi.listMistakes.mockResolvedValue({
+      mistakes: [
+        {
+          sentence_id: 1,
+          japanese: '時間がありません。',
+          correct_answer: "I don't have time.",
+          wrong_answers: [{ id: 1, incorrect_answer: 'I have no time.', created_at: '2026-01-03T00:00:00Z' }],
+        },
+      ],
+    })
+    mockApi.getMistakesInsight.mockReturnValue(new Promise(() => {}))
+    render(<Mistakes />)
+    await screen.findByText(/analyzing your mistakes/i)
+    expect(screen.getByRole('button', { name: 'EN' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'JA' })).toBeDisabled()
   })
 })
