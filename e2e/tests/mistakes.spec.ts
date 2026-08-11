@@ -14,6 +14,6 @@ test('an incorrect answer shows up on the mistakes page', async ({ page }) => {
   await expect(page.getByText(sentence.english)).toBeVisible()
   await expect(page.getByText('This is definitely the wrong answer').first()).toBeVisible()
 
-  await page.getByRole('link', { name: /back/i }).click()
+  await page.getByRole('link', { name: 'Eagle' }).click()
   await expect(page.getByRole('heading', { name: 'Eagle' })).toBeVisible()
 })

@@ -40,13 +40,13 @@ export default function SettingsSheet({
                 key={n}
                 className={
                   checked
-                    ? 'cursor-pointer rounded-full border border-primary bg-primary px-3 py-1 text-sm font-semibold text-primary-foreground'
-                    : 'cursor-pointer rounded-full border border-border bg-card px-3 py-1 text-sm text-muted-foreground'
+                    ? 'relative cursor-pointer rounded-full border border-primary bg-primary px-3 py-1 text-sm font-semibold text-primary-foreground'
+                    : 'relative cursor-pointer rounded-full border border-border bg-card px-3 py-1 text-sm text-muted-foreground'
                 }
               >
                 <input
                   type="checkbox"
-                  className="sr-only"
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                   checked={checked}
                   aria-label={`Level ${n}`}
                   onChange={() => onLevelsChange(toggleLevel(levels, n))}
