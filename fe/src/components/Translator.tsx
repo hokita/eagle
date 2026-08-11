@@ -98,7 +98,7 @@ export default function Translator({ user }: Props) {
 
   const handleLanguageChange = (next: ExplainLanguage) => {
     setLanguage(next)
-    if (explanation || explainError) explainAnswer(next)
+    if (explanation || explainError || explaining) explainAnswer(next)
   }
 
   const explainAnswer = async (lang: ExplainLanguage) => {

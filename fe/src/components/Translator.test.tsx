@@ -317,6 +317,32 @@ describe('review phase', () => {
     expect(await screen.findByText('日本語のテキスト')).toBeInTheDocument()
   })
 
+  it('refetches in the new language when the setting changes while an explanation is in flight, and never renders the superseded response', async () => {
+    let resolveStale: (value: unknown) => void = () => {}
+    mockApi.explainAnswer.mockImplementationOnce(
+      () => new Promise(resolve => { resolveStale = resolve })
+    )
+    await answerIncorrectly()
+    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
+    await waitFor(() => expect(mockApi.explainAnswer).toHaveBeenCalledTimes(1))
+
+    mockApi.explainAnswer.mockResolvedValueOnce({ explanation: '日本語のテキスト' })
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    fireEvent.click(screen.getByRole('tab', { name: '日本語' }))
+
+    expect(await screen.findByText('日本語のテキスト')).toBeInTheDocument()
+    await waitFor(() => expect(mockApi.explainAnswer).toHaveBeenCalledTimes(2))
+    expect(mockApi.explainAnswer).toHaveBeenLastCalledWith(1, 'I have no time.', 'ja')
+
+    await act(async () => {
+      resolveStale({ explanation: 'Stale English explanation' })
+      await Promise.resolve()
+    })
+
+    expect(screen.queryByText('Stale English explanation')).not.toBeInTheDocument()
+    expect(screen.getByText('日本語のテキスト')).toBeInTheDocument()
+  })
+
   it('does not call explainAnswer when the language changes before explaining', async () => {
     await answerIncorrectly()
 

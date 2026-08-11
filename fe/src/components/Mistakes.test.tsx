@@ -291,4 +291,28 @@ describe('header and settings', () => {
 
     await waitFor(() => expect(mockApi.getMistakesInsight).toHaveBeenCalledWith('ja'))
   })
+
+  it('does not let a stale insight request overwrite a newer language change', async () => {
+    mockApi.listMistakes.mockResolvedValue(oneMistake)
+
+    let resolveStale: (value: unknown) => void = () => {}
+    mockApi.getMistakesInsight.mockImplementationOnce(
+      () => new Promise(resolve => { resolveStale = resolve })
+    )
+    render(<Mistakes user={fakeUser} />)
+    await screen.findByText('時間がありません。')
+    await screen.findByText(/analyzing your mistakes/i)
+
+    mockApi.getMistakesInsight.mockResolvedValueOnce({ insight: '日本語の説明' })
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    fireEvent.click(screen.getByRole('tab', { name: '日本語' }))
+    await screen.findByText('日本語の説明')
+
+    resolveStale({ insight: 'Stale English insight' })
+
+    await waitFor(() =>
+      expect(screen.queryByText('Stale English insight')).not.toBeInTheDocument()
+    )
+    expect(screen.getByText('日本語の説明')).toBeInTheDocument()
+  })
 })

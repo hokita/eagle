@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import ReviewPanel from './ReviewPanel'
 
@@ -116,5 +116,18 @@ describe('explain tab', () => {
     expect(screen.getByText('Failed to load explanation')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Try Again' }))
     expect(props.onRetryExplain).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not render links or images from the explanation, even when the LLM output contains them', () => {
+    renderPanel({
+      tab: 'explain',
+      explanation:
+        'Prefer do-support. [click here](https://evil.example/phish) ![](https://evil.example/pixel.gif)',
+    })
+
+    const explanationText = screen.getByText(/Prefer do-support\./)
+    const panel = explanationText.closest('.rounded-lg') as HTMLElement
+    expect(within(panel).queryByRole('link')).not.toBeInTheDocument()
+    expect(within(panel).queryByRole('img')).not.toBeInTheDocument()
   })
 })

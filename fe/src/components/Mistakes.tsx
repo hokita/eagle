@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { User } from 'firebase/auth'
 import ReactMarkdown from 'react-markdown'
 import { Button } from '@/components/ui/button'
@@ -55,13 +55,17 @@ export default function Mistakes({ user }: Props) {
   const [insightError, setInsightError] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
+  const insightRequestId = useRef(0)
+
   const loadInsight = async (currentMistakes: Mistake[], language: 'en' | 'ja') => {
+    const requestId = ++insightRequestId.current
     const cacheKey = insightCacheKey(language, currentMistakes)
     setInsightError(null)
 
     if (cacheKey) {
       const cached = sessionStorage.getItem(cacheKey)
       if (cached !== null) {
+        if (requestId !== insightRequestId.current) return
         setInsight(cached)
         return
       }
@@ -70,14 +74,16 @@ export default function Mistakes({ user }: Props) {
     setInsightLoading(true)
     try {
       const result = await api.getMistakesInsight(language)
+      if (requestId !== insightRequestId.current) return
       setInsight(result.insight)
       if (cacheKey) {
         sessionStorage.setItem(cacheKey, result.insight)
       }
     } catch (err) {
+      if (requestId !== insightRequestId.current) return
       setInsightError(err instanceof Error ? err.message : 'Failed to load insight')
     } finally {
-      setInsightLoading(false)
+      if (requestId === insightRequestId.current) setInsightLoading(false)
     }
   }
 
@@ -110,12 +116,12 @@ export default function Mistakes({ user }: Props) {
         {loading ? (
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading...</p>
+            <p className="text-muted-foreground">Loading...</p>
           </div>
         ) : error ? (
           <Card>
             <CardContent className="pt-6">
-              <p className="text-gray-700 mb-4">{error}</p>
+              <p className="text-foreground mb-4">{error}</p>
               <Button onClick={loadMistakes} className="w-full">
                 Try Again
               </Button>
@@ -123,7 +129,7 @@ export default function Mistakes({ user }: Props) {
           </Card>
         ) : mistakes && mistakes.length === 0 ? (
           <Card>
-            <CardContent className="pt-6 text-center text-gray-600">
+            <CardContent className="pt-6 text-center text-muted-foreground">
               No mistakes yet — nice work!
             </CardContent>
           </Card>
@@ -136,16 +142,16 @@ export default function Mistakes({ user }: Props) {
                 </CardHeader>
                 <CardContent>
                   {insightLoading ? (
-                    <p className="text-sm text-gray-600">Analyzing your mistakes…</p>
+                    <p className="text-sm text-muted-foreground">Analyzing your mistakes…</p>
                   ) : insightError ? (
                     <div className="space-y-2">
-                      <p className="text-sm text-red-700">{insightError}</p>
+                      <p className="text-sm text-destructive">{insightError}</p>
                       <Button variant="outline" size="sm" onClick={() => loadInsight(mistakes ?? [], language)}>
                         Try Again
                       </Button>
                     </div>
                   ) : (
-                    <div className="text-sm text-gray-800">
+                    <div className="text-sm text-foreground">
                       <ReactMarkdown components={insightMarkdownComponents} disallowedElements={['a', 'img']}>
                         {insight}
                       </ReactMarkdown>
