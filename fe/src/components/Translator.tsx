@@ -159,7 +159,7 @@ export default function Translator({ user }: Props) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-2xl flex-col">
+      <div className="mx-auto max-w-2xl">
         <AppHeader user={user} onOpenSettings={() => setSettingsOpen(true)} />
 
         {loading ? (
@@ -238,7 +238,7 @@ export default function Translator({ user }: Props) {
               )}
             </div>
 
-            <div className="sticky bottom-0 -mx-4 mt-auto bg-background/80 px-4 pb-4 pt-4 backdrop-blur-sm">
+            <div className="sticky bottom-0 bg-background/80 pb-4 pt-3 backdrop-blur-sm">
               {!showAnswer ? (
                 <Button
                   onClick={checkTranslation}

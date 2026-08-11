@@ -164,7 +164,9 @@ describe('settings', () => {
       expect(mockApi.getRandomSentence).toHaveBeenLastCalledWith([1, 2, 3, 4])
     )
     expect(localStorage.getItem('eagle:selectedLevels')).toBe('[1,2,3,4]')
-    expect(screen.getByText('Level: 1, 2, 3, 4')).toBeInTheDocument()
+    // The refetch is still in flight when the call assertion above passes, so
+    // wait for the card to come back rather than reading it straight away.
+    expect(await screen.findByText('Level: 1, 2, 3, 4')).toBeInTheDocument()
   })
 
   it('restores a persisted level selection on mount', async () => {
