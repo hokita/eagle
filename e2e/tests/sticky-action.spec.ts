@@ -18,6 +18,8 @@ test('the action row sits right below the content when it fits the viewport', as
     const content = actionRow.previousElementSibling as HTMLElement
     return actionRow.getBoundingClientRect().top - content.getBoundingClientRect().bottom
   })
+  // Bounded on both sides: a negative gap would mean the row overlaps the card.
+  expect(gap).toBeGreaterThanOrEqual(0)
   expect(gap).toBeLessThanOrEqual(16)
 })
 
