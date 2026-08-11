@@ -15,7 +15,7 @@
 - **Frozen accessible names.** Textarea keeps `aria-label="Your English translation"`. Level controls stay `<input type="checkbox">` with `aria-label="Level N"`. Mistakes nav stays a link named `Mistakes`. The practice page keeps an `<h1>Eagle</h1>`.
 - **No backend changes.** No files under `api/` are touched by any task.
 - **No new dependencies.** `lucide-react`, `react-markdown`, Radix and `class-variance-authority` are already installed. Adding a package is a plan violation.
-- **Color budget.** Hue is for signalling only: the verdict chip (`success-subtle` / `destructive-subtle`) and error text (`text-destructive`). Every other surface uses `bg-muted` / `border-border` / `bg-card`. No `bg-blue-*`, `bg-yellow-*`, `bg-purple-*` classes may survive in `Translator.tsx` or `Mistakes.tsx`.
+- **Color budget.** Hue is for signalling only: the verdict chip (`success-subtle` / `destructive-subtle`) and error text (`text-destructive`). Every other surface uses `bg-muted` / `border-border` / `bg-card`. No `bg-blue-*`, `bg-yellow-*`, `bg-purple-*` or `text-indigo-*` classes may survive in `Translator.tsx` or `Mistakes.tsx`. Two pre-existing accents are retained deliberately in both files and are not in scope: the page gradient `from-blue-50 to-indigo-100`, and the loading spinner's `border-indigo-600`.
 - **Markdown hardening is preserved.** Every `ReactMarkdown` usage keeps `disallowedElements={['a', 'img']}`.
 - **TDD.** Every task writes the failing test first, watches it fail, then implements. Commit at the end of each task.
 - **Working directory** is `fe/` for all frontend commands, `e2e/` for Playwright.
