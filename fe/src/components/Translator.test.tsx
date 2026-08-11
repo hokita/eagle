@@ -1,9 +1,10 @@
-import { render, screen, fireEvent, act } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { User } from 'firebase/auth'
 
 vi.mock('@/lib/firebase', () => ({ auth: {} }))
 vi.mock('firebase/auth', () => ({ signOut: vi.fn() }))
+vi.mock('@/lib/speech', () => ({ speakJapanese: vi.fn() }))
 
 vi.mock('@/lib/api', () => ({
   api: {
@@ -14,7 +15,7 @@ vi.mock('@/lib/api', () => ({
   },
 }))
 
-import { api } from '@/lib/api'
+import { api, type AnswerHistory } from '@/lib/api'
 import Translator from './Translator'
 
 const mockApi = api as unknown as {
@@ -42,424 +43,422 @@ beforeEach(() => {
   vi.clearAllMocks()
   localStorage.clear()
   mockApi.getRandomSentence.mockResolvedValue(fakeSentence)
-  localStorage.clear()
 })
 
-async function answerIncorrectly() {
+async function renderAndLoad() {
   render(<Translator user={fakeUser} />)
   await screen.findByText(fakeSentence.japanese)
-  fireEvent.change(screen.getByLabelText(/your english translation/i), {
-    target: { value: 'I have no time.' },
-  })
-  fireEvent.click(screen.getByRole('button', { name: /check translation/i }))
-  await screen.findByText(/not quite right/i)
 }
 
-function openLevelMenu() {
-  fireEvent.click(screen.getByRole('button', { name: /^level:/i }))
-}
-
-describe('Level menu', () => {
-  it('defaults to all levels selected and fetches with no level filter on mount', async () => {
-    render(<Translator user={fakeUser} />)
-    await screen.findByText(fakeSentence.japanese)
-    expect(screen.getByRole('button', { name: /^level:/i })).toHaveTextContent('Level: All')
-    openLevelMenu()
-    for (const n of [1, 2, 3, 4, 5]) {
-      expect(screen.getByRole('checkbox', { name: `Level ${n}` })).toBeChecked()
-    }
+describe('answering phase', () => {
+  it('fetches a sentence with no level filter on mount', async () => {
+    await renderAndLoad()
     expect(mockApi.getRandomSentence).toHaveBeenCalledWith(undefined)
   })
 
-  it('opens when the trigger is clicked and closes when clicking outside', async () => {
-    render(<Translator user={fakeUser} />)
-    await screen.findByText(fakeSentence.japanese)
-    openLevelMenu()
-    expect(screen.getByRole('checkbox', { name: 'Level 1' })).toBeInTheDocument()
-    fireEvent.mouseDown(document.body)
-    expect(screen.queryByRole('checkbox', { name: 'Level 1' })).not.toBeInTheDocument()
+  it('shows the input and no review affordances', async () => {
+    await renderAndLoad()
+
+    expect(screen.getByLabelText('Your English translation')).toBeInTheDocument()
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument()
+    expect(screen.queryByText('Not quite right. Try again!')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Next Sentence' })).not.toBeInTheDocument()
   })
 
-  it('closes when Escape is pressed', async () => {
-    render(<Translator user={fakeUser} />)
-    await screen.findByText(fakeSentence.japanese)
-    openLevelMenu()
-    expect(screen.getByRole('checkbox', { name: 'Level 1' })).toBeInTheDocument()
-    fireEvent.keyDown(document, { key: 'Escape' })
-    expect(screen.queryByRole('checkbox', { name: 'Level 1' })).not.toBeInTheDocument()
+  it('disables Check Translation until something is typed', async () => {
+    await renderAndLoad()
+
+    expect(screen.getByRole('button', { name: 'Check Translation' })).toBeDisabled()
+
+    fireEvent.change(screen.getByLabelText('Your English translation'), {
+      target: { value: 'I have no time.' },
+    })
+
+    expect(screen.getByRole('button', { name: 'Check Translation' })).toBeEnabled()
   })
 
-  it('narrows the filter, updates the trigger label, and persists the selection when a level is unchecked', async () => {
-    render(<Translator user={fakeUser} />)
-    await screen.findByText(fakeSentence.japanese)
-    const otherSentence = { ...fakeSentence, id: 2, japanese: '違う文です。', level: 3 }
-    mockApi.getRandomSentence.mockResolvedValueOnce(otherSentence)
-    openLevelMenu()
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Level 1' }))
-    await screen.findByText('違う文です。')
-    expect(mockApi.getRandomSentence).toHaveBeenLastCalledWith([2, 3, 4, 5])
-    expect(localStorage.getItem('eagle:selectedLevels')).toBe(JSON.stringify([2, 3, 4, 5]))
-    expect(screen.getByRole('button', { name: /^level:/i })).toHaveTextContent('Level: 2, 3, 4, 5')
+  it('capitalizes the first letter on blur', async () => {
+    await renderAndLoad()
+    const input = screen.getByLabelText('Your English translation')
+
+    fireEvent.change(input, { target: { value: 'i have no time.' } })
+    fireEvent.blur(input)
+
+    expect(input).toHaveValue('I have no time.')
   })
 
-  it('treats deselecting every level the same as selecting them all (any level)', async () => {
-    render(<Translator user={fakeUser} />)
-    await screen.findByText(fakeSentence.japanese)
-    openLevelMenu()
-    for (const n of [1, 2, 3, 4, 5]) {
-      mockApi.getRandomSentence.mockResolvedValueOnce(fakeSentence)
-      fireEvent.click(screen.getByRole('checkbox', { name: `Level ${n}` }))
-      await screen.findByText(fakeSentence.japanese)
-    }
-    expect(mockApi.getRandomSentence).toHaveBeenLastCalledWith(undefined)
-    expect(screen.getByRole('button', { name: /^level:/i })).toHaveTextContent('Level: All')
-  })
-
-  it('restores a previously persisted selection on mount', async () => {
-    localStorage.setItem('eagle:selectedLevels', JSON.stringify([2, 4]))
-    render(<Translator user={fakeUser} />)
-    await screen.findByText(fakeSentence.japanese)
-    expect(screen.getByRole('button', { name: /^level:/i })).toHaveTextContent('Level: 2, 4')
-    openLevelMenu()
-    expect(screen.getByRole('checkbox', { name: 'Level 2' })).toBeChecked()
-    expect(screen.getByRole('checkbox', { name: 'Level 1' })).not.toBeChecked()
-    expect(mockApi.getRandomSentence).toHaveBeenCalledWith([2, 4])
-  })
-
-  it('resets in-progress answer state when a level is toggled', async () => {
+  it('submits on Ctrl+Enter', async () => {
     mockApi.checkAnswer.mockResolvedValue({
       is_correct: false,
       correct_answer: fakeSentence.english,
       histories: [],
     })
-    await answerIncorrectly()
-    mockApi.getRandomSentence.mockResolvedValueOnce({ ...fakeSentence, id: 3, level: 1 })
-    openLevelMenu()
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Level 1' }))
-    await screen.findByLabelText(/your english translation/i)
-    expect(screen.queryByText(/not quite right/i)).not.toBeInTheDocument()
-    expect(screen.getByLabelText(/your english translation/i)).toHaveValue('')
+    await renderAndLoad()
+    const input = screen.getByLabelText('Your English translation')
+
+    fireEvent.change(input, { target: { value: 'I have no time.' } })
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+
+    await waitFor(() => expect(mockApi.checkAnswer).toHaveBeenCalledWith(1, 'I have no time.'))
   })
 
-  it('stays visible and interactive when the narrowed selection has no candidates', async () => {
+  it('shows an error with a retry when the sentence fails to load', async () => {
+    mockApi.getRandomSentence.mockRejectedValue(new Error('boom'))
     render(<Translator user={fakeUser} />)
-    await screen.findByText(fakeSentence.japanese)
-    mockApi.getRandomSentence.mockRejectedValueOnce(new Error('API error: 404'))
-    openLevelMenu()
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Level 1' }))
-    await screen.findByText(/api error: 404/i)
-    expect(screen.getByRole('checkbox', { name: 'Level 1' })).toBeEnabled()
+
+    expect(await screen.findByText('boom')).toBeInTheDocument()
+
+    mockApi.getRandomSentence.mockResolvedValue(fakeSentence)
+    fireEvent.click(screen.getByRole('button', { name: 'Try Again' }))
+
+    expect(await screen.findByText(fakeSentence.japanese)).toBeInTheDocument()
   })
 
-  it('ignores a stale response that resolves after a newer request', async () => {
-    render(<Translator user={fakeUser} />)
-    await screen.findByText(fakeSentence.japanese)
+  it('ignores a stale sentence response that resolves after a newer request', async () => {
+    await renderAndLoad()
 
-    let resolveFirst: (value: typeof fakeSentence) => void = () => {}
-    let resolveSecond: (value: typeof fakeSentence) => void = () => {}
-    const staleSentence = { ...fakeSentence, id: 10, japanese: 'stale response' }
-    const latestSentence = { ...fakeSentence, id: 20, japanese: 'latest response' }
-
-    openLevelMenu()
-
-    mockApi.getRandomSentence.mockReturnValueOnce(
-      new Promise(resolve => {
-        resolveFirst = resolve
-      })
+    let resolveStale: (value: unknown) => void = () => {}
+    mockApi.getRandomSentence.mockImplementationOnce(
+      () => new Promise(resolve => { resolveStale = resolve })
     )
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Level 1' }))
 
-    mockApi.getRandomSentence.mockReturnValueOnce(
-      new Promise(resolve => {
-        resolveSecond = resolve
-      })
-    )
+    mockApi.getRandomSentence.mockResolvedValueOnce({ ...fakeSentence, id: 9, japanese: '新しい文' })
     fireEvent.click(screen.getByRole('checkbox', { name: 'Level 2' }))
+    await screen.findByText('新しい文')
 
-    // Resolve out of arrival order: the newer (second) request settles first,
-    // then the older (first) request's stale response arrives afterward.
-    await act(async () => resolveSecond(latestSentence))
-    await screen.findByText('latest response')
+    resolveStale({ ...fakeSentence, id: 5, japanese: '古い文' })
 
-    await act(async () => resolveFirst(staleSentence))
-
-    expect(screen.queryByText('stale response')).not.toBeInTheDocument()
-    expect(screen.getByText('latest response')).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByText('古い文')).not.toBeInTheDocument())
+    expect(screen.getByText('新しい文')).toBeInTheDocument()
   })
 })
 
-describe('Explain button', () => {
-  it('is not shown before the answer is checked', async () => {
-    render(<Translator user={fakeUser} />)
-    await screen.findByText(fakeSentence.japanese)
-    expect(screen.queryByRole('button', { name: /^explain$/i })).not.toBeInTheDocument()
+describe('settings', () => {
+  it('opens the settings sheet from the header gear', async () => {
+    await renderAndLoad()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+
+    expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument()
   })
 
-  it('is not shown when the answer was correct', async () => {
+  it('shows every level checked and the summary as All by default', async () => {
+    await renderAndLoad()
+    expect(screen.getByText('Level: All')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    for (const n of [1, 2, 3, 4, 5]) {
+      expect(screen.getByRole('checkbox', { name: `Level ${n}` })).toBeChecked()
+    }
+  })
+
+  it('narrows the filter, refetches, persists and updates the summary', async () => {
+    await renderAndLoad()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Level 5' }))
+
+    await waitFor(() =>
+      expect(mockApi.getRandomSentence).toHaveBeenLastCalledWith([1, 2, 3, 4])
+    )
+    expect(localStorage.getItem('eagle:selectedLevels')).toBe('[1,2,3,4]')
+    expect(screen.getByText('Level: 1, 2, 3, 4')).toBeInTheDocument()
+  })
+
+  it('restores a persisted level selection on mount', async () => {
+    localStorage.setItem('eagle:selectedLevels', JSON.stringify([3]))
+    await renderAndLoad()
+
+    expect(mockApi.getRandomSentence).toHaveBeenCalledWith([3])
+  })
+
+  it('persists the AI language', async () => {
+    await renderAndLoad()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    fireEvent.click(screen.getByRole('tab', { name: '日本語' }))
+
+    expect(localStorage.getItem('eagle:explainLanguage')).toBe('ja')
+  })
+
+  it('resets an in-progress answer when a level is toggled', async () => {
+    mockApi.checkAnswer.mockResolvedValue({
+      is_correct: false,
+      correct_answer: fakeSentence.english,
+      histories: [],
+    })
+    await renderAndLoad()
+    fireEvent.change(screen.getByLabelText('Your English translation'), {
+      target: { value: 'I have no time.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Check Translation' }))
+    await screen.findByText('Not quite right. Try again!')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Level 5' }))
+
+    await waitFor(() =>
+      expect(screen.queryByText('Not quite right. Try again!')).not.toBeInTheDocument()
+    )
+    expect(screen.getByLabelText('Your English translation')).toHaveValue('')
+  })
+})
+
+describe('header', () => {
+  it('links to the mistakes page', async () => {
+    await renderAndLoad()
+    expect(screen.getByRole('link', { name: 'Mistakes' })).toHaveAttribute('href', '/mistakes')
+  })
+})
+
+describe('review phase', () => {
+  async function answerIncorrectly(histories: AnswerHistory[] = []) {
+    mockApi.checkAnswer.mockResolvedValue({
+      is_correct: false,
+      correct_answer: fakeSentence.english,
+      histories,
+    })
+    await renderAndLoad()
+    fireEvent.change(screen.getByLabelText('Your English translation'), {
+      target: { value: 'I have no time.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Check Translation' }))
+    await screen.findByText('Not quite right. Try again!')
+  }
+
+  it('swaps the input out for the review panel', async () => {
+    await answerIncorrectly()
+
+    expect(screen.queryByLabelText('Your English translation')).not.toBeInTheDocument()
+    expect(screen.getByText(fakeSentence.english)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Next Sentence' })).toBeInTheDocument()
+  })
+
+  it('increments the incorrect counter', async () => {
+    await answerIncorrectly()
+    expect(screen.getByText(/^Incorrect: 1$/)).toBeInTheDocument()
+  })
+
+  it('shows the correct verdict and no Explain tab when right', async () => {
     mockApi.checkAnswer.mockResolvedValue({
       is_correct: true,
       correct_answer: fakeSentence.english,
       histories: [],
     })
-    render(<Translator user={fakeUser} />)
-    await screen.findByText(fakeSentence.japanese)
-    fireEvent.change(screen.getByLabelText(/your english translation/i), {
+    await renderAndLoad()
+    fireEvent.change(screen.getByLabelText('Your English translation'), {
       target: { value: fakeSentence.english },
     })
-    fireEvent.click(screen.getByRole('button', { name: /check translation/i }))
-    await screen.findByText(/correct! well done/i)
-    expect(screen.queryByRole('button', { name: /^explain$/i })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Check Translation' }))
+
+    expect(await screen.findByText('Correct! Well done!')).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Explain' })).not.toBeInTheDocument()
+    expect(screen.getByText(/^Correct: 1$/)).toBeInTheDocument()
   })
 
-  it('is shown when the answer was incorrect', async () => {
-    mockApi.checkAnswer.mockResolvedValue({
-      is_correct: false,
-      correct_answer: fakeSentence.english,
-      histories: [],
-    })
+  it('lists previous attempts behind the Attempts tab', async () => {
+    await answerIncorrectly([
+      { id: 1, incorrect_answer: 'There is no time.', created_at: '2026-01-01T00:00:00Z' },
+    ])
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Attempts 1' }))
+
+    expect(screen.getByText('There is no time.')).toBeInTheDocument()
+  })
+
+  it('fetches the explanation when the Explain tab is selected', async () => {
+    mockApi.explainAnswer.mockResolvedValue({ explanation: 'Prefer **do-support**.' })
     await answerIncorrectly()
-    expect(screen.getByRole('button', { name: /^explain$/i })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
+
+    await waitFor(() =>
+      expect(mockApi.explainAnswer).toHaveBeenCalledWith(1, 'I have no time.', 'en')
+    )
+    expect(await screen.findByText('do-support')).toBeInTheDocument()
   })
 
-  it('calls api.explainAnswer with the sentence id and user answer', async () => {
-    mockApi.checkAnswer.mockResolvedValue({
-      is_correct: false,
-      correct_answer: fakeSentence.english,
-      histories: [],
-    })
-    mockApi.explainAnswer.mockResolvedValue({ explanation: 'Great nuance explanation.' })
+  it('fetches in the stored language', async () => {
+    localStorage.setItem('eagle:explainLanguage', 'ja')
+    mockApi.explainAnswer.mockResolvedValue({ explanation: '説明' })
     await answerIncorrectly()
-    fireEvent.click(screen.getByRole('button', { name: /^explain$/i }))
-    await screen.findByText('Great nuance explanation.')
-    expect(mockApi.explainAnswer).toHaveBeenCalledWith(fakeSentence.id, 'I have no time.', 'en')
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
+
+    await waitFor(() =>
+      expect(mockApi.explainAnswer).toHaveBeenCalledWith(1, 'I have no time.', 'ja')
+    )
   })
 
-  it('shows a loading state while waiting for the explanation', async () => {
-    mockApi.checkAnswer.mockResolvedValue({
-      is_correct: false,
-      correct_answer: fakeSentence.english,
-      histories: [],
-    })
-    let resolveExplain: (value: { explanation: string }) => void = () => {}
-    mockApi.explainAnswer.mockReturnValue(
-      new Promise(resolve => {
-        resolveExplain = resolve
-      })
+  it('does not refetch when the Explain tab is revisited', async () => {
+    mockApi.explainAnswer.mockResolvedValue({ explanation: 'Once.' })
+    await answerIncorrectly()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
+    await screen.findByText('Once.')
+    fireEvent.click(screen.getByRole('tab', { name: 'Answer' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
+
+    expect(mockApi.explainAnswer).toHaveBeenCalledTimes(1)
+  })
+
+  it('re-fetches in the new language when the setting changes after explaining', async () => {
+    mockApi.explainAnswer.mockResolvedValue({ explanation: 'English text' })
+    await answerIncorrectly()
+    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
+    await screen.findByText('English text')
+
+    mockApi.explainAnswer.mockResolvedValue({ explanation: '日本語のテキスト' })
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    fireEvent.click(screen.getByRole('tab', { name: '日本語' }))
+
+    expect(await screen.findByText('日本語のテキスト')).toBeInTheDocument()
+  })
+
+  it('refetches in the new language when the setting changes while an explanation is in flight, and never renders the superseded response', async () => {
+    let resolveStale: (value: unknown) => void = () => {}
+    mockApi.explainAnswer.mockImplementationOnce(
+      () => new Promise(resolve => { resolveStale = resolve })
     )
     await answerIncorrectly()
-    fireEvent.click(screen.getByRole('button', { name: /^explain$/i }))
-    await screen.findByRole('button', { name: /explaining/i })
-    await act(async () => resolveExplain({ explanation: 'done' }))
-    await screen.findByText('done')
+    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
+    await waitFor(() => expect(mockApi.explainAnswer).toHaveBeenCalledTimes(1))
+
+    mockApi.explainAnswer.mockResolvedValueOnce({ explanation: '日本語のテキスト' })
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    fireEvent.click(screen.getByRole('tab', { name: '日本語' }))
+
+    expect(await screen.findByText('日本語のテキスト')).toBeInTheDocument()
+    await waitFor(() => expect(mockApi.explainAnswer).toHaveBeenCalledTimes(2))
+    expect(mockApi.explainAnswer).toHaveBeenLastCalledWith(1, 'I have no time.', 'ja')
+
+    await act(async () => {
+      resolveStale({ explanation: 'Stale English explanation' })
+      await Promise.resolve()
+    })
+
+    expect(screen.queryByText('Stale English explanation')).not.toBeInTheDocument()
+    expect(screen.getByText('日本語のテキスト')).toBeInTheDocument()
   })
 
-  it('renders the explanation once it resolves', async () => {
-    mockApi.checkAnswer.mockResolvedValue({
-      is_correct: false,
-      correct_answer: fakeSentence.english,
-      histories: [],
-    })
-    mockApi.explainAnswer.mockResolvedValue({
-      explanation: 'Your answer is also natural; the reference is just more formal.',
-    })
+  it('does not call explainAnswer when the language changes before explaining', async () => {
     await answerIncorrectly()
-    fireEvent.click(screen.getByRole('button', { name: /^explain$/i }))
-    expect(
-      await screen.findByText('Your answer is also natural; the reference is just more formal.')
-    ).toBeInTheDocument()
-  })
 
-  it('renders a markdown-formatted explanation as real bold text', async () => {
-    mockApi.checkAnswer.mockResolvedValue({
-      is_correct: false,
-      correct_answer: fakeSentence.english,
-      histories: [],
-    })
-    mockApi.explainAnswer.mockResolvedValue({
-      explanation: 'Your answer drops the **negative** form used in the reference.',
-    })
-    await answerIncorrectly()
-    fireEvent.click(screen.getByRole('button', { name: /^explain$/i }))
-    await screen.findByText('negative')
-    expect(screen.getByText('negative').tagName).toBe('STRONG')
-    expect(screen.queryByText(/\*\*negative\*\*/)).not.toBeInTheDocument()
-  })
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    fireEvent.click(screen.getByRole('tab', { name: '日本語' }))
 
-  it('preserves single-newline sentence breaks in the explanation', async () => {
-    mockApi.checkAnswer.mockResolvedValue({
-      is_correct: false,
-      correct_answer: fakeSentence.english,
-      histories: [],
-    })
-    mockApi.explainAnswer.mockResolvedValue({
-      explanation: 'Sentence one.\nSentence two.',
-    })
-    await answerIncorrectly()
-    fireEvent.click(screen.getByRole('button', { name: /^explain$/i }))
-    const paragraph = await screen.findByText(/Sentence one\./)
-    expect(paragraph.className).toContain('whitespace-pre-line')
-  })
-
-  it('does not render a stale explanation for a previous sentence after moving on', async () => {
-    mockApi.checkAnswer.mockResolvedValue({
-      is_correct: false,
-      correct_answer: fakeSentence.english,
-      histories: [],
-    })
-    let resolveExplain: (value: { explanation: string }) => void = () => {}
-    mockApi.explainAnswer.mockReturnValue(
-      new Promise(resolve => {
-        resolveExplain = resolve
-      })
-    )
-    await answerIncorrectly()
-    fireEvent.click(screen.getByRole('button', { name: /^explain$/i }))
-    await screen.findByRole('button', { name: /explaining/i })
-
-    const otherSentence = { ...fakeSentence, id: 2, japanese: '違う文です。' }
-    mockApi.getRandomSentence.mockResolvedValueOnce(otherSentence)
-    fireEvent.click(screen.getByRole('button', { name: /next sentence/i }))
-    await screen.findByText('違う文です。')
-
-    fireEvent.change(screen.getByLabelText(/your english translation/i), {
-      target: { value: 'wrong again' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: /check translation/i }))
-    await screen.findByText(/not quite right/i)
-
-    await act(async () => resolveExplain({ explanation: 'STALE EXPLANATION FROM OLD SENTENCE' }))
-
-    expect(screen.queryByText('STALE EXPLANATION FROM OLD SENTENCE')).not.toBeInTheDocument()
-  })
-
-  it('shows an error and keeps the button clickable when the call fails', async () => {
-    mockApi.checkAnswer.mockResolvedValue({
-      is_correct: false,
-      correct_answer: fakeSentence.english,
-      histories: [],
-    })
-    mockApi.explainAnswer.mockRejectedValue(new Error('API error: 500'))
-    await answerIncorrectly()
-    fireEvent.click(screen.getByRole('button', { name: /^explain$/i }))
-    await screen.findByText('API error: 500')
-    expect(screen.getByRole('button', { name: /^explain$/i })).toBeEnabled()
-  })
-
-  it('shows an EN/JA language toggle next to the Explain button', async () => {
-    mockApi.checkAnswer.mockResolvedValue({
-      is_correct: false,
-      correct_answer: fakeSentence.english,
-      histories: [],
-    })
-    await answerIncorrectly()
-    expect(screen.getByRole('button', { name: 'EN' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'JA' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'EN' })).toHaveAttribute('aria-pressed', 'true')
-  })
-
-  it('does not call api.explainAnswer when switching language before explaining', async () => {
-    mockApi.checkAnswer.mockResolvedValue({
-      is_correct: false,
-      correct_answer: fakeSentence.english,
-      histories: [],
-    })
-    await answerIncorrectly()
-    fireEvent.click(screen.getByRole('button', { name: 'JA' }))
     expect(mockApi.explainAnswer).not.toHaveBeenCalled()
-    expect(screen.getByRole('button', { name: 'JA' })).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('re-fetches the explanation in the new language when the toggle is switched after explaining', async () => {
-    mockApi.checkAnswer.mockResolvedValue({
-      is_correct: false,
-      correct_answer: fakeSentence.english,
-      histories: [],
-    })
-    mockApi.explainAnswer.mockResolvedValueOnce({ explanation: 'English explanation.' })
+  it('shows an explain error with a working retry', async () => {
+    mockApi.explainAnswer.mockRejectedValue(new Error('Explain failed'))
     await answerIncorrectly()
-    fireEvent.click(screen.getByRole('button', { name: /^explain$/i }))
-    await screen.findByText('English explanation.')
 
-    mockApi.explainAnswer.mockResolvedValueOnce({ explanation: '日本語の説明。' })
-    fireEvent.click(screen.getByRole('button', { name: 'JA' }))
-    await screen.findByText('日本語の説明。')
+    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
+    expect(await screen.findByText('Explain failed')).toBeInTheDocument()
 
-    expect(mockApi.explainAnswer).toHaveBeenLastCalledWith(fakeSentence.id, 'I have no time.', 'ja')
+    mockApi.explainAnswer.mockResolvedValue({ explanation: 'Recovered.' })
+    fireEvent.click(screen.getByRole('button', { name: 'Try Again' }))
+
+    expect(await screen.findByText('Recovered.')).toBeInTheDocument()
   })
 
-  it('persists the selected language to localStorage and restores it on remount', async () => {
-    mockApi.checkAnswer.mockResolvedValue({
-      is_correct: false,
-      correct_answer: fakeSentence.english,
-      histories: [],
-    })
-    const { unmount } = render(<Translator user={fakeUser} />)
-    await screen.findByText(fakeSentence.japanese)
-    fireEvent.change(screen.getByLabelText(/your english translation/i), {
-      target: { value: 'I have no time.' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: /check translation/i }))
-    await screen.findByText(/not quite right/i)
-    fireEvent.click(screen.getByRole('button', { name: 'JA' }))
-    expect(localStorage.getItem('eagle:explainLanguage')).toBe('ja')
-    unmount()
-
-    render(<Translator user={fakeUser} />)
-    await screen.findByText(fakeSentence.japanese)
-    fireEvent.change(screen.getByLabelText(/your english translation/i), {
-      target: { value: 'I have no time.' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: /check translation/i }))
-    await screen.findByText(/not quite right/i)
-    expect(screen.getByRole('button', { name: 'JA' })).toHaveAttribute('aria-pressed', 'true')
-  })
-
-  it('clears the previous explanation if a language-switch re-fetch fails', async () => {
-    mockApi.checkAnswer.mockResolvedValue({
-      is_correct: false,
-      correct_answer: fakeSentence.english,
-      histories: [],
-    })
-    mockApi.explainAnswer.mockResolvedValueOnce({ explanation: 'English explanation.' })
-    await answerIncorrectly()
-    fireEvent.click(screen.getByRole('button', { name: /^explain$/i }))
-    await screen.findByText('English explanation.')
-
-    mockApi.explainAnswer.mockRejectedValueOnce(new Error('API error: 500'))
-    fireEvent.click(screen.getByRole('button', { name: 'JA' }))
-    await screen.findByText('API error: 500')
-
-    expect(screen.queryByText('English explanation.')).not.toBeInTheDocument()
-  })
-
-  it('disables the language toggle buttons while an explanation fetch is in progress', async () => {
-    mockApi.checkAnswer.mockResolvedValue({
-      is_correct: false,
-      correct_answer: fakeSentence.english,
-      histories: [],
-    })
-    let resolveExplain: (value: { explanation: string }) => void = () => {}
-    mockApi.explainAnswer.mockReturnValue(
-      new Promise(resolve => {
-        resolveExplain = resolve
-      })
+  it('discards an explanation superseded by moving to the next sentence', async () => {
+    let resolveStale: (value: unknown) => void = () => {}
+    mockApi.explainAnswer.mockImplementationOnce(
+      () => new Promise(resolve => { resolveStale = resolve })
     )
     await answerIncorrectly()
-    fireEvent.click(screen.getByRole('button', { name: /^explain$/i }))
-    await screen.findByRole('button', { name: /explaining/i })
-    expect(screen.getByRole('button', { name: 'EN' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'JA' })).toBeDisabled()
-    await act(async () => resolveExplain({ explanation: 'Explanation text.' }))
-    expect(screen.getByRole('button', { name: 'EN' })).not.toBeDisabled()
-    expect(screen.getByRole('button', { name: 'JA' })).not.toBeDisabled()
-  })
-})
+    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
 
-describe('Mistakes link', () => {
-  it('links to the mistakes page', async () => {
-    render(<Translator user={fakeUser} />)
-    await screen.findByText(fakeSentence.japanese)
-    const link = screen.getByRole('link', { name: /mistakes/i })
-    expect(link).toHaveAttribute('href', '/mistakes')
+    fireEvent.click(screen.getByRole('button', { name: 'Next Sentence' }))
+    await screen.findByLabelText('Your English translation')
+
+    resolveStale({ explanation: 'Stale explanation' })
+
+    await waitFor(() =>
+      expect(screen.queryByText('Stale explanation')).not.toBeInTheDocument()
+    )
+  })
+
+  it('does not skip the fetch or leak a stale explanation into the next sentence\'s Explain tab', async () => {
+    const secondSentence = {
+      ...fakeSentence,
+      id: 2,
+      japanese: '二番目の文です。',
+      english: 'This is the second sentence.',
+    }
+
+    let resolveFirstExplain: (value: unknown) => void = () => {}
+    mockApi.explainAnswer.mockImplementationOnce(
+      () => new Promise(resolve => { resolveFirstExplain = resolve })
+    )
+    mockApi.checkAnswer.mockResolvedValue({
+      is_correct: false,
+      correct_answer: fakeSentence.english,
+      histories: [],
+    })
+
+    // Sentence 1: answer incorrectly, open Explain — the fetch is left in flight.
+    await renderAndLoad()
+    fireEvent.change(screen.getByLabelText('Your English translation'), {
+      target: { value: 'I have no time.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Check Translation' }))
+    await screen.findByText('Not quite right. Try again!')
+    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
+    await waitFor(() => expect(mockApi.explainAnswer).toHaveBeenCalledTimes(1))
+
+    // Move to sentence 2 and answer it incorrectly too, all while sentence 1's
+    // explain request is still pending.
+    mockApi.getRandomSentence.mockResolvedValueOnce(secondSentence)
+    fireEvent.click(screen.getByRole('button', { name: 'Next Sentence' }))
+    await screen.findByText(secondSentence.japanese)
+
+    fireEvent.change(screen.getByLabelText('Your English translation'), {
+      target: { value: 'Some other answer.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Check Translation' }))
+    await screen.findByText('Not quite right. Try again!')
+
+    // Now sentence 1's stale request resolves, after we've already moved on.
+    mockApi.explainAnswer.mockResolvedValue({ explanation: 'Second sentence explanation' })
+    await act(async () => {
+      resolveFirstExplain({ explanation: 'Stale explanation from sentence one' })
+      await Promise.resolve()
+    })
+
+    // Selecting Explain on sentence 2 must still fetch — not be skipped because
+    // a stale explanation value leaked into state — and must never show sentence
+    // 1's text.
+    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
+
+    await waitFor(() =>
+      expect(mockApi.explainAnswer).toHaveBeenCalledWith(2, 'Some other answer.', 'en')
+    )
+    expect(await screen.findByText('Second sentence explanation')).toBeInTheDocument()
+    expect(screen.queryByText('Stale explanation from sentence one')).not.toBeInTheDocument()
+  })
+
+  it('reports the sentence and acknowledges it', async () => {
+    mockApi.reportSentence.mockResolvedValue(undefined)
+    await answerIncorrectly()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Report' }))
+
+    expect(await screen.findByRole('button', { name: 'Reported' })).toBeInTheDocument()
+    expect(mockApi.reportSentence).toHaveBeenCalledWith(1)
+  })
+
+  it('resets to the answering phase on Next Sentence', async () => {
+    await answerIncorrectly()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next Sentence' }))
+
+    expect(await screen.findByLabelText('Your English translation')).toHaveValue('')
+    expect(screen.queryByText('Not quite right. Try again!')).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument()
   })
 })

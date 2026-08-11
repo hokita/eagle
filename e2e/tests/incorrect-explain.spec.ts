@@ -14,6 +14,6 @@ test('submitting a wrong answer shows incorrect feedback, then Explain works', a
   await expect(page.getByText(`Incorrect: ${initialIncorrectCount + 1}`)).toBeVisible()
   await expect(page.getByText(sentence.english)).toBeVisible()
 
-  await page.getByRole('button', { name: 'Explain' }).click()
+  await page.getByRole('tab', { name: 'Explain' }).click()
   await expect(page.getByText('This is a stub explanation for e2e tests.')).toBeVisible()
 })

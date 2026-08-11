@@ -14,6 +14,16 @@
   --border: #e5e5e5;
   --input: #e5e5e5;
   --ring: #171717;
+  --accent: #f5f5f5;
+  --accent-foreground: #171717;
+  --destructive: #b91c1c;
+  --destructive-foreground: #ffffff;
+  --destructive-subtle: #fef2f2;
+  --destructive-subtle-foreground: #b91c1c;
+  --destructive-subtle-border: #fecaca;
+  --success-subtle: #f0fdf4;
+  --success-subtle-foreground: #15803d;
+  --success-subtle-border: #bbf7d0;
 }
 
 @theme inline {
@@ -30,6 +40,17 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-subtle: var(--destructive-subtle);
+  --color-destructive-subtle-foreground: var(--destructive-subtle-foreground);
+  --color-destructive-subtle-border: var(--destructive-subtle-border);
+  --color-success-subtle: var(--success-subtle);
+  --color-success-subtle-foreground: var(--success-subtle-foreground);
+  --color-success-subtle-border: var(--success-subtle-border);
+  --color-ring-offset-background: var(--background);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }

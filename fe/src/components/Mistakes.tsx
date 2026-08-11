@@ -1,14 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import Link from 'next/link'
+import { useEffect, useRef, useState } from 'react'
+import type { User } from 'firebase/auth'
 import ReactMarkdown from 'react-markdown'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import AppHeader from './AppHeader'
+import SettingsSheet from './SettingsSheet'
 import { api, type Mistake } from '@/lib/api'
 import { auth } from '@/lib/firebase'
-
-const EXPLAIN_LANGUAGE_STORAGE_KEY = 'eagle:explainLanguage'
+import { useSettings, loadStoredLanguage } from '@/lib/useSettings'
 
 // insightCacheKey scopes the cached insight to the viewing user, the
 // language it was generated in (so switching accounts or explain-language on
@@ -36,30 +37,40 @@ const insightMarkdownComponents = {
   ),
   li: (props: React.ComponentPropsWithoutRef<'li'>) => <li {...props} />,
   strong: (props: React.ComponentPropsWithoutRef<'strong'>) => (
-    <strong className="font-semibold text-indigo-900" {...props} />
+    <strong className="font-semibold text-foreground" {...props} />
   ),
 }
 
-export default function Mistakes() {
+interface Props {
+  user: User
+}
+
+export default function Mistakes({ user }: Props) {
+  const { levels, language, setLevels, setLanguage } = useSettings()
   const [mistakes, setMistakes] = useState<Mistake[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [insight, setInsight] = useState<string | null>(null)
   const [insightLoading, setInsightLoading] = useState(false)
   const [insightError, setInsightError] = useState<string | null>(null)
-  const [insightLanguage, setInsightLanguage] = useState<'en' | 'ja'>(() => {
-    const stored = typeof window !== 'undefined' ? localStorage.getItem(EXPLAIN_LANGUAGE_STORAGE_KEY) : null
-    return stored === 'ja' ? 'ja' : 'en'
-  })
+  const [settingsOpen, setSettingsOpen] = useState(false)
+
+  const insightRequestId = useRef(0)
 
   const loadInsight = async (currentMistakes: Mistake[], language: 'en' | 'ja') => {
+    const requestId = ++insightRequestId.current
     const cacheKey = insightCacheKey(language, currentMistakes)
     setInsightError(null)
 
     if (cacheKey) {
       const cached = sessionStorage.getItem(cacheKey)
       if (cached !== null) {
+        if (requestId !== insightRequestId.current) return
         setInsight(cached)
+        // A cache hit can supersede a request that is still in flight. That
+        // request's finally block is guarded by the same request id, so by the
+        // time it lands it will not clear this flag — the early return has to.
+        setInsightLoading(false)
         return
       }
     }
@@ -67,24 +78,16 @@ export default function Mistakes() {
     setInsightLoading(true)
     try {
       const result = await api.getMistakesInsight(language)
+      if (requestId !== insightRequestId.current) return
       setInsight(result.insight)
       if (cacheKey) {
         sessionStorage.setItem(cacheKey, result.insight)
       }
     } catch (err) {
+      if (requestId !== insightRequestId.current) return
       setInsightError(err instanceof Error ? err.message : 'Failed to load insight')
     } finally {
-      setInsightLoading(false)
-    }
-  }
-
-  const selectInsightLanguage = (language: 'en' | 'ja') => {
-    setInsightLanguage(language)
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(EXPLAIN_LANGUAGE_STORAGE_KEY, language)
-    }
-    if (mistakes && mistakes.length > 0) {
-      loadInsight(mistakes, language)
+      if (requestId === insightRequestId.current) setInsightLoading(false)
     }
   }
 
@@ -95,7 +98,7 @@ export default function Mistakes() {
       const result = await api.listMistakes()
       setMistakes(result.mistakes)
       if (result.mistakes.length > 0) {
-        loadInsight(result.mistakes, insightLanguage)
+        loadInsight(result.mistakes, loadStoredLanguage())
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load mistakes')
@@ -111,22 +114,18 @@ export default function Mistakes() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <div className="max-w-2xl mx-auto">
-        <div className="flex items-center gap-3 mb-6">
-          <Button asChild variant="outline" size="sm">
-            <Link href="/">&larr; Back</Link>
-          </Button>
-          <h1 className="text-2xl font-bold text-gray-900">Mistakes</h1>
-        </div>
+        <AppHeader user={user} onOpenSettings={() => setSettingsOpen(true)} showMistakesLink={false} />
+        <h2 className="mb-4 text-lg font-bold text-foreground">Mistakes</h2>
 
         {loading ? (
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading...</p>
+            <p className="text-muted-foreground">Loading...</p>
           </div>
         ) : error ? (
           <Card>
             <CardContent className="pt-6">
-              <p className="text-gray-700 mb-4">{error}</p>
+              <p className="text-foreground mb-4">{error}</p>
               <Button onClick={loadMistakes} className="w-full">
                 Try Again
               </Button>
@@ -134,51 +133,29 @@ export default function Mistakes() {
           </Card>
         ) : mistakes && mistakes.length === 0 ? (
           <Card>
-            <CardContent className="pt-6 text-center text-gray-600">
+            <CardContent className="pt-6 text-center text-muted-foreground">
               No mistakes yet — nice work!
             </CardContent>
           </Card>
         ) : (
           <div className="space-y-3">
             {(insightLoading || insight || insightError) && (
-              <Card className="border-indigo-300">
+              <Card>
                 <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
-                  <CardTitle className="text-base text-indigo-900">Weakness Insight</CardTitle>
-                  <div className="flex gap-1" role="group" aria-label="Insight language">
-                    <Button
-                      type="button"
-                      variant={insightLanguage === 'en' ? 'default' : 'outline'}
-                      size="sm"
-                      aria-pressed={insightLanguage === 'en'}
-                      onClick={() => selectInsightLanguage('en')}
-                      disabled={insightLoading}
-                    >
-                      EN
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={insightLanguage === 'ja' ? 'default' : 'outline'}
-                      size="sm"
-                      aria-pressed={insightLanguage === 'ja'}
-                      onClick={() => selectInsightLanguage('ja')}
-                      disabled={insightLoading}
-                    >
-                      JA
-                    </Button>
-                  </div>
+                  <CardTitle className="text-base">Weakness Insight</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {insightLoading ? (
-                    <p className="text-sm text-gray-600">Analyzing your mistakes…</p>
+                    <p className="text-sm text-muted-foreground">Analyzing your mistakes…</p>
                   ) : insightError ? (
                     <div className="space-y-2">
-                      <p className="text-sm text-red-700">{insightError}</p>
-                      <Button variant="outline" size="sm" onClick={() => loadInsight(mistakes ?? [], insightLanguage)}>
+                      <p className="text-sm text-destructive">{insightError}</p>
+                      <Button variant="outline" size="sm" onClick={() => loadInsight(mistakes ?? [], language)}>
                         Try Again
                       </Button>
                     </div>
                   ) : (
-                    <div className="text-sm text-gray-800">
+                    <div className="text-sm text-foreground">
                       <ReactMarkdown components={insightMarkdownComponents} disallowedElements={['a', 'img']}>
                         {insight}
                       </ReactMarkdown>
@@ -193,14 +170,14 @@ export default function Mistakes() {
                   <CardTitle className="text-base">{mistake.japanese}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  <div className="inline-block text-sm text-blue-900 bg-blue-50 border border-blue-200 rounded-md px-2 py-1">
+                  <div className="inline-block rounded-md border border-border bg-muted px-2 py-1 text-sm text-foreground">
                     {mistake.correct_answer}
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {mistake.wrong_answers.map(wrong => (
                       <span
                         key={wrong.id}
-                        className="text-xs text-yellow-900 bg-yellow-50 border border-yellow-200 rounded-md px-2 py-1"
+                        className="rounded-md border border-border bg-muted px-2 py-1 text-xs text-muted-foreground line-through"
                       >
                         {wrong.incorrect_answer}
                       </span>
@@ -212,6 +189,18 @@ export default function Mistakes() {
           </div>
         )}
       </div>
+
+      <SettingsSheet
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        levels={levels}
+        onLevelsChange={setLevels}
+        language={language}
+        onLanguageChange={next => {
+          setLanguage(next)
+          if (mistakes?.length) loadInsight(mistakes, next)
+        }}
+      />
     </div>
   )
 }

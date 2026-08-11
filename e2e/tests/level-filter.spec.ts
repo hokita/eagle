@@ -4,7 +4,7 @@ import { signInAndGetSentence } from './helpers'
 test('narrowing the level toggles down to one level only serves sentences at that level', async ({ page }) => {
   await signInAndGetSentence(page)
 
-  await page.getByRole('button', { name: /^level:/i }).click()
+  await page.getByRole('button', { name: 'Settings' }).click()
 
   await Promise.all([
     page.waitForResponse(
