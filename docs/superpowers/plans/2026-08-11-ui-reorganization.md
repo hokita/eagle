@@ -1512,11 +1512,11 @@ describe('verdict', () => {
 })
 
 describe('tabs', () => {
-  it('shows only Answer when correct with no history', () => {
+  it('renders no tab control at all when correct with no history', () => {
     renderPanel({ feedback: 'correct', histories: [] })
 
-    expect(screen.getAllByRole('tab')).toHaveLength(1)
-    expect(screen.getByRole('tab', { name: 'Answer' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument()
+    expect(screen.getByText("I don't have time.")).toBeInTheDocument()
   })
 
   it('adds Explain when the answer was incorrect', () => {
@@ -1691,14 +1691,6 @@ export default function ReviewPanel({
             className="mb-3"
           />
         )}
-        {options.length === 1 && (
-          <div role="tablist" aria-label="Review" className="sr-only">
-            <button type="button" role="tab" aria-selected="true" tabIndex={0}>
-              Answer
-            </button>
-          </div>
-        )}
-
         <div className="rounded-lg border border-border bg-muted p-3 text-sm">
           {tab === 'answer' && (
             <>
@@ -1753,7 +1745,7 @@ export default function ReviewPanel({
 }
 ```
 
-The `sr-only` single-tab branch keeps `getAllByRole('tab')` meaningful in the correct-answer case without rendering a pointless one-option control.
+When only the `Answer` tab applies, no tab control renders at all — a one-option segmented control is noise. The panel body still renders; `tab` is `'answer'` in that state because the container resets it on every check.
 
 - [ ] **Step 4: Run the test to verify it passes**
 
