@@ -241,7 +241,7 @@ describe('review phase', () => {
     expect(screen.getByText(/^Incorrect: 1$/)).toBeInTheDocument()
   })
 
-  it('shows the correct verdict and no Explain tab when right', async () => {
+  it('shows the correct verdict and no Explain affordance when right', async () => {
     mockApi.checkAnswer.mockResolvedValue({
       is_correct: true,
       correct_answer: fakeSentence.english,
@@ -254,30 +254,31 @@ describe('review phase', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Check Translation' }))
 
     expect(await screen.findByText('Correct! Well done!')).toBeInTheDocument()
-    expect(screen.queryByRole('tab', { name: 'Explain' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Explain' })).not.toBeInTheDocument()
     expect(screen.getByText(/^Correct: 1$/)).toBeInTheDocument()
   })
 
-  it('lists previous attempts behind the Attempts tab', async () => {
+  it('lists previous attempts alongside the answer, with no tab to open', async () => {
     await answerIncorrectly([
       { id: 1, incorrect_answer: 'There is no time.', created_at: '2026-01-01T00:00:00Z' },
     ])
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Attempts 1' }))
-
     expect(screen.getByText('There is no time.')).toBeInTheDocument()
+    expect(screen.getByText(fakeSentence.english)).toBeInTheDocument()
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument()
   })
 
-  it('fetches the explanation when the Explain tab is selected', async () => {
+  it('fetches the explanation when Explain is pressed, and shows it beside the answer', async () => {
     mockApi.explainAnswer.mockResolvedValue({ explanation: 'Prefer **do-support**.' })
     await answerIncorrectly()
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Explain' }))
 
     await waitFor(() =>
       expect(mockApi.explainAnswer).toHaveBeenCalledWith(1, 'I have no time.', 'en')
     )
     expect(await screen.findByText('do-support')).toBeInTheDocument()
+    expect(screen.getByText(fakeSentence.english)).toBeInTheDocument()
   })
 
   it('fetches in the stored language', async () => {
@@ -285,29 +286,35 @@ describe('review phase', () => {
     mockApi.explainAnswer.mockResolvedValue({ explanation: '説明' })
     await answerIncorrectly()
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Explain' }))
 
     await waitFor(() =>
       expect(mockApi.explainAnswer).toHaveBeenCalledWith(1, 'I have no time.', 'ja')
     )
   })
 
-  it('does not refetch when the Explain tab is revisited', async () => {
+  it('does not fetch an explanation until Explain is pressed', async () => {
+    await answerIncorrectly()
+
+    expect(screen.getByRole('button', { name: 'Explain' })).toBeInTheDocument()
+    expect(mockApi.explainAnswer).not.toHaveBeenCalled()
+  })
+
+  it('retires the Explain button once the explanation is on screen', async () => {
     mockApi.explainAnswer.mockResolvedValue({ explanation: 'Once.' })
     await answerIncorrectly()
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Explain' }))
     await screen.findByText('Once.')
-    fireEvent.click(screen.getByRole('tab', { name: 'Answer' }))
-    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
 
+    expect(screen.queryByRole('button', { name: 'Explain' })).not.toBeInTheDocument()
     expect(mockApi.explainAnswer).toHaveBeenCalledTimes(1)
   })
 
   it('re-fetches in the new language when the setting changes after explaining', async () => {
     mockApi.explainAnswer.mockResolvedValue({ explanation: 'English text' })
     await answerIncorrectly()
-    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Explain' }))
     await screen.findByText('English text')
 
     mockApi.explainAnswer.mockResolvedValue({ explanation: '日本語のテキスト' })
@@ -323,7 +330,7 @@ describe('review phase', () => {
       () => new Promise(resolve => { resolveStale = resolve })
     )
     await answerIncorrectly()
-    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Explain' }))
     await waitFor(() => expect(mockApi.explainAnswer).toHaveBeenCalledTimes(1))
 
     mockApi.explainAnswer.mockResolvedValueOnce({ explanation: '日本語のテキスト' })
@@ -356,7 +363,7 @@ describe('review phase', () => {
     mockApi.explainAnswer.mockRejectedValue(new Error('Explain failed'))
     await answerIncorrectly()
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Explain' }))
     expect(await screen.findByText('Explain failed')).toBeInTheDocument()
 
     mockApi.explainAnswer.mockResolvedValue({ explanation: 'Recovered.' })
@@ -371,7 +378,7 @@ describe('review phase', () => {
       () => new Promise(resolve => { resolveStale = resolve })
     )
     await answerIncorrectly()
-    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Explain' }))
 
     fireEvent.click(screen.getByRole('button', { name: 'Next Sentence' }))
     await screen.findByLabelText('Your English translation')
@@ -383,7 +390,7 @@ describe('review phase', () => {
     )
   })
 
-  it('does not skip the fetch or leak a stale explanation into the next sentence\'s Explain tab', async () => {
+  it('does not skip the fetch or leak a stale explanation into the next sentence\'s explanation', async () => {
     const secondSentence = {
       ...fakeSentence,
       id: 2,
@@ -408,7 +415,7 @@ describe('review phase', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Check Translation' }))
     await screen.findByText('Not quite right. Try again!')
-    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Explain' }))
     await waitFor(() => expect(mockApi.explainAnswer).toHaveBeenCalledTimes(1))
 
     // Move to sentence 2 and answer it incorrectly too, all while sentence 1's
@@ -430,10 +437,10 @@ describe('review phase', () => {
       await Promise.resolve()
     })
 
-    // Selecting Explain on sentence 2 must still fetch — not be skipped because
+    // Pressing Explain on sentence 2 must still fetch — not be skipped because
     // a stale explanation value leaked into state — and must never show sentence
     // 1's text.
-    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Explain' }))
 
     await waitFor(() =>
       expect(mockApi.explainAnswer).toHaveBeenCalledWith(2, 'Some other answer.', 'en')

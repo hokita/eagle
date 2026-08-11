@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import AppHeader from './AppHeader'
 import SettingsSheet from './SettingsSheet'
 import QuestionCard from './QuestionCard'
-import ReviewPanel, { type ReviewTab } from './ReviewPanel'
+import ReviewPanel from './ReviewPanel'
 import { api, type Sentence, type AnswerHistory } from '@/lib/api'
 import { speakJapanese } from '@/lib/speech'
 import {
@@ -41,7 +41,6 @@ export default function Translator({ user }: Props) {
   const [explanation, setExplanation] = useState<string | null>(null)
   const [explaining, setExplaining] = useState(false)
   const [explainError, setExplainError] = useState<string | null>(null)
-  const [tab, setTab] = useState<ReviewTab>('answer')
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   const latestRequestId = useRef(0)
@@ -86,7 +85,6 @@ export default function Translator({ user }: Props) {
     setExplanation(null)
     setExplaining(false)
     setExplainError(null)
-    setTab('answer')
     if ('speechSynthesis' in window) speechSynthesis.cancel()
   }
 
@@ -119,13 +117,6 @@ export default function Translator({ user }: Props) {
     }
   }
 
-  const handleTabChange = (next: ReviewTab) => {
-    setTab(next)
-    if (next === 'explain' && !explanation && !explaining && !explainError) {
-      explainAnswer(language)
-    }
-  }
-
   const checkTranslation = async () => {
     if (!currentSentence) return
     try {
@@ -133,7 +124,6 @@ export default function Translator({ user }: Props) {
       setFeedback(result.is_correct ? 'correct' : 'incorrect')
       setHistories(result.histories)
       setShowAnswer(true)
-      setTab('answer')
       if (result.is_correct) setCorrectCount(prev => prev + 1)
       else setIncorrectCount(prev => prev + 1)
     } catch (err) {
@@ -227,12 +217,10 @@ export default function Translator({ user }: Props) {
                     userAnswer={userTranslation}
                     correctAnswer={currentSentence.english}
                     histories={histories}
-                    tab={tab}
-                    onTabChange={handleTabChange}
                     explanation={explanation}
                     explaining={explaining}
                     explainError={explainError}
-                    onRetryExplain={() => explainAnswer(language)}
+                    onExplain={() => explainAnswer(language)}
                   />
                 )
               )}
