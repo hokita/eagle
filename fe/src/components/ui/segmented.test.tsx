@@ -1,3 +1,4 @@
+import React from 'react'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { Segmented } from './segmented'
@@ -65,5 +66,19 @@ describe('Segmented', () => {
 
     expect(screen.getByRole('tab', { name: 'Attempts 2' })).toHaveAttribute('tabindex', '0')
     expect(screen.getByRole('tab', { name: 'Answer' })).toHaveAttribute('tabindex', '-1')
+  })
+
+  it('moves DOM focus to the newly active tab on ArrowRight', () => {
+    const ControlledSegmented = () => {
+      const [value, setValue] = React.useState('answer')
+      return <Segmented options={options} value={value} onChange={setValue} label="Review" />
+    }
+    render(<ControlledSegmented />)
+
+    const answerTab = screen.getByRole('tab', { name: 'Answer' })
+    answerTab.focus()
+    fireEvent.keyDown(answerTab, { key: 'ArrowRight' })
+
+    expect(screen.getByRole('tab', { name: 'Attempts 2' })).toBe(document.activeElement)
   })
 })

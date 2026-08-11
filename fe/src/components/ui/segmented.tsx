@@ -17,13 +17,22 @@ interface SegmentedProps {
 }
 
 export function Segmented({ options, value, onChange, label, className }: SegmentedProps) {
+  const buttonRefs = React.useRef<Map<string, HTMLButtonElement>>(new Map())
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
     e.preventDefault()
     const index = options.findIndex(o => o.value === value)
     const delta = e.key === 'ArrowRight' ? 1 : -1
     const next = (index + delta + options.length) % options.length
-    onChange(options[next].value)
+    const nextValue = options[next].value
+    onChange(nextValue)
+
+    // Move DOM focus to the newly active button
+    const nextButton = buttonRefs.current.get(nextValue)
+    if (nextButton) {
+      nextButton.focus()
+    }
   }
 
   return (
@@ -37,6 +46,11 @@ export function Segmented({ options, value, onChange, label, className }: Segmen
         const selected = option.value === value
         return (
           <button
+            ref={button => {
+              if (button) {
+                buttonRefs.current.set(option.value, button)
+              }
+            }}
             key={option.value}
             type="button"
             role="tab"
