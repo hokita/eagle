@@ -44,6 +44,16 @@ describe('sections', () => {
     expect(screen.getByText('Prefer do-support here.')).toBeInTheDocument()
   })
 
+  it('orders the panels answer, explanation, previous attempts', () => {
+    renderPanel({ histories, explanation: 'Prefer do-support here.' })
+
+    const labels = screen
+      .getAllByText(/^(You wrote|Explanation|Previous attempts)/)
+      .map(node => node.textContent)
+
+    expect(labels).toEqual(['You wrote', 'Explanation', 'Previous attempts (2)'])
+  })
+
   it('never renders a tab control', () => {
     renderPanel({ histories, explanation: 'Prefer do-support here.' })
 
