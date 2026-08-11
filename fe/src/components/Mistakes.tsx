@@ -67,6 +67,10 @@ export default function Mistakes({ user }: Props) {
       if (cached !== null) {
         if (requestId !== insightRequestId.current) return
         setInsight(cached)
+        // A cache hit can supersede a request that is still in flight. That
+        // request's finally block is guarded by the same request id, so by the
+        // time it lands it will not clear this flag — the early return has to.
+        setInsightLoading(false)
         return
       }
     }
