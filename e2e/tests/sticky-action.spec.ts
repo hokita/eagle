@@ -5,6 +5,22 @@ import { signInAndGetSentence } from './helpers'
 // explanation once pushed "Next Sentence" 1138px below the fold.
 test.use({ viewport: { width: 390, height: 844 } })
 
+test('the action row sits right below the content when it fits the viewport', async ({ page }) => {
+  await signInAndGetSentence(page)
+
+  const checkButton = page.getByRole('button', { name: 'Check Translation' })
+  await checkButton.waitFor()
+
+  // The action row must follow the card holding the input form, not float at
+  // the bottom of the window with a gap in between.
+  const gap = await checkButton.evaluate(button => {
+    const actionRow = button.parentElement as HTMLElement
+    const content = actionRow.previousElementSibling as HTMLElement
+    return actionRow.getBoundingClientRect().top - content.getBoundingClientRect().bottom
+  })
+  expect(gap).toBeLessThanOrEqual(16)
+})
+
 test('the action row stays reachable when review content overflows the viewport', async ({ page }) => {
   await signInAndGetSentence(page)
 
