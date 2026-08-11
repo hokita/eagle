@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { User } from 'firebase/auth'
 import ReactMarkdown from 'react-markdown'
+import { Check, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import AppHeader from './AppHeader'
@@ -170,15 +171,19 @@ export default function Mistakes({ user }: Props) {
                   <CardTitle className="text-base">{mistake.japanese}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  <div className="inline-block rounded-md border border-border bg-muted px-2 py-1 text-sm text-foreground">
+                  <div className="inline-flex items-start gap-1.5 rounded-md border border-success-subtle-border bg-success-subtle px-2 py-1 text-sm font-medium text-success-subtle-foreground">
+                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                     {mistake.correct_answer}
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {mistake.wrong_answers.map(wrong => (
                       <span
                         key={wrong.id}
-                        className="rounded-md border border-border bg-muted px-2 py-1 text-xs text-muted-foreground line-through"
+                        // Red tint plus a leading ✕ marks the wrong answers, so
+                        // they stay as legible as the correct one above.
+                        className="inline-flex items-start gap-1.5 rounded-md border border-destructive-subtle-border bg-destructive-subtle px-2 py-1 text-sm text-destructive-subtle-foreground"
                       >
+                        <X className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                         {wrong.incorrect_answer}
                       </span>
                     ))}
