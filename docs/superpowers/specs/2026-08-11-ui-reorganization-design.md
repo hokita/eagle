@@ -46,8 +46,9 @@ Settings move into a bottom sheet opened from a gear in a new shared header.
 It holds the level chips and the AI language control — the single instance of
 a control that currently exists twice.
 
-Color is reserved for the verdict chip alone. Every other surface becomes
-`bg-muted` / `border-border`, distinguished by small uppercase labels.
+Color is reserved for signalling: the verdict chip, and error text via
+`text-destructive`. Every other surface becomes `bg-muted` / `border-border`,
+distinguished by small uppercase labels rather than by hue.
 
 ### Copy and accessible names are preserved wherever the control survives
 
