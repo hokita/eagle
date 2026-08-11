@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { User } from 'firebase/auth'
 
@@ -355,6 +355,65 @@ describe('review phase', () => {
     await waitFor(() =>
       expect(screen.queryByText('Stale explanation')).not.toBeInTheDocument()
     )
+  })
+
+  it('does not skip the fetch or leak a stale explanation into the next sentence\'s Explain tab', async () => {
+    const secondSentence = {
+      ...fakeSentence,
+      id: 2,
+      japanese: '二番目の文です。',
+      english: 'This is the second sentence.',
+    }
+
+    let resolveFirstExplain: (value: unknown) => void = () => {}
+    mockApi.explainAnswer.mockImplementationOnce(
+      () => new Promise(resolve => { resolveFirstExplain = resolve })
+    )
+    mockApi.checkAnswer.mockResolvedValue({
+      is_correct: false,
+      correct_answer: fakeSentence.english,
+      histories: [],
+    })
+
+    // Sentence 1: answer incorrectly, open Explain — the fetch is left in flight.
+    await renderAndLoad()
+    fireEvent.change(screen.getByLabelText('Your English translation'), {
+      target: { value: 'I have no time.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Check Translation' }))
+    await screen.findByText('Not quite right. Try again!')
+    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
+    await waitFor(() => expect(mockApi.explainAnswer).toHaveBeenCalledTimes(1))
+
+    // Move to sentence 2 and answer it incorrectly too, all while sentence 1's
+    // explain request is still pending.
+    mockApi.getRandomSentence.mockResolvedValueOnce(secondSentence)
+    fireEvent.click(screen.getByRole('button', { name: 'Next Sentence' }))
+    await screen.findByText(secondSentence.japanese)
+
+    fireEvent.change(screen.getByLabelText('Your English translation'), {
+      target: { value: 'Some other answer.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Check Translation' }))
+    await screen.findByText('Not quite right. Try again!')
+
+    // Now sentence 1's stale request resolves, after we've already moved on.
+    mockApi.explainAnswer.mockResolvedValue({ explanation: 'Second sentence explanation' })
+    await act(async () => {
+      resolveFirstExplain({ explanation: 'Stale explanation from sentence one' })
+      await Promise.resolve()
+    })
+
+    // Selecting Explain on sentence 2 must still fetch — not be skipped because
+    // a stale explanation value leaked into state — and must never show sentence
+    // 1's text.
+    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
+
+    await waitFor(() =>
+      expect(mockApi.explainAnswer).toHaveBeenCalledWith(2, 'Some other answer.', 'en')
+    )
+    expect(await screen.findByText('Second sentence explanation')).toBeInTheDocument()
+    expect(screen.queryByText('Stale explanation from sentence one')).not.toBeInTheDocument()
   })
 
   it('reports the sentence and acknowledges it', async () => {
