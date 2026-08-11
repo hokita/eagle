@@ -15,7 +15,7 @@ vi.mock('@/lib/api', () => ({
   },
 }))
 
-import { api } from '@/lib/api'
+import { api, type AnswerHistory } from '@/lib/api'
 import Translator from './Translator'
 
 const mockApi = api as unknown as {
@@ -210,5 +210,170 @@ describe('header', () => {
   it('links to the mistakes page', async () => {
     await renderAndLoad()
     expect(screen.getByRole('link', { name: 'Mistakes' })).toHaveAttribute('href', '/mistakes')
+  })
+})
+
+describe('review phase', () => {
+  async function answerIncorrectly(histories: AnswerHistory[] = []) {
+    mockApi.checkAnswer.mockResolvedValue({
+      is_correct: false,
+      correct_answer: fakeSentence.english,
+      histories,
+    })
+    await renderAndLoad()
+    fireEvent.change(screen.getByLabelText('Your English translation'), {
+      target: { value: 'I have no time.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Check Translation' }))
+    await screen.findByText('Not quite right. Try again!')
+  }
+
+  it('swaps the input out for the review panel', async () => {
+    await answerIncorrectly()
+
+    expect(screen.queryByLabelText('Your English translation')).not.toBeInTheDocument()
+    expect(screen.getByText(fakeSentence.english)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Next Sentence' })).toBeInTheDocument()
+  })
+
+  it('increments the incorrect counter', async () => {
+    await answerIncorrectly()
+    expect(screen.getByText(/^Incorrect: 1$/)).toBeInTheDocument()
+  })
+
+  it('shows the correct verdict and no Explain tab when right', async () => {
+    mockApi.checkAnswer.mockResolvedValue({
+      is_correct: true,
+      correct_answer: fakeSentence.english,
+      histories: [],
+    })
+    await renderAndLoad()
+    fireEvent.change(screen.getByLabelText('Your English translation'), {
+      target: { value: fakeSentence.english },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Check Translation' }))
+
+    expect(await screen.findByText('Correct! Well done!')).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Explain' })).not.toBeInTheDocument()
+    expect(screen.getByText(/^Correct: 1$/)).toBeInTheDocument()
+  })
+
+  it('lists previous attempts behind the Attempts tab', async () => {
+    await answerIncorrectly([
+      { id: 1, incorrect_answer: 'There is no time.', created_at: '2026-01-01T00:00:00Z' },
+    ])
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Attempts 1' }))
+
+    expect(screen.getByText('There is no time.')).toBeInTheDocument()
+  })
+
+  it('fetches the explanation when the Explain tab is selected', async () => {
+    mockApi.explainAnswer.mockResolvedValue({ explanation: 'Prefer **do-support**.' })
+    await answerIncorrectly()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
+
+    await waitFor(() =>
+      expect(mockApi.explainAnswer).toHaveBeenCalledWith(1, 'I have no time.', 'en')
+    )
+    expect(await screen.findByText('do-support')).toBeInTheDocument()
+  })
+
+  it('fetches in the stored language', async () => {
+    localStorage.setItem('eagle:explainLanguage', 'ja')
+    mockApi.explainAnswer.mockResolvedValue({ explanation: '説明' })
+    await answerIncorrectly()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
+
+    await waitFor(() =>
+      expect(mockApi.explainAnswer).toHaveBeenCalledWith(1, 'I have no time.', 'ja')
+    )
+  })
+
+  it('does not refetch when the Explain tab is revisited', async () => {
+    mockApi.explainAnswer.mockResolvedValue({ explanation: 'Once.' })
+    await answerIncorrectly()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
+    await screen.findByText('Once.')
+    fireEvent.click(screen.getByRole('tab', { name: 'Answer' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
+
+    expect(mockApi.explainAnswer).toHaveBeenCalledTimes(1)
+  })
+
+  it('re-fetches in the new language when the setting changes after explaining', async () => {
+    mockApi.explainAnswer.mockResolvedValue({ explanation: 'English text' })
+    await answerIncorrectly()
+    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
+    await screen.findByText('English text')
+
+    mockApi.explainAnswer.mockResolvedValue({ explanation: '日本語のテキスト' })
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    fireEvent.click(screen.getByRole('tab', { name: '日本語' }))
+
+    expect(await screen.findByText('日本語のテキスト')).toBeInTheDocument()
+  })
+
+  it('does not call explainAnswer when the language changes before explaining', async () => {
+    await answerIncorrectly()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    fireEvent.click(screen.getByRole('tab', { name: '日本語' }))
+
+    expect(mockApi.explainAnswer).not.toHaveBeenCalled()
+  })
+
+  it('shows an explain error with a working retry', async () => {
+    mockApi.explainAnswer.mockRejectedValue(new Error('Explain failed'))
+    await answerIncorrectly()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
+    expect(await screen.findByText('Explain failed')).toBeInTheDocument()
+
+    mockApi.explainAnswer.mockResolvedValue({ explanation: 'Recovered.' })
+    fireEvent.click(screen.getByRole('button', { name: 'Try Again' }))
+
+    expect(await screen.findByText('Recovered.')).toBeInTheDocument()
+  })
+
+  it('discards an explanation superseded by moving to the next sentence', async () => {
+    let resolveStale: (value: unknown) => void = () => {}
+    mockApi.explainAnswer.mockImplementationOnce(
+      () => new Promise(resolve => { resolveStale = resolve })
+    )
+    await answerIncorrectly()
+    fireEvent.click(screen.getByRole('tab', { name: 'Explain' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next Sentence' }))
+    await screen.findByLabelText('Your English translation')
+
+    resolveStale({ explanation: 'Stale explanation' })
+
+    await waitFor(() =>
+      expect(screen.queryByText('Stale explanation')).not.toBeInTheDocument()
+    )
+  })
+
+  it('reports the sentence and acknowledges it', async () => {
+    mockApi.reportSentence.mockResolvedValue(undefined)
+    await answerIncorrectly()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Report' }))
+
+    expect(await screen.findByRole('button', { name: 'Reported' })).toBeInTheDocument()
+    expect(mockApi.reportSentence).toHaveBeenCalledWith(1)
+  })
+
+  it('resets to the answering phase on Next Sentence', async () => {
+    await answerIncorrectly()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next Sentence' }))
+
+    expect(await screen.findByLabelText('Your English translation')).toHaveValue('')
+    expect(screen.queryByText('Not quite right. Try again!')).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument()
   })
 })
