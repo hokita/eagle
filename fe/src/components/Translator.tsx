@@ -1,70 +1,32 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import ReactMarkdown from 'react-markdown'
+import type { User } from 'firebase/auth'
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { CheckCircle, XCircle, Volume2 } from 'lucide-react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import Image from 'next/image'
-import Link from 'next/link'
-import type { User } from 'firebase/auth'
+import AppHeader from './AppHeader'
+import SettingsSheet from './SettingsSheet'
+import QuestionCard from './QuestionCard'
+import ReviewPanel, { type ReviewTab } from './ReviewPanel'
 import { api, type Sentence, type AnswerHistory } from '@/lib/api'
-import UserMenu from './UserMenu'
-
-const EXPLAIN_LANGUAGE_STORAGE_KEY = 'eagle:explainLanguage'
-
-const explanationMarkdownComponents = {
-  p: (props: React.ComponentPropsWithoutRef<'p'>) => (
-    <p className="mb-2 last:mb-0 whitespace-pre-line" {...props} />
-  ),
-  ul: (props: React.ComponentPropsWithoutRef<'ul'>) => (
-    <ul className="list-disc pl-5 space-y-1 mb-2 last:mb-0" {...props} />
-  ),
-  ol: (props: React.ComponentPropsWithoutRef<'ol'>) => (
-    <ol className="list-decimal pl-5 space-y-1 mb-2 last:mb-0" {...props} />
-  ),
-  li: (props: React.ComponentPropsWithoutRef<'li'>) => <li {...props} />,
-  strong: (props: React.ComponentPropsWithoutRef<'strong'>) => (
-    <strong className="font-semibold text-purple-900" {...props} />
-  ),
-}
+import { speakJapanese } from '@/lib/speech'
+import {
+  useSettings,
+  loadStoredLevels,
+  levelsForRequest,
+  levelSummary,
+  type ExplainLanguage,
+} from '@/lib/useSettings'
 
 interface Props {
   user: User
 }
 
-const LEVELS = [1, 2, 3, 4, 5]
-const SELECTED_LEVELS_STORAGE_KEY = 'eagle:selectedLevels'
-
-function loadStoredLevels(): number[] {
-  try {
-    const raw = window.localStorage.getItem(SELECTED_LEVELS_STORAGE_KEY)
-    if (!raw) return LEVELS
-    const parsed = JSON.parse(raw)
-    if (Array.isArray(parsed) && parsed.every((n): n is number => typeof n === 'number')) {
-      return parsed
-    }
-  } catch {
-    // ignore malformed storage, fall back to default
-  }
-  return LEVELS
-}
-
-function levelsForRequest(levels: number[]): number[] | undefined {
-  return levels.length === 0 || levels.length === LEVELS.length ? undefined : levels
-}
-
 export default function Translator({ user }: Props) {
+  const { levels, language, setLevels, setLanguage } = useSettings()
+
   const [currentSentence, setCurrentSentence] = useState<Sentence | null>(null)
   const [userTranslation, setUserTranslation] = useState('')
   const [feedback, setFeedback] = useState<'correct' | 'incorrect' | null>(null)
@@ -79,113 +41,20 @@ export default function Translator({ user }: Props) {
   const [explanation, setExplanation] = useState<string | null>(null)
   const [explaining, setExplaining] = useState(false)
   const [explainError, setExplainError] = useState<string | null>(null)
-  const [selectedLevels, setSelectedLevels] = useState<number[]>(LEVELS)
-  const [isLevelMenuOpen, setIsLevelMenuOpen] = useState(false)
-  const levelMenuRef = useRef<HTMLDivElement>(null)
-  const [explainLanguage, setExplainLanguage] = useState<'en' | 'ja'>(() => {
-    const stored = localStorage.getItem(EXPLAIN_LANGUAGE_STORAGE_KEY)
-    return stored === 'ja' ? 'ja' : 'en'
-  })
-
-  const speakJapanese = (text: string) => {
-    if ('speechSynthesis' in window) {
-      speechSynthesis.cancel()
-      setIsSpeaking(true)
-
-      const speak = () => {
-        const utterance = new SpeechSynthesisUtterance(text)
-
-        // Try to find a Japanese voice
-        const voices = speechSynthesis.getVoices()
-        const japaneseVoice = voices.find(voice =>
-          voice.lang.startsWith('ja') || voice.lang.includes('JP')
-        )
-
-        if (japaneseVoice) {
-          utterance.voice = japaneseVoice
-        }
-
-        utterance.lang = 'ja-JP'
-        utterance.rate = 0.8
-        utterance.pitch = 1
-        utterance.volume = 1
-
-        utterance.onstart = () => {
-          setIsSpeaking(true)
-        }
-
-        utterance.onend = () => {
-          setIsSpeaking(false)
-        }
-
-        utterance.onerror = () => {
-          setIsSpeaking(false)
-        }
-
-        speechSynthesis.speak(utterance)
-
-        // Safari workaround: Force reset if no speech after 500ms
-        setTimeout(() => {
-          if (!speechSynthesis.speaking && !speechSynthesis.pending) {
-            setIsSpeaking(false)
-          }
-        }, 500)
-      }
-
-      // Wait for voices to load
-      setTimeout(() => {
-        speak()
-      }, 100)
-    }
-  }
-
-  const reportSentence = async (sentenceId: number) => {
-    try {
-      await api.reportSentence(sentenceId)
-      setIsReported(true)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to report sentence')
-    }
-  }
-
-  const explainRequestId = useRef(0)
-
-  const explainAnswer = async (language: 'en' | 'ja') => {
-    if (!currentSentence) return
-    const requestId = ++explainRequestId.current
-    setExplaining(true)
-    setExplainError(null)
-    setExplanation(null)
-    try {
-      const result = await api.explainAnswer(currentSentence.id, userTranslation, language)
-      if (requestId !== explainRequestId.current) return
-      setExplanation(result.explanation)
-    } catch (err) {
-      if (requestId !== explainRequestId.current) return
-      setExplainError(err instanceof Error ? err.message : 'Failed to load explanation')
-    } finally {
-      if (requestId === explainRequestId.current) {
-        setExplaining(false)
-      }
-    }
-  }
-
-  const selectExplainLanguage = (language: 'en' | 'ja') => {
-    setExplainLanguage(language)
-    localStorage.setItem(EXPLAIN_LANGUAGE_STORAGE_KEY, language)
-    if (explanation) {
-      explainAnswer(language)
-    }
-  }
+  const [tab, setTab] = useState<ReviewTab>('answer')
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   const latestRequestId = useRef(0)
+  const explainRequestId = useRef(0)
 
   const getRandomSentence = async (levelsOverride?: number[]) => {
     const requestId = ++latestRequestId.current
     try {
       setLoading(true)
       setError(null)
-      const sentence = await api.getRandomSentence(levelsForRequest(levelsOverride ?? selectedLevels))
+      const sentence = await api.getRandomSentence(
+        levelsForRequest(levelsOverride ?? levels)
+      )
       if (requestId !== latestRequestId.current) return
       setCurrentSentence(sentence)
       setCorrectCount(sentence.correct_count)
@@ -194,37 +63,14 @@ export default function Translator({ user }: Props) {
       if (requestId !== latestRequestId.current) return
       setError(err instanceof Error ? err.message : 'Failed to load sentence')
     } finally {
-      if (requestId === latestRequestId.current) {
-        setLoading(false)
-      }
+      if (requestId === latestRequestId.current) setLoading(false)
     }
   }
 
-  const capitalizeFirstLetter = (text: string) => {
-    return text.charAt(0).toUpperCase() + text.slice(1)
-  }
-
-  const checkTranslation = async () => {
-    if (!currentSentence) return
-
-    const trimmedUserTranslation = userTranslation.trim()
-
-    try {
-      const result = await api.checkAnswer(currentSentence.id, trimmedUserTranslation)
-      setFeedback(result.is_correct ? 'correct' : 'incorrect')
-      setHistories(result.histories)
-      setShowAnswer(true)
-
-      // Update counters
-      if (result.is_correct) {
-        setCorrectCount(prev => prev + 1)
-      } else {
-        setIncorrectCount(prev => prev + 1)
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to check answer')
-    }
-  }
+  useEffect(() => {
+    getRandomSentence(loadStoredLevels())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const resetQuestionState = () => {
     explainRequestId.current++
@@ -240,8 +86,58 @@ export default function Translator({ user }: Props) {
     setExplanation(null)
     setExplaining(false)
     setExplainError(null)
-    if ('speechSynthesis' in window) {
-      speechSynthesis.cancel()
+    setTab('answer')
+    if ('speechSynthesis' in window) speechSynthesis.cancel()
+  }
+
+  const handleLevelsChange = (next: number[]) => {
+    setLevels(next)
+    resetQuestionState()
+    getRandomSentence(next)
+  }
+
+  const handleLanguageChange = (next: ExplainLanguage) => {
+    setLanguage(next)
+    if (explanation || explainError) explainAnswer(next)
+  }
+
+  const explainAnswer = async (lang: ExplainLanguage) => {
+    if (!currentSentence) return
+    const requestId = ++explainRequestId.current
+    setExplaining(true)
+    setExplainError(null)
+    setExplanation(null)
+    try {
+      const result = await api.explainAnswer(currentSentence.id, userTranslation, lang)
+      if (requestId !== explainRequestId.current) return
+      setExplanation(result.explanation)
+    } catch (err) {
+      if (requestId !== explainRequestId.current) return
+      setExplainError(err instanceof Error ? err.message : 'Failed to load explanation')
+    } finally {
+      if (requestId === explainRequestId.current) setExplaining(false)
+    }
+  }
+
+  const handleTabChange = (next: ReviewTab) => {
+    setTab(next)
+    if (next === 'explain' && !explanation && !explaining && !explainError) {
+      explainAnswer(language)
+    }
+  }
+
+  const checkTranslation = async () => {
+    if (!currentSentence) return
+    try {
+      const result = await api.checkAnswer(currentSentence.id, userTranslation.trim())
+      setFeedback(result.is_correct ? 'correct' : 'incorrect')
+      setHistories(result.histories)
+      setShowAnswer(true)
+      setTab('answer')
+      if (result.is_correct) setCorrectCount(prev => prev + 1)
+      else setIncorrectCount(prev => prev + 1)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to check answer')
     }
   }
 
@@ -250,332 +146,133 @@ export default function Translator({ user }: Props) {
     getRandomSentence()
   }
 
-  const toggleLevel = (n: number) => {
-    const next = selectedLevels.includes(n)
-      ? selectedLevels.filter(l => l !== n)
-      : [...selectedLevels, n].sort((a, b) => a - b)
-    setSelectedLevels(next)
-    window.localStorage.setItem(SELECTED_LEVELS_STORAGE_KEY, JSON.stringify(next))
-    resetQuestionState()
-    getRandomSentence(next)
+  const reportSentence = async (sentenceId: number) => {
+    try {
+      await api.reportSentence(sentenceId)
+      setIsReported(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to report sentence')
+    }
   }
 
-  useEffect(() => {
-    const stored = loadStoredLevels()
-    setSelectedLevels(stored)
-    getRandomSentence(stored)
-  }, [])
-
-  useEffect(() => {
-    if (!isLevelMenuOpen) return
-
-    const closeIfOutside = (e: MouseEvent) => {
-      if (levelMenuRef.current && !levelMenuRef.current.contains(e.target as Node)) {
-        setIsLevelMenuOpen(false)
-      }
-    }
-    const closeOnEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsLevelMenuOpen(false)
-    }
-
-    document.addEventListener('mousedown', closeIfOutside)
-    document.addEventListener('keydown', closeOnEscape)
-    return () => {
-      document.removeEventListener('mousedown', closeIfOutside)
-      document.removeEventListener('keydown', closeOnEscape)
-    }
-  }, [isLevelMenuOpen])
-
-  const levelSummary =
-    selectedLevels.length === 0 || selectedLevels.length === LEVELS.length
-      ? 'All'
-      : [...selectedLevels].sort((a, b) => a - b).join(', ')
-
-  const levelMenu = (
-    <div className="relative inline-block" ref={levelMenuRef}>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        aria-haspopup="true"
-        aria-expanded={isLevelMenuOpen}
-        onClick={() => setIsLevelMenuOpen(open => !open)}
-      >
-        Level: {levelSummary}
-        <span aria-hidden="true" className="ml-1.5">▾</span>
-      </Button>
-      {isLevelMenuOpen && (
-        <div
-          role="group"
-          aria-label="Sentence difficulty level"
-          className="absolute right-0 z-10 mt-1 w-32 rounded-md border border-gray-200 bg-white p-2 shadow-md"
-        >
-          {LEVELS.map(n => (
-            <label key={n} className="flex items-center gap-2 py-1 text-sm text-gray-700">
-              <input
-                type="checkbox"
-                checked={selectedLevels.includes(n)}
-                onChange={() => toggleLevel(n)}
-                aria-label={`Level ${n}`}
-              />
-              Level {n}
-            </label>
-          ))}
-        </div>
-      )}
-    </div>
-  )
+  const capitalizeFirstLetter = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <div className="max-w-2xl mx-auto">
-        <div className="mb-8">
-          <div className="flex items-center justify-end mb-2">
-            <UserMenu user={user} />
-          </div>
-          <div className="flex items-center justify-center gap-2">
-            <Image src="/eagle-thumbnail.png" alt="Eagle logo" width={32} height={32} />
-            <h1 className="text-3xl font-bold text-gray-900">Eagle</h1>
-          </div>
-        </div>
+      <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-2xl flex-col">
+        <AppHeader user={user} onOpenSettings={() => setSettingsOpen(true)} />
 
-        <div className="grid gap-6 mb-6">
+        {loading ? (
+          <div className="text-center">
+            <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-indigo-600" />
+            <p className="text-muted-foreground">Loading...</p>
+          </div>
+        ) : error || !currentSentence ? (
           <Card>
-            <CardHeader className="flex flex-row items-start justify-between space-y-0">
-              <div>
-                <CardTitle>Translate this sentence</CardTitle>
-                <CardDescription>Translate the Japanese sentence below into English</CardDescription>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button asChild variant="outline" size="sm">
-                  <Link href="/mistakes">Mistakes</Link>
-                </Button>
-                {levelMenu}
-              </div>
-            </CardHeader>
-            {loading ? (
-              <CardContent>
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-                  <p className="text-gray-600">Loading...</p>
-                </div>
-              </CardContent>
-            ) : error || !currentSentence ? (
-              <CardContent>
-                <p className="text-gray-700 mb-4">{error || 'Failed to load content'}</p>
-                <Button onClick={() => getRandomSentence()} className="w-full">
-                  Try Again
-                </Button>
-              </CardContent>
-            ) : (
-              <>
-                <CardContent className="space-y-4">
-                  <div className="text-center">
-                    <div className="flex items-center justify-center gap-3 mb-2">
-                      <div className="text-3xl font-bold text-gray-900">
-                        {currentSentence.japanese}
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => speakJapanese(currentSentence.japanese)}
-                        disabled={isSpeaking}
-                        className="flex items-center px-2 py-1"
-                      >
-                        <Volume2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                    <div className="flex justify-center gap-4 text-sm text-gray-600 mt-2">
-                      <div className="flex items-center gap-1">
-                        <CheckCircle className="h-4 w-4 text-green-500" />
-                        <span>Correct: {correctCount}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <XCircle className="h-4 w-4 text-red-500" />
-                        <span>Incorrect: {incorrectCount}</span>
-                      </div>
-                    </div>
-                  </div>
+            <CardContent className="p-5">
+              <p className="mb-4 text-foreground">{error || 'Failed to load content'}</p>
+              <Button onClick={() => getRandomSentence()} className="w-full">
+                Try Again
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            <div className="space-y-3">
+              <QuestionCard
+                sentence={currentSentence}
+                correctCount={correctCount}
+                incorrectCount={incorrectCount}
+                levelSummary={levelSummary(levels)}
+                isSpeaking={isSpeaking}
+                onSpeak={() => speakJapanese(currentSentence.japanese, setIsSpeaking)}
+              />
 
-                  <form
-                    onSubmit={e => {
-                      e.preventDefault()
-                      if (userTranslation.trim() && !showAnswer) {
-                        checkTranslation()
-                      }
-                    }}
-                    className="space-y-4"
-                  >
-                    <div className="space-y-2">
-                      <Label htmlFor="translation">Your English translation:</Label>
+              {!showAnswer ? (
+                <Card>
+                  <CardContent className="p-5">
+                    <form
+                      onSubmit={e => {
+                        e.preventDefault()
+                        if (userTranslation.trim()) checkTranslation()
+                      }}
+                      className="space-y-2"
+                    >
+                      <Label htmlFor="translation">Your translation</Label>
                       <Textarea
                         id="translation"
                         value={userTranslation}
                         onChange={e => setUserTranslation(e.target.value)}
                         placeholder="Enter your translation here..."
-                        disabled={showAnswer}
                         onBlur={e => {
-                          if (e.target.value.trim() && !showAnswer) {
-                            const capitalizedTranslation = capitalizeFirstLetter(e.target.value.trim())
-                            setUserTranslation(capitalizedTranslation)
+                          if (e.target.value.trim()) {
+                            setUserTranslation(capitalizeFirstLetter(e.target.value.trim()))
                           }
                         }}
                         onKeyDown={e => {
-                          if (e.key === 'Enter' && e.ctrlKey && userTranslation.trim() && !showAnswer) {
+                          if (e.key === 'Enter' && e.ctrlKey && userTranslation.trim()) {
                             checkTranslation()
                           }
                         }}
                         aria-label="Your English translation"
                         aria-required="true"
                       />
-                    </div>
+                    </form>
+                  </CardContent>
+                </Card>
+              ) : (
+                feedback && (
+                  <ReviewPanel
+                    feedback={feedback}
+                    userAnswer={userTranslation}
+                    correctAnswer={currentSentence.english}
+                    histories={histories}
+                    tab={tab}
+                    onTabChange={handleTabChange}
+                    explanation={explanation}
+                    explaining={explaining}
+                    explainError={explainError}
+                    onRetryExplain={() => explainAnswer(language)}
+                  />
+                )
+              )}
+            </div>
 
-                    {feedback && (
-                      <Alert
-                        className={
-                          feedback === 'correct'
-                            ? 'border-green-500 bg-green-50'
-                            : 'border-red-500 bg-red-50'
-                        }
-                      >
-                        <div className="flex items-center gap-2">
-                          {feedback === 'correct' ? (
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                          ) : (
-                            <XCircle className="h-4 w-4 text-red-600" />
-                          )}
-                          <AlertDescription
-                            className={
-                              feedback === 'correct' ? 'text-green-800' : 'text-red-800'
-                            }
-                          >
-                            {feedback === 'correct'
-                              ? 'Correct! Well done!'
-                              : 'Not quite right. Try again!'}
-                          </AlertDescription>
-                        </div>
-                      </Alert>
-                    )}
+            <div className="mt-auto pt-4">
+              {!showAnswer ? (
+                <Button
+                  onClick={checkTranslation}
+                  disabled={!userTranslation.trim()}
+                  className="w-full"
+                >
+                  Check Translation
+                </Button>
+              ) : (
+                <div className="flex gap-2">
+                  <Button onClick={nextSentence} className="flex-1">
+                    Next Sentence
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => reportSentence(currentSentence.id)}
+                    disabled={isReported}
+                  >
+                    {isReported ? 'Reported' : 'Report'}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </>
+        )}
 
-                    {!showAnswer && (
-                      <Button
-                        type="submit"
-                        disabled={!userTranslation.trim()}
-                        className="w-full bg-gray-500 hover:bg-black text-white"
-                      >
-                        Check Translation
-                      </Button>
-                    )}
-                  </form>
-
-                  {showAnswer && (
-                    <div className="space-y-4">
-                      <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                        <div className="font-semibold text-blue-900 mb-1">
-                          Correct Answer:
-                        </div>
-                        <div className="text-blue-800">{currentSentence.english}</div>
-                      </div>
-
-                      {histories.length > 0 && (
-                        <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                          <div className="font-semibold text-yellow-900 mb-2">
-                            Previous Incorrect Answers:
-                          </div>
-                          <ul className="text-yellow-800 space-y-1">
-                            {histories.map(history => (
-                              <li key={history.id} className="text-sm">
-                                &ldquo;{history.incorrect_answer}&rdquo;
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {feedback === 'incorrect' && (
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => explainAnswer(explainLanguage)}
-                              disabled={explaining}
-                            >
-                              {explaining ? 'Explaining...' : 'Explain'}
-                            </Button>
-
-                            <div className="flex gap-1" role="group" aria-label="Explanation language">
-                              <Button
-                                type="button"
-                                variant={explainLanguage === 'en' ? 'default' : 'outline'}
-                                size="sm"
-                                aria-pressed={explainLanguage === 'en'}
-                                onClick={() => selectExplainLanguage('en')}
-                                disabled={explaining}
-                              >
-                                EN
-                              </Button>
-                              <Button
-                                type="button"
-                                variant={explainLanguage === 'ja' ? 'default' : 'outline'}
-                                size="sm"
-                                aria-pressed={explainLanguage === 'ja'}
-                                onClick={() => selectExplainLanguage('ja')}
-                                disabled={explaining}
-                              >
-                                JA
-                              </Button>
-                            </div>
-                          </div>
-
-                          {explainError && (
-                            <Alert className="border-red-500 bg-red-50">
-                              <AlertDescription className="text-red-800">
-                                {explainError}
-                              </AlertDescription>
-                            </Alert>
-                          )}
-
-                          {explanation && (
-                            <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-                              <div className="font-semibold text-purple-900 mb-1">Explanation:</div>
-                              <div className="text-purple-800">
-                                <ReactMarkdown components={explanationMarkdownComponents} disallowedElements={['a', 'img']}>
-                                  {explanation}
-                                </ReactMarkdown>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </CardContent>
-                <CardFooter className="flex gap-2">
-                  {showAnswer && (
-                    <>
-                      <Button onClick={nextSentence} className="flex-1">
-                        Next Sentence
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          if (currentSentence) {
-                            reportSentence(currentSentence.id)
-                          }
-                        }}
-                        disabled={isReported}
-                      >
-                        {isReported ? 'Reported' : 'Report'}
-                      </Button>
-                    </>
-                  )}
-                </CardFooter>
-              </>
-            )}
-          </Card>
-        </div>
+        <SettingsSheet
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          levels={levels}
+          onLevelsChange={handleLevelsChange}
+          language={language}
+          onLanguageChange={handleLanguageChange}
+        />
       </div>
     </div>
   )
