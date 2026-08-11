@@ -83,20 +83,6 @@ export default function ReviewPanel({
           <p className="font-semibold text-foreground">{correctAnswer}</p>
         </div>
 
-        {histories.length > 0 && (
-          <div className={PANEL}>
-            <div className={LABEL}>Previous attempts ({histories.length})</div>
-            <ul className="space-y-1.5">
-              {histories.map(history => (
-                <li key={history.id} className={WRONG}>
-                  <X className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                  {history.incorrect_answer}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
         {!correct && (
           <div className={PANEL}>
             <div className={LABEL}>Explanation</div>
@@ -124,6 +110,20 @@ export default function ReviewPanel({
                 </ReactMarkdown>
               </div>
             )}
+          </div>
+        )}
+
+        {histories.length > 0 && (
+          <div className={PANEL}>
+            <div className={LABEL}>Previous attempts ({histories.length})</div>
+            <ul className="space-y-1.5">
+              {histories.map(history => (
+                <li key={history.id} className={WRONG}>
+                  <X className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  {history.incorrect_answer}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
       </CardContent>
