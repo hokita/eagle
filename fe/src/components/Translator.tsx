@@ -238,7 +238,7 @@ export default function Translator({ user }: Props) {
               )}
             </div>
 
-            <div className="mt-auto pt-4">
+            <div className="sticky bottom-0 -mx-4 mt-auto bg-background/80 px-4 pb-4 pt-4 backdrop-blur-sm">
               {!showAnswer ? (
                 <Button
                   onClick={checkTranslation}
