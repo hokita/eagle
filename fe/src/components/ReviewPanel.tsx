@@ -1,7 +1,7 @@
 'use client'
 
 import ReactMarkdown from 'react-markdown'
-import { CheckCircle, XCircle } from 'lucide-react'
+import { CheckCircle, X, XCircle } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Segmented, type SegmentedOption } from '@/components/ui/segmented'
@@ -39,6 +39,12 @@ interface ReviewPanelProps {
 }
 
 const LABEL = 'mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground'
+
+// A wrong answer is marked by a red-tinted block and a leading ✕ rather than a
+// strikethrough: the text stays fully legible while the ✕ keeps the "this was
+// wrong" signal readable without relying on color alone.
+const WRONG =
+  'flex items-start gap-1.5 rounded-md border border-destructive-subtle-border bg-destructive-subtle px-2 py-1 text-destructive-subtle-foreground'
 
 export default function ReviewPanel({
   feedback,
@@ -91,7 +97,10 @@ export default function ReviewPanel({
               {!correct && (
                 <>
                   <div className={LABEL}>You wrote</div>
-                  <p className="mb-3 text-muted-foreground line-through">{userAnswer}</p>
+                  <p className={`${WRONG} mb-3`}>
+                    <X className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    {userAnswer}
+                  </p>
                 </>
               )}
               <div className={LABEL}>Correct</div>
@@ -102,7 +111,8 @@ export default function ReviewPanel({
           {tab === 'attempts' && (
             <ul className="space-y-1.5">
               {histories.map(history => (
-                <li key={history.id} className="text-muted-foreground line-through">
+                <li key={history.id} className={WRONG}>
+                  <X className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                   {history.incorrect_answer}
                 </li>
               ))}
