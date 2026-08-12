@@ -17,6 +17,7 @@ vi.mock('@/lib/api', () => ({
 
 import { api, type AnswerHistory } from '@/lib/api'
 import Translator from './Translator'
+import { answerRow } from '@/test-helpers'
 
 const mockApi = api as unknown as {
   getRandomSentence: ReturnType<typeof vi.fn>
@@ -119,12 +120,19 @@ describe('answering phase', () => {
 
     let resolveStale: (value: unknown) => void = () => {}
     mockApi.getRandomSentence.mockImplementationOnce(
-      () => new Promise(resolve => { resolveStale = resolve })
+      () =>
+        new Promise(resolve => {
+          resolveStale = resolve
+        }),
     )
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Level 1' }))
 
-    mockApi.getRandomSentence.mockResolvedValueOnce({ ...fakeSentence, id: 9, japanese: '新しい文' })
+    mockApi.getRandomSentence.mockResolvedValueOnce({
+      ...fakeSentence,
+      id: 9,
+      japanese: '新しい文',
+    })
     fireEvent.click(screen.getByRole('checkbox', { name: 'Level 2' }))
     await screen.findByText('新しい文')
 
@@ -160,9 +168,7 @@ describe('settings', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Level 5' }))
 
-    await waitFor(() =>
-      expect(mockApi.getRandomSentence).toHaveBeenLastCalledWith([1, 2, 3, 4])
-    )
+    await waitFor(() => expect(mockApi.getRandomSentence).toHaveBeenLastCalledWith([1, 2, 3, 4]))
     expect(localStorage.getItem('eagle:selectedLevels')).toBe('[1,2,3,4]')
     // The refetch is still in flight when the call assertion above passes, so
     // wait for the card to come back rather than reading it straight away.
@@ -202,7 +208,7 @@ describe('settings', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'Level 5' }))
 
     await waitFor(() =>
-      expect(screen.queryByText('Not quite right. Try again!')).not.toBeInTheDocument()
+      expect(screen.queryByText('Not quite right. Try again!')).not.toBeInTheDocument(),
     )
     expect(screen.getByLabelText('Your English translation')).toHaveValue('')
   })
@@ -234,7 +240,7 @@ describe('review phase', () => {
     await answerIncorrectly()
 
     expect(screen.queryByLabelText('Your English translation')).not.toBeInTheDocument()
-    expect(screen.getByText(fakeSentence.english)).toBeInTheDocument()
+    expect(answerRow(fakeSentence.english)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Next Sentence' })).toBeInTheDocument()
   })
 
@@ -265,8 +271,8 @@ describe('review phase', () => {
       { id: 1, incorrect_answer: 'There is no time.', created_at: '2026-01-01T00:00:00Z' },
     ])
 
-    expect(screen.getByText('There is no time.')).toBeInTheDocument()
-    expect(screen.getByText(fakeSentence.english)).toBeInTheDocument()
+    expect(answerRow('There is no time.')).toBeInTheDocument()
+    expect(answerRow(fakeSentence.english)).toBeInTheDocument()
     expect(screen.queryByRole('tab')).not.toBeInTheDocument()
   })
 
@@ -277,10 +283,10 @@ describe('review phase', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Explain' }))
 
     await waitFor(() =>
-      expect(mockApi.explainAnswer).toHaveBeenCalledWith(1, 'I have no time.', 'en')
+      expect(mockApi.explainAnswer).toHaveBeenCalledWith(1, 'I have no time.', 'en'),
     )
     expect(await screen.findByText('do-support')).toBeInTheDocument()
-    expect(screen.getByText(fakeSentence.english)).toBeInTheDocument()
+    expect(answerRow(fakeSentence.english)).toBeInTheDocument()
   })
 
   it('fetches in the stored language', async () => {
@@ -291,7 +297,7 @@ describe('review phase', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Explain' }))
 
     await waitFor(() =>
-      expect(mockApi.explainAnswer).toHaveBeenCalledWith(1, 'I have no time.', 'ja')
+      expect(mockApi.explainAnswer).toHaveBeenCalledWith(1, 'I have no time.', 'ja'),
     )
   })
 
@@ -329,7 +335,10 @@ describe('review phase', () => {
   it('refetches in the new language when the setting changes while an explanation is in flight, and never renders the superseded response', async () => {
     let resolveStale: (value: unknown) => void = () => {}
     mockApi.explainAnswer.mockImplementationOnce(
-      () => new Promise(resolve => { resolveStale = resolve })
+      () =>
+        new Promise(resolve => {
+          resolveStale = resolve
+        }),
     )
     await answerIncorrectly()
     fireEvent.click(screen.getByRole('button', { name: 'Explain' }))
@@ -377,7 +386,10 @@ describe('review phase', () => {
   it('discards an explanation superseded by moving to the next sentence', async () => {
     let resolveStale: (value: unknown) => void = () => {}
     mockApi.explainAnswer.mockImplementationOnce(
-      () => new Promise(resolve => { resolveStale = resolve })
+      () =>
+        new Promise(resolve => {
+          resolveStale = resolve
+        }),
     )
     await answerIncorrectly()
     fireEvent.click(screen.getByRole('button', { name: 'Explain' }))
@@ -387,12 +399,10 @@ describe('review phase', () => {
 
     resolveStale({ explanation: 'Stale explanation' })
 
-    await waitFor(() =>
-      expect(screen.queryByText('Stale explanation')).not.toBeInTheDocument()
-    )
+    await waitFor(() => expect(screen.queryByText('Stale explanation')).not.toBeInTheDocument())
   })
 
-  it('does not skip the fetch or leak a stale explanation into the next sentence\'s explanation', async () => {
+  it("does not skip the fetch or leak a stale explanation into the next sentence's explanation", async () => {
     const secondSentence = {
       ...fakeSentence,
       id: 2,
@@ -402,7 +412,10 @@ describe('review phase', () => {
 
     let resolveFirstExplain: (value: unknown) => void = () => {}
     mockApi.explainAnswer.mockImplementationOnce(
-      () => new Promise(resolve => { resolveFirstExplain = resolve })
+      () =>
+        new Promise(resolve => {
+          resolveFirstExplain = resolve
+        }),
     )
     mockApi.checkAnswer.mockResolvedValue({
       is_correct: false,
@@ -445,7 +458,7 @@ describe('review phase', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Explain' }))
 
     await waitFor(() =>
-      expect(mockApi.explainAnswer).toHaveBeenCalledWith(2, 'Some other answer.', 'en')
+      expect(mockApi.explainAnswer).toHaveBeenCalledWith(2, 'Some other answer.', 'en'),
     )
     expect(await screen.findByText('Second sentence explanation')).toBeInTheDocument()
     expect(screen.queryByText('Stale explanation from sentence one')).not.toBeInTheDocument()
