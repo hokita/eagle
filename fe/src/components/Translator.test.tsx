@@ -210,7 +210,11 @@ describe('settings', () => {
     await waitFor(() =>
       expect(screen.queryByText('Not quite right. Try again!')).not.toBeInTheDocument(),
     )
-    expect(screen.getByLabelText('Your English translation')).toHaveValue('')
+    // Toggling a level refetches, and the input is gone while that is in
+    // flight. The review panel clears before the fetch resolves, so wait for
+    // the input to come back rather than assuming it already has: on a loaded
+    // machine the refetch has not landed by the time the panel disappears.
+    expect(await screen.findByLabelText('Your English translation')).toHaveValue('')
   })
 })
 
