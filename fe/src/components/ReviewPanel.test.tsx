@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, within } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import ReviewPanel from './ReviewPanel'
+import { answerRow, answerRows, highlightedWords } from '@/test-helpers'
 
 const histories = [
   { id: 1, incorrect_answer: 'There is no time.', created_at: '2026-01-01T00:00:00Z' },
@@ -39,8 +40,8 @@ describe('sections', () => {
   it('shows the answer, the previous attempts and the explanation together', () => {
     renderPanel({ histories, explanation: 'Prefer do-support here.' })
 
-    expect(screen.getByText("I don't have time.")).toBeInTheDocument()
-    expect(screen.getByText('There is no time.')).toBeInTheDocument()
+    expect(answerRow("I don't have time.")).toBeInTheDocument()
+    expect(answerRow('There is no time.')).toBeInTheDocument()
     expect(screen.getByText('Prefer do-support here.')).toBeInTheDocument()
   })
 
@@ -77,24 +78,54 @@ describe('sections', () => {
 
     expect(screen.queryByText('Explanation')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Explain' })).not.toBeInTheDocument()
-    expect(screen.getByText("I don't have time.")).toBeInTheDocument()
+    expect(answerRow("I don't have time.")).toBeInTheDocument()
   })
 })
 
 describe('answer section', () => {
   it('shows the correct answer', () => {
     renderPanel()
-    expect(screen.getByText("I don't have time.")).toBeInTheDocument()
+    expect(answerRow("I don't have time.")).toBeInTheDocument()
   })
 
   it('shows what the user wrote when they were wrong', () => {
     renderPanel({ feedback: 'incorrect' })
-    expect(screen.getByText('I have no time.')).toBeInTheDocument()
+    expect(answerRow('I have no time.')).toBeInTheDocument()
   })
 
   it('does not repeat the user answer when they were right', () => {
     renderPanel({ feedback: 'correct', userAnswer: "I don't have time." })
     expect(screen.queryByText('You wrote')).not.toBeInTheDocument()
+  })
+
+  it('puts the correct answer directly below what the user wrote, with nothing between', () => {
+    renderPanel({ feedback: 'incorrect' })
+
+    const wrong = answerRow('I have no time.')
+    const right = answerRow("I don't have time.")
+    // Only the "Correct" label separates the two answers.
+    expect(wrong.nextElementSibling?.textContent).toBe('Correct')
+    expect(wrong.nextElementSibling?.nextElementSibling).toBe(right)
+  })
+
+  it('highlights the words that differ on both answers', () => {
+    renderPanel({ feedback: 'incorrect' })
+
+    expect(highlightedWords('I have no time.')).toEqual(['no'])
+    expect(highlightedWords("I don't have time.")).toEqual(["don't"])
+  })
+
+  it('highlights nothing on the correct answer when there is nothing to compare', () => {
+    renderPanel({ feedback: 'correct', userAnswer: "I don't have time." })
+
+    expect(highlightedWords("I don't have time.")).toEqual([])
+  })
+
+  it('renders each answer once, so the two rows stay a single comparison', () => {
+    renderPanel({ feedback: 'incorrect' })
+
+    expect(answerRows('I have no time.')).toHaveLength(1)
+    expect(answerRows("I don't have time.")).toHaveLength(1)
   })
 })
 
@@ -102,8 +133,15 @@ describe('attempts section', () => {
   it('lists every previous incorrect answer', () => {
     renderPanel({ histories })
 
-    expect(screen.getByText('There is no time.')).toBeInTheDocument()
-    expect(screen.getByText('I have not time.')).toBeInTheDocument()
+    expect(answerRow('There is no time.')).toBeInTheDocument()
+    expect(answerRow('I have not time.')).toBeInTheDocument()
+  })
+
+  it('highlights how each previous attempt differs from the correct answer', () => {
+    renderPanel({ histories })
+
+    expect(highlightedWords('There is no time.')).toEqual(['There', 'is', 'no'])
+    expect(highlightedWords('I have not time.')).toEqual(['not'])
   })
 })
 
