@@ -40,11 +40,33 @@ describe('diffWords', () => {
     expect(changed(diff.correct)).toEqual([])
   })
 
-  it('marks differing punctuation', () => {
+  it('ignores the final punctuation mark, which the grader accepts', () => {
     const diff = diffWords('Are you sure.', 'Are you sure?')
 
-    expect(changed(diff.user)).toEqual(['sure.'])
-    expect(changed(diff.correct)).toEqual(['sure?'])
+    expect(changed(diff.user)).toEqual([])
+    expect(changed(diff.correct)).toEqual([])
+  })
+
+  it('ignores a missing final punctuation mark, which the grader accepts', () => {
+    const diff = diffWords('I have time', 'I have time.')
+
+    expect(changed(diff.user)).toEqual([])
+    expect(changed(diff.correct)).toEqual([])
+  })
+
+  it('ignores a curly apostrophe, which the grader accepts', () => {
+    const diff = diffWords('I don’t have time.', "I don't have time.")
+
+    expect(changed(diff.user)).toEqual([])
+    expect(changed(diff.correct)).toEqual([])
+    expect(text(diff.user)).toBe('I don’t have time.')
+  })
+
+  it('marks punctuation that differs inside the sentence', () => {
+    const diff = diffWords('Do you know. Yes, I do.', 'Do you know? Yes, I do.')
+
+    expect(changed(diff.user)).toEqual(['know.'])
+    expect(changed(diff.correct)).toEqual(['know?'])
   })
 
   it('ignores letter case, which the grader accepts', () => {
