@@ -45,11 +45,17 @@ const TRAILING_TERMINAL = new RegExp(`[${TERMINAL}]+$`)
 const ONLY_TERMINAL = new RegExp(`^[${TERMINAL}]+$`)
 
 function tokenize(sentence: string): string[] {
-  const words = sentence.split(/\s+/).filter(Boolean)
-  // The grader trims the trailing punctuation together with the space in front
-  // of it, so a detached final "." is not a word to compare either.
-  while (words.length > 0 && ONLY_TERMINAL.test(words[words.length - 1])) words.pop()
-  return words
+  return sentence.split(/\s+/).filter(Boolean)
+}
+
+// The grader trims the trailing punctuation together with the space in front of
+// it, so a detached final "." is not a word to compare. It is still a word the
+// learner wrote — ReviewPanel renders their answer back from these tokens — so
+// it is held out of the alignment rather than dropped, and re-appended unmarked.
+function trailingPunctuation(words: string[]): string[] {
+  let start = words.length
+  while (start > 0 && ONLY_TERMINAL.test(words[start - 1])) start--
+  return words.slice(start)
 }
 
 // compareKeys renders each word as the grader sees it: typographic punctuation
@@ -73,12 +79,17 @@ function keep(words: string[]): DiffWord[] {
 // answers share stay unmarked in both, and everything else is marked as an
 // extra word on the user's side or a missing word on the correct side.
 export function diffWords(userAnswer: string, correctAnswer: string): WordDiff {
-  const user = tokenize(userAnswer)
-  const correct = tokenize(correctAnswer)
+  const userWords = tokenize(userAnswer)
+  const correctWords = tokenize(correctAnswer)
 
-  if (user.length > MAX_WORDS || correct.length > MAX_WORDS) {
-    return { user: keep(user), correct: keep(correct) }
+  if (userWords.length > MAX_WORDS || correctWords.length > MAX_WORDS) {
+    return { user: keep(userWords), correct: keep(correctWords) }
   }
+
+  const userTail = trailingPunctuation(userWords)
+  const correctTail = trailingPunctuation(correctWords)
+  const user = userWords.slice(0, userWords.length - userTail.length)
+  const correct = correctWords.slice(0, correctWords.length - correctTail.length)
 
   // The words are aligned on their grading keys but displayed as they were
   // written, so the reader sees their own answer back verbatim.
@@ -114,5 +125,8 @@ export function diffWords(userAnswer: string, correctAnswer: string): WordDiff {
   while (i < user.length) userDiff.push({ text: user[i++], changed: true })
   while (j < correct.length) correctDiff.push({ text: correct[j++], changed: true })
 
-  return { user: userDiff, correct: correctDiff }
+  return {
+    user: [...userDiff, ...keep(userTail)],
+    correct: [...correctDiff, ...keep(correctTail)],
+  }
 }

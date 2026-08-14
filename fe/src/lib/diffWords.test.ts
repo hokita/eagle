@@ -62,6 +62,14 @@ describe('diffWords', () => {
     expect(text(diff.user)).toBe('I don’t have time.')
   })
 
+  it('shows a detached final punctuation mark back without marking it', () => {
+    const diff = diffWords('I has time .', 'I have time.')
+
+    expect(text(diff.user)).toBe('I has time .')
+    expect(changed(diff.user)).toEqual(['has'])
+    expect(changed(diff.correct)).toEqual(['have'])
+  })
+
   it('marks punctuation that differs inside the sentence', () => {
     const diff = diffWords('Do you know. Yes, I do.', 'Do you know? Yes, I do.')
 
