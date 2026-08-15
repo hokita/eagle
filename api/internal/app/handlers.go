@@ -71,11 +71,46 @@ func (s *Server) getRandomSentence(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, sentence)
 }
 
-// normalizeWhitespace collapses any run of whitespace (including internal
-// newlines from multi-line input) into a single space, and trims the ends,
-// so answers that differ only in whitespace formatting compare as equal.
-func normalizeWhitespace(s string) string {
-	return strings.Join(strings.Fields(s), " ")
+// answerPunctuation folds the typographic punctuation that phone keyboards,
+// word processors and Japanese IMEs substitute for the ASCII characters on a
+// plain keyboard. A learner who types "It’s" with a curly apostrophe wrote the
+// same sentence as "It's" — the two are near-indistinguishable on screen, so
+// grading them apart reads as the app being broken rather than as a mistake to
+// learn from.
+var answerPunctuation = strings.NewReplacer(
+	"‘", "'", // ‘ left single quotation mark
+	"’", "'", // ’ right single quotation mark, the curly apostrophe
+	"ʼ", "'", // ʼ modifier letter apostrophe
+	"′", "'", // ′ prime
+	"＇", "'", // ＇ fullwidth apostrophe
+	"“", `"`, // “ left double quotation mark
+	"”", `"`, // ” right double quotation mark
+	"″", `"`, // ″ double prime
+	"＂", `"`, // ＂ fullwidth quotation mark
+	"‐", "-", // ‐ hyphen
+	"‑", "-", // ‑ non-breaking hyphen
+	"–", "-", // – en dash
+	"—", "-", // — em dash
+	"，", ",", // ， fullwidth comma
+)
+
+// terminalPunctuation is the sentence-ending punctuation dropped from the end
+// of both answers before they are compared, in the ASCII, fullwidth and
+// Japanese forms an IME can produce. English word order already carries the
+// difference between a question and a statement, so a final "." left off — or
+// a "。" left in — is a keyboard slip, not a translation mistake. Only the very
+// end of the answer is trimmed: punctuation inside the sentence still counts.
+const terminalPunctuation = ".!?…。．！？ "
+
+// normalizeAnswer puts an answer into the form the grader compares. Runs of
+// whitespace (including internal newlines from multi-line input) collapse to a
+// single space, typographic punctuation folds to its ASCII equivalent, and
+// sentence-ending punctuation is dropped, so answers that differ only in
+// formatting compare as equal.
+func normalizeAnswer(s string) string {
+	s = answerPunctuation.Replace(s)
+	s = strings.Join(strings.Fields(s), " ")
+	return strings.TrimRight(s, terminalPunctuation)
 }
 
 func (s *Server) checkAnswer(w http.ResponseWriter, r *http.Request) {
@@ -109,7 +144,7 @@ func (s *Server) checkAnswer(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	isCorrect := strings.EqualFold(normalizeWhitespace(req.UserAnswer), normalizeWhitespace(correct))
+	isCorrect := strings.EqualFold(normalizeAnswer(req.UserAnswer), normalizeAnswer(correct))
 	answer := ""
 	if !isCorrect {
 		answer = req.UserAnswer

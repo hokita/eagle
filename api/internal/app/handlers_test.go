@@ -269,6 +269,79 @@ func TestCheckAnswerCorrectDespiteInternalWhitespaceDifference(t *testing.T) {
 	}
 }
 
+// TestCheckAnswerCorrectDespitePunctuationDifference covers the punctuation a
+// learner cannot control from their keyboard or does not think of as part of
+// the translation: the curly apostrophe a phone or IME substitutes for "'",
+// and the sentence-ending mark at the very end of the answer.
+func TestCheckAnswerCorrectDespitePunctuationDifference(t *testing.T) {
+	for name, tc := range map[string]struct{ correct, user string }{
+		"curly apostrophe for straight":  {"It's always warm in the country.", "It’s always warm in the country."},
+		"straight apostrophe for curly":  {"It’s always warm in the country.", "It's always warm in the country."},
+		"missing final period":           {"It's always warm in the country.", "It's always warm in the country"},
+		"both, as typed on a phone":      {"It's always warm in the country.", "It’s always warm in the country"},
+		"ideographic period from an IME": {"It's always warm in the country.", "It's always warm in the country。"},
+		"curly quotes around a quote":    {`He said "no".`, `He said “no”.`},
+		"em dash for hyphen":             {"It's a well-known book.", "It's a well—known book."},
+		"space before the final period":  {"It's always warm in the country.", "It's always warm in the country ."},
+	} {
+		t.Run(name, func(t *testing.T) {
+			repo := &fakeRepo{correct: tc.correct}
+			srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
+			bodyBytes, err := json.Marshal(map[string]any{"sentence_id": 1, "user_answer": tc.user})
+			if err != nil {
+				t.Fatalf("marshal: %v", err)
+			}
+			req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/check", bytes.NewReader(bodyBytes)), "u1")
+			rec := httptest.NewRecorder()
+			srv.checkAnswer(rec, req)
+			var resp CheckAnswerResponse
+			if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+			if !resp.IsCorrect {
+				t.Fatalf("expected %q to be graded correct against %q", tc.user, tc.correct)
+			}
+			if len(repo.recorded) != 1 || repo.recorded[0].correct != true {
+				t.Fatalf("expected correct answer recorded, got %+v", repo.recorded)
+			}
+		})
+	}
+}
+
+// TestCheckAnswerIncorrectDespitePunctuationNormalization pins the other side
+// of the rule: only the answer's final punctuation is forgiven, so a wrong
+// word or wrong punctuation inside the sentence still grades wrong.
+func TestCheckAnswerIncorrectDespitePunctuationNormalization(t *testing.T) {
+	for name, tc := range map[string]struct{ correct, user string }{
+		"missing internal comma":     {"Yes, you do.", "Yes you do."},
+		"wrong word":                 {"It's always warm in the country.", "It's always warm in the town."},
+		"dropped word":               {"It's always warm in the country.", "It's warm in the country"},
+		"answer is punctuation only": {"It's always warm in the country.", "."},
+	} {
+		t.Run(name, func(t *testing.T) {
+			repo := &fakeRepo{correct: tc.correct}
+			srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
+			bodyBytes, err := json.Marshal(map[string]any{"sentence_id": 1, "user_answer": tc.user})
+			if err != nil {
+				t.Fatalf("marshal: %v", err)
+			}
+			req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/check", bytes.NewReader(bodyBytes)), "u1")
+			rec := httptest.NewRecorder()
+			srv.checkAnswer(rec, req)
+			var resp CheckAnswerResponse
+			if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+			if resp.IsCorrect {
+				t.Fatalf("expected %q to be graded incorrect against %q", tc.user, tc.correct)
+			}
+			if len(repo.recorded) != 1 || repo.recorded[0].answer != tc.user {
+				t.Fatalf("expected the answer recorded verbatim, got %+v", repo.recorded)
+			}
+		})
+	}
+}
+
 func TestCheckAnswerIncorrectRecordsAnswer(t *testing.T) {
 	repo := &fakeRepo{correct: "It's hot today."}
 	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
