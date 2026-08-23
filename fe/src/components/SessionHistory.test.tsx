@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { User } from 'firebase/auth'
 
@@ -92,5 +92,32 @@ describe('SessionHistory', () => {
     vi.mocked(api.getDiscussionSession).mockResolvedValue(detail)
     fireEvent.click(screen.getByRole('button', { name: 'Try Again' }))
     expect(await screen.findByText('Nice improvement!')).toBeInTheDocument()
+  })
+
+  it('a stale detail failure never surfaces in another session card', async () => {
+    const summary2 = { ...summary, id: 's2', question_en: 'Second question?' }
+    const detail2 = { ...detail, id: 's2', question_en: 'Second question?', retry_feedback: 'Second feedback!' }
+    vi.mocked(api.listDiscussionSessions).mockResolvedValue({ sessions: [summary, summary2] })
+    let rejectFirst: (err: Error) => void = () => {}
+    vi.mocked(api.getDiscussionSession).mockImplementation(id =>
+      id === 's1'
+        ? new Promise((_, reject) => {
+            rejectFirst = reject
+          })
+        : Promise.resolve(detail2)
+    )
+    render(<SessionHistory user={user} />)
+
+    // Open s1 (fetch stays pending), then switch to s2, which succeeds.
+    fireEvent.click(await screen.findByRole('button', { name: 'Who is responsible?' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Second question?' }))
+    await waitFor(() => expect(screen.getByText('Second feedback!')).toBeInTheDocument())
+
+    // s1's late failure must not surface inside s2's open card.
+    await act(async () => {
+      rejectFirst(new Error('API error: 500'))
+    })
+    expect(screen.queryByText('Failed to load the session.')).not.toBeInTheDocument()
+    expect(screen.getByText('Second feedback!')).toBeInTheDocument()
   })
 })

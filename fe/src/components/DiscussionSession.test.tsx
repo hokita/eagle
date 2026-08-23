@@ -155,6 +155,14 @@ describe('DiscussionSession', () => {
     expect(lastCallTranscript).toEqual([{ role: 'user', text: 'I think companies, actually.' }])
   })
 
+  it('links to the discussion history from the page header', async () => {
+    await startSession()
+    expect(screen.getByRole('link', { name: 'History' })).toHaveAttribute(
+      'href',
+      '/discussion/history'
+    )
+  })
+
   it('shows a distinct message when the question bank is empty (404)', async () => {
     vi.mocked(api.getDiscussionQuestion).mockReset()
     vi.mocked(api.getDiscussionQuestion).mockRejectedValue(new Error('API error: 404'))

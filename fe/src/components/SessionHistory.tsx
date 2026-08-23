@@ -21,7 +21,10 @@ export default function SessionHistory({ user }: Props) {
   const [details, setDetails] = useState<Record<string, DiscussionSessionDetail>>({})
   const [openId, setOpenId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [detailError, setDetailError] = useState<string | null>(null)
+  // The id of the session whose detail fetch failed. Keyed by id (not a
+  // shared message) so a slow response from one card can never surface an
+  // error — or clear one — inside a different card the user has since opened.
+  const [detailErrorId, setDetailErrorId] = useState<string | null>(null)
 
   const loadSessions = async () => {
     setError(null)
@@ -41,20 +44,18 @@ export default function SessionHistory({ user }: Props) {
     try {
       const detail = await api.getDiscussionSession(id)
       setDetails(prev => ({ ...prev, [id]: detail }))
-      setDetailError(null)
+      setDetailErrorId(prev => (prev === id ? null : prev))
     } catch {
-      setDetailError('Failed to load the session.')
+      setDetailErrorId(id)
     }
   }
 
   const toggle = async (id: string) => {
     if (openId === id) {
       setOpenId(null)
-      setDetailError(null)
       return
     }
     setOpenId(id)
-    setDetailError(null)
     if (!details[id]) {
       await fetchDetail(id)
     }
@@ -106,9 +107,9 @@ export default function SessionHistory({ user }: Props) {
                         <span>{new Date(session.created_at).toLocaleDateString()}</span>
                       </p>
                     </button>
-                    {openId === session.id && detailError && (
+                    {openId === session.id && detailErrorId === session.id && (
                       <div className="space-y-2 border-t border-border pt-3 text-sm">
-                        <p className="text-foreground">{detailError}</p>
+                        <p className="text-foreground">Failed to load the session.</p>
                         <Button onClick={() => fetchDetail(session.id)} className="w-full">
                           Try Again
                         </Button>

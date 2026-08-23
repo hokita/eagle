@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import type { User } from 'firebase/auth'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -169,7 +170,15 @@ export default function DiscussionSession({ user }: Props) {
           onOpenSettings={() => setSettingsOpen(true)}
           showDiscussionLink={false}
         />
-        <h2 className="mb-4 text-lg font-bold text-foreground">Discussion</h2>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-foreground">Discussion</h2>
+          <Link
+            href="/discussion/history"
+            className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          >
+            History
+          </Link>
+        </div>
 
         {error && (
           <Card className="mb-3">
