@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 
 	"google.golang.org/genai"
@@ -90,6 +92,28 @@ func TestGeminiCoachAnalyzeGapTruncatesToFourExpressions(t *testing.T) {
 	}
 	if len(got.Expressions) != 4 {
 		t.Fatalf("expected 4 expressions after truncation, got %d", len(got.Expressions))
+	}
+}
+
+func TestGeminiCoachAnalyzeGapTruncatesIdeasToTwenty(t *testing.T) {
+	ideas := make([]string, 25)
+	for i := range ideas {
+		ideas[i] = fmt.Sprintf(`"idea %d"`, i)
+	}
+	ideasJSON := "[" + strings.Join(ideas, ",") + "]"
+	fake := &fakeContentGenerator{resp: textResp(fmt.Sprintf(`{
+		"expressed_ideas":%s,"missing_ideas":%s,
+		"expressions":[{"phrase":"a","meaning_ja":"あ","example_en":"A."}]}`, ideasJSON, ideasJSON))}
+	g := &GeminiCoach{models: fake, model: "gemini-test"}
+	got, err := g.AnalyzeGap(context.Background(), promptQuestion, msgs("a"), "x")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got.ExpressedIdeas) != 20 {
+		t.Fatalf("expected 20 expressed_ideas after truncation, got %d", len(got.ExpressedIdeas))
+	}
+	if len(got.MissingIdeas) != 20 {
+		t.Fatalf("expected 20 missing_ideas after truncation, got %d", len(got.MissingIdeas))
 	}
 }
 

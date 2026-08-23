@@ -120,8 +120,8 @@ func (g *GeminiCoach) AnalyzeGap(ctx context.Context, q *DiscussionQuestion, tra
 	if len(valid) == 0 {
 		return nil, fmt.Errorf("gap analysis produced no usable expressions")
 	}
-	if len(valid) > 4 {
-		valid = valid[:4]
+	if len(valid) > maxSessionExpressions {
+		valid = valid[:maxSessionExpressions]
 	}
 	analysis.Expressions = valid
 	if analysis.ExpressedIdeas == nil {
@@ -129,6 +129,14 @@ func (g *GeminiCoach) AnalyzeGap(ctx context.Context, q *DiscussionQuestion, tra
 	}
 	if analysis.MissingIdeas == nil {
 		analysis.MissingIdeas = []string{}
+	}
+	// The complete endpoint rejects idea lists longer than maxSessionIdeas —
+	// truncate here so a verbose model response can't brick the flow.
+	if len(analysis.ExpressedIdeas) > maxSessionIdeas {
+		analysis.ExpressedIdeas = analysis.ExpressedIdeas[:maxSessionIdeas]
+	}
+	if len(analysis.MissingIdeas) > maxSessionIdeas {
+		analysis.MissingIdeas = analysis.MissingIdeas[:maxSessionIdeas]
 	}
 	return &analysis, nil
 }

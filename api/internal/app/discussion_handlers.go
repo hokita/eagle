@@ -187,7 +187,7 @@ func (s *Server) discussionComplete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid reflection_ja", http.StatusBadRequest)
 		return
 	}
-	if len(req.Expressions) > 4 || len(req.ExpressedIdeas) > 20 || len(req.MissingIdeas) > 20 {
+	if len(req.Expressions) > maxSessionExpressions || len(req.ExpressedIdeas) > maxSessionIdeas || len(req.MissingIdeas) > maxSessionIdeas {
 		http.Error(w, "Invalid analysis payload", http.StatusBadRequest)
 		return
 	}
@@ -238,6 +238,10 @@ func (s *Server) discussionSessions(w http.ResponseWriter, r *http.Request) {
 	}
 	uid, _ := uidFromContext(r.Context())
 	id := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/discussion/sessions"), "/")
+	if strings.Contains(id, "/") {
+		http.Error(w, "Session not found", http.StatusNotFound)
+		return
+	}
 	if id == "" {
 		sessions, err := s.discussions.ListSessions(r.Context(), uid, maxDiscussionSessionList)
 		if err != nil {

@@ -432,6 +432,15 @@ func TestGetDiscussionSessionNotFound(t *testing.T) {
 	}
 }
 
+func TestDiscussionSessionsRejectsNestedPath(t *testing.T) {
+	srv := discussionServer(&fakeDiscussionRepo{session: &DiscussionSession{ID: "s1"}}, &fakeCoach{})
+	rec := httptest.NewRecorder()
+	srv.discussionSessions(rec, authed(httptest.NewRequest(http.MethodGet, "/api/discussion/sessions/s1/extra", nil), "u1"))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestDiscussionSessionsRejectsPost(t *testing.T) {
 	srv := discussionServer(&fakeDiscussionRepo{}, &fakeCoach{})
 	rec := httptest.NewRecorder()

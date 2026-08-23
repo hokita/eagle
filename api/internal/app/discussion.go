@@ -22,6 +22,12 @@ const (
 	maxAIFollowUps = 5
 	// maxDiscussionSessionList caps the history list response.
 	maxDiscussionSessionList = 50
+	// maxSessionExpressions caps the expressions list accepted by the
+	// complete endpoint and enforced by the coach's gap analysis.
+	maxSessionExpressions = 4
+	// maxSessionIdeas caps the expressed/missing idea lists accepted by the
+	// complete endpoint and enforced by the coach's gap analysis.
+	maxSessionIdeas = 20
 )
 
 type DiscussionQuestion struct {
