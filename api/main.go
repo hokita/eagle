@@ -50,7 +50,13 @@ func main() {
 		log.Fatalf("failed to create Gemini weakness analyzer: %v", err)
 	}
 
-	srv := app.NewServer(app.NewFirestoreRepo(client), explainer, analyzer)
+	coach, err := app.NewGeminiCoach(ctx, geminiAPIKey)
+	if err != nil {
+		log.Fatalf("failed to create Gemini coach: %v", err)
+	}
+
+	repo := app.NewFirestoreRepo(client)
+	srv := app.NewServer(repo, explainer, analyzer).WithDiscussion(repo, coach)
 
 	frontendURL := os.Getenv("FRONTEND_URL")
 	mux := app.NewMux(srv, verifier, allowedEmails, frontendURL)
