@@ -51,7 +51,9 @@ func toFirestoreFields(rw row, now string) (map[string]interface{}, error) {
 }
 
 func main() {
-	path := flag.String("file", "docs/discussion_questions_seed.ndjson", "path to NDJSON file")
+	// The command must run from api/ (the module root), so the default
+	// resolves the committed bank at the repository-level docs/ directory.
+	path := flag.String("file", "../docs/discussion_questions_seed.ndjson", "path to NDJSON file")
 	flag.Parse()
 
 	projectID := os.Getenv("GOOGLE_CLOUD_PROJECT")
