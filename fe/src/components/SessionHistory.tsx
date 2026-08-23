@@ -21,6 +21,7 @@ export default function SessionHistory({ user }: Props) {
   const [details, setDetails] = useState<Record<string, DiscussionSessionDetail>>({})
   const [openId, setOpenId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [detailError, setDetailError] = useState<string | null>(null)
 
   const loadSessions = async () => {
     setError(null)
@@ -36,20 +37,26 @@ export default function SessionHistory({ user }: Props) {
     loadSessions()
   }, [])
 
+  const fetchDetail = async (id: string) => {
+    try {
+      const detail = await api.getDiscussionSession(id)
+      setDetails(prev => ({ ...prev, [id]: detail }))
+      setDetailError(null)
+    } catch {
+      setDetailError('Failed to load the session.')
+    }
+  }
+
   const toggle = async (id: string) => {
     if (openId === id) {
       setOpenId(null)
+      setDetailError(null)
       return
     }
     setOpenId(id)
+    setDetailError(null)
     if (!details[id]) {
-      try {
-        const detail = await api.getDiscussionSession(id)
-        setDetails(prev => ({ ...prev, [id]: detail }))
-      } catch {
-        setError('Failed to load the session.')
-        setOpenId(null)
-      }
+      await fetchDetail(id)
     }
   }
 
@@ -99,6 +106,14 @@ export default function SessionHistory({ user }: Props) {
                         <span>{new Date(session.created_at).toLocaleDateString()}</span>
                       </p>
                     </button>
+                    {openId === session.id && detailError && (
+                      <div className="space-y-2 border-t border-border pt-3 text-sm">
+                        <p className="text-foreground">{detailError}</p>
+                        <Button onClick={() => fetchDetail(session.id)} className="w-full">
+                          Try Again
+                        </Button>
+                      </div>
+                    )}
                     {detail && (
                       <div className="space-y-3 border-t border-border pt-3 text-sm">
                         <div>

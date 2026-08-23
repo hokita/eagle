@@ -80,4 +80,17 @@ describe('SessionHistory', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Try Again' }))
     expect(await screen.findByText('Who is responsible?')).toBeInTheDocument()
   })
+
+  it('scopes a failed detail fetch to the session card, keeping the list visible', async () => {
+    vi.mocked(api.listDiscussionSessions).mockResolvedValue({ sessions: [summary] })
+    vi.mocked(api.getDiscussionSession).mockRejectedValueOnce(new Error('API error: 500'))
+    render(<SessionHistory user={user} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Who is responsible?' }))
+    expect(await screen.findByText('Failed to load the session.')).toBeInTheDocument()
+    expect(screen.getByText('Who is responsible?')).toBeInTheDocument()
+
+    vi.mocked(api.getDiscussionSession).mockResolvedValue(detail)
+    fireEvent.click(screen.getByRole('button', { name: 'Try Again' }))
+    expect(await screen.findByText('Nice improvement!')).toBeInTheDocument()
+  })
 })
