@@ -31,6 +31,9 @@ type Server struct {
 	repo      SentenceRepository
 	explainer Explainer
 	analyzer  WeaknessAnalyzer
+
+	discussions DiscussionRepository
+	coach       DiscussionCoach
 }
 
 func NewServer(repo SentenceRepository, explainer Explainer, analyzer WeaknessAnalyzer) *Server {
