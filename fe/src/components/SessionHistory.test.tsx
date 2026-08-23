@@ -1,0 +1,83 @@
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import type { User } from 'firebase/auth'
+
+vi.mock('@/lib/api', () => ({
+  api: {
+    listDiscussionSessions: vi.fn(),
+    getDiscussionSession: vi.fn(),
+  },
+}))
+vi.mock('@/lib/firebase', () => ({ auth: { currentUser: null } }))
+
+import { api } from '@/lib/api'
+import SessionHistory from './SessionHistory'
+
+const user = { displayName: 'Tester', email: 't@example.com', photoURL: null } as unknown as User
+
+const summary = {
+  id: 's1',
+  question_en: 'Who is responsible?',
+  topic: 'environment',
+  created_at: '2026-08-23T10:00:00Z',
+}
+
+const detail = {
+  id: 's1',
+  question_id: 16,
+  question_en: 'Who is responsible?',
+  topic: 'environment',
+  transcript: [
+    { role: 'user' as const, text: 'I think companies.' },
+    { role: 'ai' as const, text: 'Why?' },
+  ],
+  reflection_ja: '制度を変えるべき。',
+  expressed_ideas: ['Companies are responsible.'],
+  missing_ideas: ['Systemic change is needed.'],
+  expressions: [
+    { phrase: 'take responsibility for', meaning_ja: '〜に責任を持つ', example_en: 'x' },
+  ],
+  first_answer: 'I think companies.',
+  retry_answer: 'Companies should take responsibility.',
+  retry_feedback: 'Nice improvement!',
+  created_at: '2026-08-23T10:00:00Z',
+}
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
+
+describe('SessionHistory', () => {
+  it('lists completed sessions', async () => {
+    vi.mocked(api.listDiscussionSessions).mockResolvedValue({ sessions: [summary] })
+    render(<SessionHistory user={user} />)
+    expect(await screen.findByText('Who is responsible?')).toBeInTheDocument()
+    expect(screen.getByText('environment')).toBeInTheDocument()
+  })
+
+  it('shows an empty state', async () => {
+    vi.mocked(api.listDiscussionSessions).mockResolvedValue({ sessions: [] })
+    render(<SessionHistory user={user} />)
+    expect(await screen.findByText('No sessions yet — try a discussion!')).toBeInTheDocument()
+  })
+
+  it('expands a session inline with its details', async () => {
+    vi.mocked(api.listDiscussionSessions).mockResolvedValue({ sessions: [summary] })
+    vi.mocked(api.getDiscussionSession).mockResolvedValue(detail)
+    render(<SessionHistory user={user} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Who is responsible?' }))
+    await waitFor(() => expect(screen.getByText('Nice improvement!')).toBeInTheDocument())
+    expect(api.getDiscussionSession).toHaveBeenCalledWith('s1')
+    expect(screen.getByText('Companies should take responsibility.')).toBeInTheDocument()
+    expect(screen.getByText('take responsibility for')).toBeInTheDocument()
+  })
+
+  it('shows an error with retry when loading fails', async () => {
+    vi.mocked(api.listDiscussionSessions).mockRejectedValueOnce(new Error('API error: 500'))
+    render(<SessionHistory user={user} />)
+    expect(await screen.findByText('Failed to load sessions.')).toBeInTheDocument()
+    vi.mocked(api.listDiscussionSessions).mockResolvedValue({ sessions: [summary] })
+    fireEvent.click(screen.getByRole('button', { name: 'Try Again' }))
+    expect(await screen.findByText('Who is responsible?')).toBeInTheDocument()
+  })
+})
