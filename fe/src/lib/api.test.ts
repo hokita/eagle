@@ -168,3 +168,99 @@ describe('api error handling', () => {
     await expect(api.getRandomSentence()).rejects.toThrow('API error: 500')
   })
 })
+
+describe('api.getDiscussionQuestion', () => {
+  it('sends GET /api/discussion/question', async () => {
+    mockResponse({
+      id: 16,
+      question_en: 'Who should take more responsibility for environmental problems?',
+      topic: 'environment',
+      level: 3,
+      target_skills: ['giving opinions'],
+    })
+    const result = await api.getDiscussionQuestion()
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/discussion/question'),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer test-token' }),
+      })
+    )
+    expect(result.id).toBe(16)
+    expect(result.topic).toBe('environment')
+  })
+})
+
+describe('api.discussionReply', () => {
+  it('sends POST /api/discussion/reply with question_id and transcript', async () => {
+    mockResponse({ done: false, message: 'Why do you think so?' })
+    const transcript = [{ role: 'user' as const, text: 'I think companies.' }]
+    const result = await api.discussionReply(16, transcript)
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/discussion/reply'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ question_id: 16, transcript }),
+      })
+    )
+    expect(result.done).toBe(false)
+    expect(result.message).toBe('Why do you think so?')
+  })
+})
+
+describe('api.discussionAnalyze', () => {
+  it('sends POST /api/discussion/analyze with the reflection', async () => {
+    mockResponse({ expressed_ideas: [], missing_ideas: [], expressions: [] })
+    const transcript = [{ role: 'user' as const, text: 'I think companies.' }]
+    await api.discussionAnalyze(16, transcript, '制度を変えるべき。')
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/discussion/analyze'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ question_id: 16, transcript, reflection_ja: '制度を変えるべき。' }),
+      })
+    )
+  })
+})
+
+describe('api.discussionComplete', () => {
+  it('sends POST /api/discussion/complete with the whole session payload', async () => {
+    mockResponse({ session_id: 's1', retry_feedback: 'Nice!' })
+    const payload = {
+      question_id: 16,
+      transcript: [{ role: 'user' as const, text: 'I think companies.' }],
+      reflection_ja: '',
+      expressed_ideas: [],
+      missing_ideas: [],
+      expressions: [],
+      retry_answer: 'Companies should take responsibility.',
+    }
+    const result = await api.discussionComplete(payload)
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/discussion/complete'),
+      expect.objectContaining({ method: 'POST', body: JSON.stringify(payload) })
+    )
+    expect(result.session_id).toBe('s1')
+  })
+})
+
+describe('api.listDiscussionSessions / getDiscussionSession', () => {
+  it('sends GET /api/discussion/sessions', async () => {
+    mockResponse({ sessions: [{ id: 's1', question_en: 'Q', topic: 'work', created_at: '2026-08-23T10:00:00Z' }] })
+    const result = await api.listDiscussionSessions()
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/discussion/sessions'),
+      expect.anything()
+    )
+    expect(result.sessions).toHaveLength(1)
+  })
+
+  it('sends GET /api/discussion/sessions/{id}', async () => {
+    mockResponse({ id: 's1', question_en: 'Q', retry_answer: 'better' })
+    const result = await api.getDiscussionSession('s1')
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/discussion/sessions/s1'),
+      expect.anything()
+    )
+    expect(result.id).toBe('s1')
+  })
+})
