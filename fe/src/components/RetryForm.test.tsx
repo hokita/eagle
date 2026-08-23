@@ -26,6 +26,11 @@ describe('RetryForm', () => {
     expect(screen.getByText('take responsibility for')).toBeInTheDocument()
   })
 
+  it('caps the improved-answer textarea at the server byte limit', () => {
+    renderForm()
+    expect(screen.getByLabelText('Your improved answer')).toHaveAttribute('maxLength', '2000')
+  })
+
   it('submits the trimmed answer', () => {
     const props = renderForm()
     fireEvent.change(screen.getByLabelText('Your improved answer'), {

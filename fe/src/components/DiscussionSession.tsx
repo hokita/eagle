@@ -47,8 +47,12 @@ export default function DiscussionSession({ user }: Props) {
       const q = await api.getDiscussionQuestion()
       setQuestion(q)
       setPhase('conversation')
-    } catch {
-      setError('Failed to load a question.')
+    } catch (err) {
+      if (err instanceof Error && err.message === 'API error: 404') {
+        setError('No discussion questions available yet.')
+      } else {
+        setError('Failed to load a question.')
+      }
     }
   }
 
@@ -78,7 +82,16 @@ export default function DiscussionSession({ user }: Props) {
   }
 
   const sendMessage = (text: string) => {
-    const next: DiscussionMessage[] = [...transcript, { role: 'user', text }]
+    // A previous reply may have failed after the user's turn was already
+    // appended, leaving the transcript ending in an unanswered "user"
+    // message. Sending again must replace that pending turn rather than
+    // appending a second consecutive user message, which the server
+    // rejects (and would brick the session on every later call).
+    const last = transcript[transcript.length - 1]
+    const next: DiscussionMessage[] =
+      last && last.role === 'user'
+        ? [...transcript.slice(0, -1), { role: 'user', text }]
+        : [...transcript, { role: 'user', text }]
     setTranscript(next)
     requestReply(next)
   }

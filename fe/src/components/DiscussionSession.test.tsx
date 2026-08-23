@@ -135,4 +135,32 @@ describe('DiscussionSession', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Try Again' }))
     await waitFor(() => expect(screen.getByText('Recovered follow-up?')).toBeInTheDocument())
   })
+
+  it('recovers via Send (not just Try Again) without creating consecutive user turns', async () => {
+    vi.mocked(api.discussionReply).mockRejectedValueOnce(new Error('API error: 500'))
+    await startSession()
+    await answerOnce('I think companies.')
+    expect(await screen.findByText('Something went wrong. Please try again.')).toBeInTheDocument()
+
+    vi.mocked(api.discussionReply).mockResolvedValueOnce({ done: false, message: 'Recovered follow-up?' })
+    await answerOnce('I think companies, actually.')
+
+    await waitFor(() => expect(screen.getByText('Recovered follow-up?')).toBeInTheDocument())
+
+    const lastCallTranscript = vi.mocked(api.discussionReply).mock.calls.at(-1)?.[1]
+    expect(lastCallTranscript).toBeDefined()
+    const roles = lastCallTranscript!.map(m => m.role)
+    const lastTwo = roles.slice(-2)
+    expect(lastTwo).not.toEqual(['user', 'user'])
+    expect(lastCallTranscript).toEqual([{ role: 'user', text: 'I think companies, actually.' }])
+  })
+
+  it('shows a distinct message when the question bank is empty (404)', async () => {
+    vi.mocked(api.getDiscussionQuestion).mockReset()
+    vi.mocked(api.getDiscussionQuestion).mockRejectedValue(new Error('API error: 404'))
+    render(<DiscussionSession user={user} />)
+    expect(
+      await screen.findByText('No discussion questions available yet.')
+    ).toBeInTheDocument()
+  })
 })

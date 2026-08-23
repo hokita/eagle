@@ -31,6 +31,7 @@ export default function ReflectionPrompt({ loading, onSubmit, onSkip }: Props) {
           value={draft}
           onChange={e => setDraft(e.target.value)}
           placeholder="日本語で自由に書いてください"
+          maxLength={1300}
         />
         <div className="flex gap-2">
           <Button

@@ -43,6 +43,7 @@ export default function RetryForm({ question, expressions, loading, onSubmit }: 
           value={draft}
           onChange={e => setDraft(e.target.value)}
           placeholder="Answer in English"
+          maxLength={2000}
         />
         <Button
           onClick={() => onSubmit(draft.trim())}

@@ -59,6 +59,7 @@ export default function ChatTranscript({
           value={draft}
           onChange={e => setDraft(e.target.value)}
           placeholder="Answer in English"
+          maxLength={2000}
         />
         <div className="flex gap-2">
           <Button onClick={submit} disabled={sending || draft.trim() === ''} className="flex-1">

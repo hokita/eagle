@@ -30,6 +30,11 @@ describe('ChatTranscript', () => {
     expect(screen.getByText('Why do you think so?')).toBeInTheDocument()
   })
 
+  it('caps the answer textarea at the server byte limit', () => {
+    renderChat()
+    expect(screen.getByLabelText('Your answer')).toHaveAttribute('maxLength', '2000')
+  })
+
   it('sends the trimmed draft and clears the input', () => {
     const props = renderChat()
     const input = screen.getByLabelText('Your answer')

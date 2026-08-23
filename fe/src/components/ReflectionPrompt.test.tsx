@@ -14,6 +14,11 @@ describe('ReflectionPrompt', () => {
     expect(screen.getByText('日本語で答えるなら、他に言いたかったことはありますか？')).toBeInTheDocument()
   })
 
+  it('caps the reflection textarea below the server byte limit', () => {
+    renderPrompt()
+    expect(screen.getByLabelText('Japanese reflection')).toHaveAttribute('maxLength', '1300')
+  })
+
   it('submits the trimmed reflection', () => {
     const props = renderPrompt()
     fireEvent.change(screen.getByLabelText('Japanese reflection'), {
