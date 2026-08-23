@@ -372,7 +372,10 @@ func TestDiscussionCompleteRejectsBadInput(t *testing.T) {
 func TestDiscussionCompleteAcceptsMaximalValidSession(t *testing.T) {
 	dRepo := &fakeDiscussionRepo{question: testQuestion, savedID: "sess-max"}
 	srv := discussionServer(dRepo, &fakeCoach{feedback: "Great!"})
-	long := strings.Repeat("a", maxDiscussionTurnLength)
+	// Multibyte throughout: every field at its rune limit, so the JSON body
+	// is far larger in bytes than in characters — exactly the payload the
+	// old byte-sized caps rejected.
+	long := strings.Repeat("あ", maxDiscussionTurnLength)
 	texts := make([]string, maxTranscriptMessages)
 	for i := range texts {
 		texts[i] = long
@@ -384,7 +387,7 @@ func TestDiscussionCompleteAcceptsMaximalValidSession(t *testing.T) {
 	req := DiscussionCompleteRequest{
 		QuestionID:     1,
 		Transcript:     msgs(texts...),
-		ReflectionJA:   strings.Repeat("あ", maxReflectionLength/3),
+		ReflectionJA:   strings.Repeat("あ", maxReflectionLength),
 		ExpressedIdeas: ideas,
 		MissingIdeas:   ideas,
 		Expressions:    []Expression{{Phrase: "p", MeaningJA: "m", ExampleEN: "e"}},
@@ -394,9 +397,12 @@ func TestDiscussionCompleteAcceptsMaximalValidSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal request: %v", err)
 	}
-	if len(body) <= maxDiscussionRequestBytes {
-		t.Fatalf("test payload must exceed the shared %d-byte cap to prove the completion cap, got %d bytes",
-			maxDiscussionRequestBytes, len(body))
+	if len(body) <= 64*1024 {
+		t.Fatalf("test payload must exceed the previous 64KiB cap to prove the sizing, got %d bytes", len(body))
+	}
+	if len(body) > maxDiscussionRequestBytes {
+		t.Fatalf("maximal valid session (%d bytes) no longer fits the %d-byte cap — resize it",
+			len(body), maxDiscussionRequestBytes)
 	}
 	rec := httptest.NewRecorder()
 	srv.discussionComplete(rec, postJSON(t, "/api/discussion/complete", req))

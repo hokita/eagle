@@ -4,23 +4,25 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 )
 
 const (
-	// maxDiscussionRequestBytes bounds transcript-bearing request bodies so an
-	// authenticated caller can't exhaust memory or inflate Gemini request size.
-	maxDiscussionRequestBytes = 32 * 1024
-	// maxDiscussionCompleteRequestBytes bounds the complete endpoint's body,
-	// which carries strictly more than the others: a maximal valid session is
-	// 12 transcript messages x 2,000 bytes + a 4,000-byte reflection + a
-	// 2,000-byte retry answer = 30,000 bytes of field content before JSON
-	// overhead and the analysis arrays (themselves bounded by the coach's
-	// maxCoachAnalyzeOutputTokens). 32 KiB could reject a session whose every
-	// field passed its own validation; 64 KiB leaves comfortable headroom.
-	maxDiscussionCompleteRequestBytes = 64 * 1024
-	// maxDiscussionTurnLength bounds a single transcript message.
+	// maxDiscussionRequestBytes bounds every discussion request body so an
+	// authenticated caller can't exhaust memory or inflate Gemini request
+	// size. Sized from the complete endpoint's multibyte worst case — the
+	// field limits below are rune counts (matching the frontend textareas'
+	// character-based maxLength), so a maximal valid session is 12 messages
+	// x 2,000 runes + a 4,000-rune reflection + a 2,000-rune retry answer =
+	// 30,000 runes, up to 4 UTF-8 bytes each (~120 KiB) plus JSON escaping
+	// overhead and the coach-bounded analysis arrays. A body cap below that
+	// would reject a session whose every field passed its own validation.
+	maxDiscussionRequestBytes = 192 * 1024
+	// maxDiscussionTurnLength bounds a single transcript message, in runes —
+	// the same unit the browser textareas' maxLength approximates, so text
+	// the client accepts is never rejected server-side for its length.
 	maxDiscussionTurnLength = 2000
-	// maxReflectionLength bounds the Japanese reflection text.
+	// maxReflectionLength bounds the Japanese reflection text, in runes.
 	maxReflectionLength = 4000
 	// maxTranscriptMessages: initial answer + 5 follow-ups + 5 replies = 11,
 	// plus the AI's closing line when the conversation ends = 12.
@@ -133,7 +135,7 @@ func validateTranscript(transcript []DiscussionMessage) error {
 		if strings.TrimSpace(m.Text) == "" {
 			return fmt.Errorf("message %d: text is blank", i)
 		}
-		if len(m.Text) > maxDiscussionTurnLength {
+		if utf8.RuneCountInString(m.Text) > maxDiscussionTurnLength {
 			return fmt.Errorf("message %d: text exceeds %d characters", i, maxDiscussionTurnLength)
 		}
 	}

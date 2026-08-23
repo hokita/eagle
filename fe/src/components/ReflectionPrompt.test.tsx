@@ -16,7 +16,7 @@ describe('ReflectionPrompt', () => {
 
   it('caps the reflection textarea below the server byte limit', () => {
     renderPrompt()
-    expect(screen.getByLabelText('Japanese reflection')).toHaveAttribute('maxLength', '1300')
+    expect(screen.getByLabelText('Japanese reflection')).toHaveAttribute('maxLength', '4000')
   })
 
   it('submits the trimmed reflection', () => {

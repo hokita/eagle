@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 )
 
 // WithDiscussion attaches the discussion-practice dependencies. A chained
@@ -106,10 +107,12 @@ func (s *Server) discussionReply(w http.ResponseWriter, r *http.Request) {
 }
 
 // discussionTrimmed reports whether text is non-blank after trimming and
-// within limit.
+// within limit. The limit is a rune count — the same unit the frontend
+// textareas' character-based maxLength approximates — so multibyte input
+// the client accepts is never rejected here for its length.
 func discussionTrimmed(text string, limit int) bool {
 	t := strings.TrimSpace(text)
-	return t != "" && len(text) <= limit
+	return t != "" && utf8.RuneCountInString(text) <= limit
 }
 
 type DiscussionAnalyzeRequest struct {
@@ -170,7 +173,7 @@ func (s *Server) discussionComplete(w http.ResponseWriter, r *http.Request) {
 	}
 	uid, _ := uidFromContext(r.Context())
 	var req DiscussionCompleteRequest
-	if !decodeDiscussionBody(w, r, &req, maxDiscussionCompleteRequestBytes) {
+	if !decodeDiscussionBody(w, r, &req, maxDiscussionRequestBytes) {
 		return
 	}
 	if err := validateTranscript(req.Transcript); err != nil {
@@ -183,7 +186,7 @@ func (s *Server) discussionComplete(w http.ResponseWriter, r *http.Request) {
 	}
 	// ReflectionJA is "" when the reflection was skipped; when present it
 	// obeys the same bound as the analyze endpoint.
-	if len(req.ReflectionJA) > maxReflectionLength {
+	if utf8.RuneCountInString(req.ReflectionJA) > maxReflectionLength {
 		http.Error(w, "Invalid reflection_ja", http.StatusBadRequest)
 		return
 	}

@@ -57,6 +57,19 @@ func TestValidateTranscriptRejectsBlankAndOversizedMessages(t *testing.T) {
 	if err := validateTranscript(msgs(strings.Repeat("a", maxDiscussionTurnLength+1))); err == nil {
 		t.Fatal("expected error for oversized message")
 	}
+	if err := validateTranscript(msgs(strings.Repeat("あ", maxDiscussionTurnLength+1))); err == nil {
+		t.Fatal("expected error for a message over the rune limit")
+	}
+}
+
+// TestValidateTranscriptCountsRunesNotBytes pins the length unit to runes:
+// a maximum-length multibyte message is exactly what the frontend textareas'
+// character-based maxLength admits, and must not be rejected for its UTF-8
+// byte size.
+func TestValidateTranscriptCountsRunesNotBytes(t *testing.T) {
+	if err := validateTranscript(msgs(strings.Repeat("あ", maxDiscussionTurnLength))); err != nil {
+		t.Fatalf("a maximum-length multibyte message must be accepted, got: %v", err)
+	}
 }
 
 func TestCountAITurns(t *testing.T) {
