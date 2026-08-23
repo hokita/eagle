@@ -155,6 +155,21 @@ describe('DiscussionSession', () => {
     expect(lastCallTranscript).toEqual([{ role: 'user', text: 'I think companies, actually.' }])
   })
 
+  it('skipping after a failed analysis clears the stale error banner', async () => {
+    vi.mocked(api.discussionReply).mockResolvedValue({ done: true, message: 'Thanks!' })
+    vi.mocked(api.discussionAnalyze).mockRejectedValue(new Error('API error: 500'))
+    await startSession()
+    await answerOnce('I think companies.')
+    await waitFor(() => expect(screen.getByLabelText('Japanese reflection')).toBeInTheDocument())
+    fireEvent.change(screen.getByLabelText('Japanese reflection'), { target: { value: 'あ' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+    expect(await screen.findByText('Something went wrong. Please try again.')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Nothing to add — skip' }))
+    expect(await screen.findByLabelText('Your improved answer')).toBeInTheDocument()
+    expect(screen.queryByText('Something went wrong. Please try again.')).not.toBeInTheDocument()
+  })
+
   it('links to the discussion history from the page header', async () => {
     await startSession()
     expect(screen.getByRole('link', { name: 'History' })).toHaveAttribute(

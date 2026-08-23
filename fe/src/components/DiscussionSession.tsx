@@ -116,6 +116,9 @@ export default function DiscussionSession({ user }: Props) {
   const skipReflection = () => {
     setReflectionJa('')
     setAnalysis(null)
+    // Skipping intentionally abandons any failed analyze attempt — a stale
+    // error banner must not follow the learner into the retry phase.
+    setError(null)
     setPhase('retry')
   }
 
