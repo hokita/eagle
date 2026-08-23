@@ -43,4 +43,16 @@ describe('AppHeader', () => {
 
     expect(screen.getByRole('img', { name: /jane/i })).toBeInTheDocument()
   })
+
+  it('shows the discussion link by default', () => {
+    render(<AppHeader user={fakeUser} onOpenSettings={vi.fn()} />)
+
+    expect(screen.getByRole('link', { name: 'Discussion' })).toHaveAttribute('href', '/discussion')
+  })
+
+  it('hides the discussion link when showDiscussionLink is false', () => {
+    render(<AppHeader user={fakeUser} onOpenSettings={vi.fn()} showDiscussionLink={false} />)
+
+    expect(screen.queryByRole('link', { name: 'Discussion' })).not.toBeInTheDocument()
+  })
 })

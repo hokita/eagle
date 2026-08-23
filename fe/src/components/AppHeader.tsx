@@ -10,12 +10,14 @@ interface AppHeaderProps {
   user: User
   onOpenSettings: () => void
   showMistakesLink?: boolean
+  showDiscussionLink?: boolean
 }
 
 export default function AppHeader({
   user,
   onOpenSettings,
   showMistakesLink = true,
+  showDiscussionLink = true,
 }: AppHeaderProps) {
   return (
     <header className="mb-6 flex items-center justify-between gap-2">
@@ -31,6 +33,14 @@ export default function AppHeader({
             className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
           >
             Mistakes
+          </Link>
+        )}
+        {showDiscussionLink && (
+          <Link
+            href="/discussion"
+            className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          >
+            Discussion
           </Link>
         )}
         <button
