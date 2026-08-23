@@ -365,6 +365,46 @@ func TestDiscussionCompleteRejectsBadInput(t *testing.T) {
 	}
 }
 
+// TestDiscussionCompleteAcceptsMaximalValidSession pins the completion body
+// cap above the sum of every field's individually accepted maximum — a
+// session whose parts all passed earlier validation must never 400 at the
+// final save step.
+func TestDiscussionCompleteAcceptsMaximalValidSession(t *testing.T) {
+	dRepo := &fakeDiscussionRepo{question: testQuestion, savedID: "sess-max"}
+	srv := discussionServer(dRepo, &fakeCoach{feedback: "Great!"})
+	long := strings.Repeat("a", maxDiscussionTurnLength)
+	texts := make([]string, maxTranscriptMessages)
+	for i := range texts {
+		texts[i] = long
+	}
+	ideas := make([]string, maxSessionIdeas)
+	for i := range ideas {
+		ideas[i] = strings.Repeat("b", 200)
+	}
+	req := DiscussionCompleteRequest{
+		QuestionID:     1,
+		Transcript:     msgs(texts...),
+		ReflectionJA:   strings.Repeat("あ", maxReflectionLength/3),
+		ExpressedIdeas: ideas,
+		MissingIdeas:   ideas,
+		Expressions:    []Expression{{Phrase: "p", MeaningJA: "m", ExampleEN: "e"}},
+		RetryAnswer:    long,
+	}
+	body, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+	if len(body) <= maxDiscussionRequestBytes {
+		t.Fatalf("test payload must exceed the shared %d-byte cap to prove the completion cap, got %d bytes",
+			maxDiscussionRequestBytes, len(body))
+	}
+	rec := httptest.NewRecorder()
+	srv.discussionComplete(rec, postJSON(t, "/api/discussion/complete", req))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for a maximal valid session, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestDiscussionCompleteCoachErrorDoesNotSave(t *testing.T) {
 	dRepo := &fakeDiscussionRepo{question: testQuestion}
 	srv := discussionServer(dRepo, &fakeCoach{reviewErr: context.DeadlineExceeded})

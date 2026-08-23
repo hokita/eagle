@@ -10,6 +10,14 @@ const (
 	// maxDiscussionRequestBytes bounds transcript-bearing request bodies so an
 	// authenticated caller can't exhaust memory or inflate Gemini request size.
 	maxDiscussionRequestBytes = 32 * 1024
+	// maxDiscussionCompleteRequestBytes bounds the complete endpoint's body,
+	// which carries strictly more than the others: a maximal valid session is
+	// 12 transcript messages x 2,000 bytes + a 4,000-byte reflection + a
+	// 2,000-byte retry answer = 30,000 bytes of field content before JSON
+	// overhead and the analysis arrays (themselves bounded by the coach's
+	// maxCoachAnalyzeOutputTokens). 32 KiB could reject a session whose every
+	// field passed its own validation; 64 KiB leaves comfortable headroom.
+	maxDiscussionCompleteRequestBytes = 64 * 1024
 	// maxDiscussionTurnLength bounds a single transcript message.
 	maxDiscussionTurnLength = 2000
 	// maxReflectionLength bounds the Japanese reflection text.

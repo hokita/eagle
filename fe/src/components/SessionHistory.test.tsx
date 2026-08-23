@@ -146,4 +146,33 @@ describe('SessionHistory', () => {
     expect(screen.getByText('Failed to load the session.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Try Again' })).toBeInTheDocument()
   })
+
+  it('a superseded request for the same session cannot contradict the newer one', async () => {
+    vi.mocked(api.listDiscussionSessions).mockResolvedValue({ sessions: [summary] })
+    let rejectFirst: (err: Error) => void = () => {}
+    vi.mocked(api.getDiscussionSession)
+      .mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            rejectFirst = reject
+          })
+      )
+      .mockResolvedValueOnce(detail)
+    render(<SessionHistory user={user} />)
+    const card = await screen.findByRole('button', { name: 'Who is responsible?' })
+
+    // Open (first fetch stays pending), close, reopen (second fetch succeeds).
+    fireEvent.click(card)
+    fireEvent.click(card)
+    fireEvent.click(card)
+    await waitFor(() => expect(screen.getByText('Nice improvement!')).toBeInTheDocument())
+
+    // The stale first request's late failure must not add an error next to
+    // the successfully rendered detail.
+    await act(async () => {
+      rejectFirst(new Error('API error: 500'))
+    })
+    expect(screen.queryByText('Failed to load the session.')).not.toBeInTheDocument()
+    expect(screen.getByText('Nice improvement!')).toBeInTheDocument()
+  })
 })

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { User } from 'firebase/auth'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -50,13 +50,23 @@ export default function SessionHistory({ user }: Props) {
     loadSessions()
   }, [])
 
+  // Monotonic per-session request generation. Closing and reopening a card
+  // while its fetch is in flight starts a second request for the same id;
+  // only the latest generation may write state, so a superseded response —
+  // success or failure — can never contradict the one the user is seeing.
+  const detailRequestSeq = useRef<Record<string, number>>({})
+
   const fetchDetail = async (id: string) => {
+    const seq = (detailRequestSeq.current[id] ?? 0) + 1
+    detailRequestSeq.current[id] = seq
     clearDetailError(id)
     try {
       const detail = await api.getDiscussionSession(id)
+      if (detailRequestSeq.current[id] !== seq) return
       setDetails(prev => ({ ...prev, [id]: detail }))
       clearDetailError(id)
     } catch {
+      if (detailRequestSeq.current[id] !== seq) return
       setDetailErrors(prev => ({ ...prev, [id]: true }))
     }
   }

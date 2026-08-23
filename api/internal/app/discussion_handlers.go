@@ -42,8 +42,8 @@ func (s *Server) getDiscussionQuestion(w http.ResponseWriter, r *http.Request) {
 
 // decodeDiscussionBody bounds and strictly decodes a discussion request
 // body. Returns false after writing the 400 response itself.
-func decodeDiscussionBody(w http.ResponseWriter, r *http.Request, dst interface{}) bool {
-	r.Body = http.MaxBytesReader(w, r.Body, maxDiscussionRequestBytes)
+func decodeDiscussionBody(w http.ResponseWriter, r *http.Request, dst interface{}, maxBytes int64) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(dst); err != nil {
@@ -75,7 +75,7 @@ func (s *Server) discussionReply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req DiscussionReplyRequest
-	if !decodeDiscussionBody(w, r, &req) {
+	if !decodeDiscussionBody(w, r, &req, maxDiscussionRequestBytes) {
 		return
 	}
 	if err := validateTranscript(req.Transcript); err != nil {
@@ -139,7 +139,7 @@ func (s *Server) discussionAnalyze(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req DiscussionAnalyzeRequest
-	if !decodeDiscussionBody(w, r, &req) {
+	if !decodeDiscussionBody(w, r, &req, maxDiscussionRequestBytes) {
 		return
 	}
 	if err := validateTranscript(req.Transcript); err != nil {
@@ -170,7 +170,7 @@ func (s *Server) discussionComplete(w http.ResponseWriter, r *http.Request) {
 	}
 	uid, _ := uidFromContext(r.Context())
 	var req DiscussionCompleteRequest
-	if !decodeDiscussionBody(w, r, &req) {
+	if !decodeDiscussionBody(w, r, &req, maxDiscussionCompleteRequestBytes) {
 		return
 	}
 	if err := validateTranscript(req.Transcript); err != nil {
