@@ -120,4 +120,30 @@ describe('SessionHistory', () => {
     expect(screen.queryByText('Failed to load the session.')).not.toBeInTheDocument()
     expect(screen.getByText('Second feedback!')).toBeInTheDocument()
   })
+
+  it("a stale failure does not wipe another card's visible error", async () => {
+    const summary2 = { ...summary, id: 's2', question_en: 'Second question?' }
+    vi.mocked(api.listDiscussionSessions).mockResolvedValue({ sessions: [summary, summary2] })
+    let rejectFirst: (err: Error) => void = () => {}
+    vi.mocked(api.getDiscussionSession).mockImplementation(id =>
+      id === 's1'
+        ? new Promise((_, reject) => {
+            rejectFirst = reject
+          })
+        : Promise.reject(new Error('API error: 500'))
+    )
+    render(<SessionHistory user={user} />)
+
+    // Open s1 (fetch stays pending), switch to s2, which fails immediately.
+    fireEvent.click(await screen.findByRole('button', { name: 'Who is responsible?' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Second question?' }))
+    expect(await screen.findByText('Failed to load the session.')).toBeInTheDocument()
+
+    // s1's late failure must not clear s2's error or its retry control.
+    await act(async () => {
+      rejectFirst(new Error('API error: 500'))
+    })
+    expect(screen.getByText('Failed to load the session.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Try Again' })).toBeInTheDocument()
+  })
 })

@@ -21,10 +21,20 @@ export default function SessionHistory({ user }: Props) {
   const [details, setDetails] = useState<Record<string, DiscussionSessionDetail>>({})
   const [openId, setOpenId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  // The id of the session whose detail fetch failed. Keyed by id (not a
-  // shared message) so a slow response from one card can never surface an
-  // error — or clear one — inside a different card the user has since opened.
-  const [detailErrorId, setDetailErrorId] = useState<string | null>(null)
+  // Failed detail fetches, keyed by session id. A map (not a single shared
+  // value) so overlapping requests stay independent: a slow failure from one
+  // card can never surface in, clear, or overwrite the error of another
+  // card — even when two failures are in flight at once.
+  const [detailErrors, setDetailErrors] = useState<Record<string, true>>({})
+
+  const clearDetailError = (id: string) => {
+    setDetailErrors(prev => {
+      if (!prev[id]) return prev
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+  }
 
   const loadSessions = async () => {
     setError(null)
@@ -41,12 +51,13 @@ export default function SessionHistory({ user }: Props) {
   }, [])
 
   const fetchDetail = async (id: string) => {
+    clearDetailError(id)
     try {
       const detail = await api.getDiscussionSession(id)
       setDetails(prev => ({ ...prev, [id]: detail }))
-      setDetailErrorId(prev => (prev === id ? null : prev))
+      clearDetailError(id)
     } catch {
-      setDetailErrorId(id)
+      setDetailErrors(prev => ({ ...prev, [id]: true }))
     }
   }
 
@@ -107,7 +118,7 @@ export default function SessionHistory({ user }: Props) {
                         <span>{new Date(session.created_at).toLocaleDateString()}</span>
                       </p>
                     </button>
-                    {openId === session.id && detailErrorId === session.id && (
+                    {openId === session.id && detailErrors[session.id] && (
                       <div className="space-y-2 border-t border-border pt-3 text-sm">
                         <p className="text-foreground">Failed to load the session.</p>
                         <Button onClick={() => fetchDetail(session.id)} className="w-full">
