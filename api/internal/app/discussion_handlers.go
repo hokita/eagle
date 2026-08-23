@@ -223,3 +223,40 @@ func (s *Server) discussionComplete(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, DiscussionCompleteResponse{SessionID: sessionID, RetryFeedback: feedback})
 }
+
+type DiscussionSessionsResponse struct {
+	Sessions []DiscussionSessionSummary `json:"sessions"`
+}
+
+// discussionSessions serves both the list (no path suffix) and the detail
+// (suffix = session id). One handler because ServeMux's trailing-slash
+// pattern would otherwise split them across two registrations anyway.
+func (s *Server) discussionSessions(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	uid, _ := uidFromContext(r.Context())
+	id := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/discussion/sessions"), "/")
+	if id == "" {
+		sessions, err := s.discussions.ListSessions(r.Context(), uid, maxDiscussionSessionList)
+		if err != nil {
+			log.Printf("list discussion sessions error: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, DiscussionSessionsResponse{Sessions: sessions})
+		return
+	}
+	session, err := s.discussions.GetSession(r.Context(), uid, id)
+	if errors.Is(err, ErrNotFound) {
+		http.Error(w, "Session not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		log.Printf("get discussion session error: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, session)
+}

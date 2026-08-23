@@ -324,3 +324,58 @@ func TestDiscussionCompleteCoachErrorDoesNotSave(t *testing.T) {
 		t.Fatal("session must not be saved when feedback generation fails")
 	}
 }
+
+func TestListDiscussionSessions(t *testing.T) {
+	dRepo := &fakeDiscussionRepo{summaries: []DiscussionSessionSummary{
+		{ID: "s2", QuestionEN: "Q2", Topic: "work", CreatedAt: "2026-08-23T10:01:00Z"},
+		{ID: "s1", QuestionEN: "Q1", Topic: "travel", CreatedAt: "2026-08-23T10:00:00Z"},
+	}}
+	srv := discussionServer(dRepo, &fakeCoach{})
+	rec := httptest.NewRecorder()
+	srv.discussionSessions(rec, authed(httptest.NewRequest(http.MethodGet, "/api/discussion/sessions", nil), "u1"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var got DiscussionSessionsResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(got.Sessions) != 2 || got.Sessions[0].ID != "s2" {
+		t.Fatalf("unexpected sessions: %+v", got)
+	}
+}
+
+func TestGetDiscussionSessionDetail(t *testing.T) {
+	session := &DiscussionSession{ID: "s1", QuestionEN: "Q1", FirstAnswer: "a", RetryAnswer: "b"}
+	srv := discussionServer(&fakeDiscussionRepo{session: session}, &fakeCoach{})
+	rec := httptest.NewRecorder()
+	srv.discussionSessions(rec, authed(httptest.NewRequest(http.MethodGet, "/api/discussion/sessions/s1", nil), "u1"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var got DiscussionSession
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.ID != "s1" || got.RetryAnswer != "b" {
+		t.Fatalf("unexpected session: %+v", got)
+	}
+}
+
+func TestGetDiscussionSessionNotFound(t *testing.T) {
+	srv := discussionServer(&fakeDiscussionRepo{sessionErr: ErrNotFound}, &fakeCoach{})
+	rec := httptest.NewRecorder()
+	srv.discussionSessions(rec, authed(httptest.NewRequest(http.MethodGet, "/api/discussion/sessions/nope", nil), "u1"))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rec.Code)
+	}
+}
+
+func TestDiscussionSessionsRejectsPost(t *testing.T) {
+	srv := discussionServer(&fakeDiscussionRepo{}, &fakeCoach{})
+	rec := httptest.NewRecorder()
+	srv.discussionSessions(rec, authed(httptest.NewRequest(http.MethodPost, "/api/discussion/sessions", nil), "u1"))
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d", rec.Code)
+	}
+}

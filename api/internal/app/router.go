@@ -20,6 +20,8 @@ func NewMux(srv *Server, verifier TokenVerifier, allowedEmails []string, fronten
 	mux.HandleFunc("/api/discussion/reply", auth(srv.discussionReply))
 	mux.HandleFunc("/api/discussion/analyze", auth(srv.discussionAnalyze))
 	mux.HandleFunc("/api/discussion/complete", auth(srv.discussionComplete))
+	mux.HandleFunc("/api/discussion/sessions", auth(srv.discussionSessions))
+	mux.HandleFunc("/api/discussion/sessions/", auth(srv.discussionSessions))
 	mux.HandleFunc("/api/liveness", livenessHandler)
 	return mux
 }
