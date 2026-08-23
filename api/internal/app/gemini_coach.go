@@ -110,9 +110,14 @@ func (g *GeminiCoach) AnalyzeGap(ctx context.Context, q *DiscussionQuestion, tra
 	}
 	// Keep only well-formed expressions, then enforce the 2-4 range as
 	// best we can: truncate extras, error when nothing usable remains.
+	// The response schema only constrains field types, so a record can
+	// legally arrive with a blank gloss or example — all three fields must
+	// be non-blank or the study cards and saved history show empty slots.
 	valid := analysis.Expressions[:0]
 	for _, e := range analysis.Expressions {
-		if strings.TrimSpace(e.Phrase) == "" {
+		if strings.TrimSpace(e.Phrase) == "" ||
+			strings.TrimSpace(e.MeaningJA) == "" ||
+			strings.TrimSpace(e.ExampleEN) == "" {
 			continue
 		}
 		valid = append(valid, e)

@@ -70,20 +70,31 @@ func buildGapAnalysisPrompt(q *DiscussionQuestion, transcript []DiscussionMessag
 }
 
 // buildRetryReviewPrompt produces encouraging usage feedback on the retry —
-// never a rewrite or correction list.
+// never a rewrite or correction list. A session where the learner skipped
+// the reflection has no taught expressions; the prompt must not claim any
+// were studied, or the model invents usage feedback about nothing.
 func buildRetryReviewPrompt(q *DiscussionQuestion, firstAnswer, retryAnswer string, expressions []Expression) string {
 	var b strings.Builder
-	b.WriteString("You are an English tutor. A learner answered a discussion question, studied a few new ")
-	b.WriteString("expressions, and then answered the same question again.\n\n")
+	b.WriteString("You are an English tutor. A learner answered a discussion question")
+	if len(expressions) > 0 {
+		b.WriteString(", studied a few new expressions,")
+	}
+	b.WriteString(" and then answered the same question again.\n\n")
 	fmt.Fprintf(&b, "Question: %s\n", q.QuestionEN)
 	fmt.Fprintf(&b, "First answer: %s\n", firstAnswer)
-	b.WriteString("Expressions taught:\n")
-	for _, e := range expressions {
-		fmt.Fprintf(&b, "- %s\n", e.Phrase)
+	if len(expressions) > 0 {
+		b.WriteString("Expressions taught:\n")
+		for _, e := range expressions {
+			fmt.Fprintf(&b, "- %s\n", e.Phrase)
+		}
 	}
 	fmt.Fprintf(&b, "New answer: %s\n\n", retryAnswer)
-	b.WriteString("Write 2-3 friendly sentences in English: say which of the taught expressions the learner ")
-	b.WriteString("actually used, and what improved compared with the first answer. ")
+	if len(expressions) > 0 {
+		b.WriteString("Write 2-3 friendly sentences in English: say which of the taught expressions the learner ")
+		b.WriteString("actually used, and what improved compared with the first answer. ")
+	} else {
+		b.WriteString("Write 2-3 friendly sentences in English about what improved compared with the first answer. ")
+	}
 	b.WriteString("Do not rewrite their answer, do not list grammar mistakes, do not suggest further corrections. ")
 	b.WriteString("Respond with plain text only.\n")
 	return b.String()

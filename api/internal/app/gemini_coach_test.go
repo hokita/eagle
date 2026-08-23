@@ -117,6 +117,22 @@ func TestGeminiCoachAnalyzeGapTruncatesIdeasToTwenty(t *testing.T) {
 	}
 }
 
+func TestGeminiCoachAnalyzeGapDiscardsIncompleteExpressions(t *testing.T) {
+	fake := &fakeContentGenerator{resp: textResp(`{"expressed_ideas":[],"missing_ideas":[],"expressions":[
+		{"phrase":"take responsibility for","meaning_ja":"","example_en":"Companies should take responsibility for pollution."},
+		{"phrase":"have a greater impact on","meaning_ja":"〜により大きな影響を与える","example_en":"  "},
+		{"phrase":"make systemic changes","meaning_ja":"制度的な変更を行う","example_en":"Governments can make systemic changes."}
+	]}`)}
+	g := &GeminiCoach{models: fake, model: "gemini-test"}
+	got, err := g.AnalyzeGap(context.Background(), promptQuestion, msgs("a"), "x")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got.Expressions) != 1 || got.Expressions[0].Phrase != "make systemic changes" {
+		t.Fatalf("expected only the complete expression to survive, got %+v", got.Expressions)
+	}
+}
+
 func TestGeminiCoachAnalyzeGapRejectsNoValidExpressions(t *testing.T) {
 	fake := &fakeContentGenerator{resp: textResp(`{"expressed_ideas":[],"missing_ideas":[],"expressions":[{"phrase":"  ","meaning_ja":"","example_en":""}]}`)}
 	g := &GeminiCoach{models: fake, model: "gemini-test"}

@@ -73,3 +73,20 @@ func TestBuildRetryReviewPromptIncludesAnswersAndExpressions(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildRetryReviewPromptWithoutExpressionsSkipsUsageFeedback(t *testing.T) {
+	got := buildRetryReviewPrompt(promptQuestion, "I think companies.",
+		"I still think companies, because they pollute more.", nil)
+	for _, forbidden := range []string{
+		"Expressions taught",
+		"taught expressions",
+		"studied a few new expressions",
+	} {
+		if strings.Contains(got, forbidden) {
+			t.Fatalf("prompt for a no-expressions session must not contain %q:\n%s", forbidden, got)
+		}
+	}
+	if !strings.Contains(got, "what improved compared with the first answer") {
+		t.Fatalf("prompt missing the before/after comparison request:\n%s", got)
+	}
+}
