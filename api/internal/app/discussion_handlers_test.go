@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -194,5 +195,132 @@ func TestDiscussionReplyCoachError(t *testing.T) {
 	}))
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500, got %d", rec.Code)
+	}
+}
+
+func TestDiscussionAnalyzeOK(t *testing.T) {
+	analysis := &GapAnalysis{
+		ExpressedIdeas: []string{"Companies are responsible."},
+		MissingIdeas:   []string{"Systemic change is needed."},
+		Expressions:    []Expression{{Phrase: "take responsibility for", MeaningJA: "〜に責任を持つ", ExampleEN: "x"}},
+	}
+	srv := discussionServer(&fakeDiscussionRepo{question: testQuestion}, &fakeCoach{analysis: analysis})
+	rec := httptest.NewRecorder()
+	srv.discussionAnalyze(rec, postJSON(t, "/api/discussion/analyze", DiscussionAnalyzeRequest{
+		QuestionID: 1, Transcript: msgs("I think companies."), ReflectionJA: "制度を変えるべき。",
+	}))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var got GapAnalysis
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(got.Expressions) != 1 || got.Expressions[0].Phrase != "take responsibility for" {
+		t.Fatalf("unexpected analysis: %+v", got)
+	}
+}
+
+func TestDiscussionAnalyzeRejectsBadReflection(t *testing.T) {
+	srv := discussionServer(&fakeDiscussionRepo{question: testQuestion}, &fakeCoach{})
+	for i, reflection := range []string{"", "   ", strings.Repeat("あ", maxReflectionLength+1)} {
+		rec := httptest.NewRecorder()
+		srv.discussionAnalyze(rec, postJSON(t, "/api/discussion/analyze", DiscussionAnalyzeRequest{
+			QuestionID: 1, Transcript: msgs("a"), ReflectionJA: reflection,
+		}))
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("case %d: expected 400, got %d", i, rec.Code)
+		}
+	}
+}
+
+func TestDiscussionCompleteOKSavesSession(t *testing.T) {
+	dRepo := &fakeDiscussionRepo{question: testQuestion, savedID: "sess-1"}
+	coach := &fakeCoach{feedback: "You used both expressions!"}
+	srv := discussionServer(dRepo, coach)
+	rec := httptest.NewRecorder()
+	srv.discussionComplete(rec, postJSON(t, "/api/discussion/complete", DiscussionCompleteRequest{
+		QuestionID:     1,
+		Transcript:     msgs("I think companies.", "Why?", "Because they pollute."),
+		ReflectionJA:   "制度を変えるべき。",
+		ExpressedIdeas: []string{"Companies are responsible."},
+		MissingIdeas:   []string{"Systemic change is needed."},
+		Expressions:    []Expression{{Phrase: "take responsibility for"}},
+		RetryAnswer:    "Companies should take responsibility for their impact.",
+	}))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var got DiscussionCompleteResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.SessionID != "sess-1" || got.RetryFeedback != "You used both expressions!" {
+		t.Fatalf("unexpected response: %+v", got)
+	}
+	if len(dRepo.saved) != 1 {
+		t.Fatalf("expected 1 saved session, got %d", len(dRepo.saved))
+	}
+	saved := dRepo.saved[0]
+	if saved.uid != "u1" {
+		t.Fatalf("expected uid u1, got %q", saved.uid)
+	}
+	s := saved.session
+	if s.QuestionID != 1 || s.QuestionEN != testQuestion.QuestionEN || s.Topic != "environment" ||
+		s.FirstAnswer != "I think companies." ||
+		s.RetryAnswer != "Companies should take responsibility for their impact." ||
+		s.RetryFeedback != "You used both expressions!" || len(s.Transcript) != 3 {
+		t.Fatalf("unexpected saved session: %+v", s)
+	}
+}
+
+func TestDiscussionCompleteAllowsEmptyReflectionAndAnalysis(t *testing.T) {
+	dRepo := &fakeDiscussionRepo{question: testQuestion, savedID: "sess-2"}
+	srv := discussionServer(dRepo, &fakeCoach{feedback: "Nice retry!"})
+	rec := httptest.NewRecorder()
+	srv.discussionComplete(rec, postJSON(t, "/api/discussion/complete", DiscussionCompleteRequest{
+		QuestionID:  1,
+		Transcript:  msgs("I think companies."),
+		RetryAnswer: "I still think companies, because they pollute more.",
+	}))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	s := dRepo.saved[0].session
+	if s.ReflectionJA != "" || len(s.Expressions) != 0 || len(s.ExpressedIdeas) != 0 {
+		t.Fatalf("expected empty reflection/analysis, got %+v", s)
+	}
+}
+
+func TestDiscussionCompleteRejectsBadInput(t *testing.T) {
+	srv := discussionServer(&fakeDiscussionRepo{question: testQuestion}, &fakeCoach{feedback: "x"})
+	cases := []DiscussionCompleteRequest{
+		{QuestionID: 1, Transcript: msgs("a"), RetryAnswer: ""},
+		{QuestionID: 1, Transcript: msgs("a"), RetryAnswer: strings.Repeat("a", maxDiscussionTurnLength+1)},
+		{QuestionID: 1, Transcript: msgs("a"), RetryAnswer: "ok", ReflectionJA: strings.Repeat("あ", maxReflectionLength+1)},
+		{QuestionID: 1, Transcript: msgs("a"), RetryAnswer: "ok", Expressions: []Expression{{Phrase: "a"}, {Phrase: "b"}, {Phrase: "c"}, {Phrase: "d"}, {Phrase: "e"}}},
+		{QuestionID: 1, Transcript: nil, RetryAnswer: "ok"},
+	}
+	for i, req := range cases {
+		rec := httptest.NewRecorder()
+		srv.discussionComplete(rec, postJSON(t, "/api/discussion/complete", req))
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("case %d: expected 400, got %d", i, rec.Code)
+		}
+	}
+}
+
+func TestDiscussionCompleteCoachErrorDoesNotSave(t *testing.T) {
+	dRepo := &fakeDiscussionRepo{question: testQuestion}
+	srv := discussionServer(dRepo, &fakeCoach{reviewErr: context.DeadlineExceeded})
+	rec := httptest.NewRecorder()
+	srv.discussionComplete(rec, postJSON(t, "/api/discussion/complete", DiscussionCompleteRequest{
+		QuestionID: 1, Transcript: msgs("a"), RetryAnswer: "ok",
+	}))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rec.Code)
+	}
+	if len(dRepo.saved) != 0 {
+		t.Fatal("session must not be saved when feedback generation fails")
 	}
 }

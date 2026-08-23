@@ -111,3 +111,115 @@ func discussionTrimmed(text string, limit int) bool {
 	t := strings.TrimSpace(text)
 	return t != "" && len(text) <= limit
 }
+
+type DiscussionAnalyzeRequest struct {
+	QuestionID   int                 `json:"question_id"`
+	Transcript   []DiscussionMessage `json:"transcript"`
+	ReflectionJA string              `json:"reflection_ja"`
+}
+
+type DiscussionCompleteRequest struct {
+	QuestionID     int                 `json:"question_id"`
+	Transcript     []DiscussionMessage `json:"transcript"`
+	ReflectionJA   string              `json:"reflection_ja"`
+	ExpressedIdeas []string            `json:"expressed_ideas"`
+	MissingIdeas   []string            `json:"missing_ideas"`
+	Expressions    []Expression        `json:"expressions"`
+	RetryAnswer    string              `json:"retry_answer"`
+}
+
+type DiscussionCompleteResponse struct {
+	SessionID     string `json:"session_id"`
+	RetryFeedback string `json:"retry_feedback"`
+}
+
+func (s *Server) discussionAnalyze(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req DiscussionAnalyzeRequest
+	if !decodeDiscussionBody(w, r, &req) {
+		return
+	}
+	if err := validateTranscript(req.Transcript); err != nil {
+		http.Error(w, "Invalid transcript", http.StatusBadRequest)
+		return
+	}
+	if !discussionTrimmed(req.ReflectionJA, maxReflectionLength) {
+		http.Error(w, "Invalid reflection_ja", http.StatusBadRequest)
+		return
+	}
+	q := s.loadDiscussionQuestion(w, r, req.QuestionID)
+	if q == nil {
+		return
+	}
+	analysis, err := s.coach.AnalyzeGap(r.Context(), q, req.Transcript, req.ReflectionJA)
+	if err != nil {
+		log.Printf("discussion analyze error: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, analysis)
+}
+
+func (s *Server) discussionComplete(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	uid, _ := uidFromContext(r.Context())
+	var req DiscussionCompleteRequest
+	if !decodeDiscussionBody(w, r, &req) {
+		return
+	}
+	if err := validateTranscript(req.Transcript); err != nil {
+		http.Error(w, "Invalid transcript", http.StatusBadRequest)
+		return
+	}
+	if !discussionTrimmed(req.RetryAnswer, maxDiscussionTurnLength) {
+		http.Error(w, "Invalid retry_answer", http.StatusBadRequest)
+		return
+	}
+	// ReflectionJA is "" when the reflection was skipped; when present it
+	// obeys the same bound as the analyze endpoint.
+	if len(req.ReflectionJA) > maxReflectionLength {
+		http.Error(w, "Invalid reflection_ja", http.StatusBadRequest)
+		return
+	}
+	if len(req.Expressions) > 4 || len(req.ExpressedIdeas) > 20 || len(req.MissingIdeas) > 20 {
+		http.Error(w, "Invalid analysis payload", http.StatusBadRequest)
+		return
+	}
+	q := s.loadDiscussionQuestion(w, r, req.QuestionID)
+	if q == nil {
+		return
+	}
+	firstAnswer := req.Transcript[0].Text
+	feedback, err := s.coach.ReviewRetry(r.Context(), q, firstAnswer, req.RetryAnswer, req.Expressions)
+	if err != nil {
+		log.Printf("discussion retry review error: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	session := &DiscussionSession{
+		QuestionID:     q.ID,
+		QuestionEN:     q.QuestionEN,
+		Topic:          q.Topic,
+		Transcript:     req.Transcript,
+		ReflectionJA:   req.ReflectionJA,
+		ExpressedIdeas: req.ExpressedIdeas,
+		MissingIdeas:   req.MissingIdeas,
+		Expressions:    req.Expressions,
+		FirstAnswer:    firstAnswer,
+		RetryAnswer:    req.RetryAnswer,
+		RetryFeedback:  feedback,
+	}
+	sessionID, err := s.discussions.SaveSession(r.Context(), uid, session)
+	if err != nil {
+		log.Printf("save discussion session error: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, DiscussionCompleteResponse{SessionID: sessionID, RetryFeedback: feedback})
+}
