@@ -25,19 +25,26 @@ type fakeDiscussionRepo struct {
 	listErr     error
 	session     *DiscussionSession
 	sessionErr  error
+
+	gotQuestionIDs []int
+	gotListUID     string
+	gotListLimit   int
 }
 
 func (f *fakeDiscussionRepo) RandomQuestion(_ context.Context) (*DiscussionQuestion, error) {
 	return f.question, f.questionErr
 }
-func (f *fakeDiscussionRepo) GetQuestion(_ context.Context, _ int) (*DiscussionQuestion, error) {
+func (f *fakeDiscussionRepo) GetQuestion(_ context.Context, id int) (*DiscussionQuestion, error) {
+	f.gotQuestionIDs = append(f.gotQuestionIDs, id)
 	return f.question, f.questionErr
 }
 func (f *fakeDiscussionRepo) SaveSession(_ context.Context, uid string, s *DiscussionSession) (string, error) {
 	f.saved = append(f.saved, savedSessionCall{uid, s})
 	return f.savedID, f.saveErr
 }
-func (f *fakeDiscussionRepo) ListSessions(_ context.Context, _ string, _ int) ([]DiscussionSessionSummary, error) {
+func (f *fakeDiscussionRepo) ListSessions(_ context.Context, uid string, limit int) ([]DiscussionSessionSummary, error) {
+	f.gotListUID = uid
+	f.gotListLimit = limit
 	if f.summaries == nil {
 		return []DiscussionSessionSummary{}, f.listErr
 	}
@@ -56,17 +63,36 @@ type fakeCoach struct {
 	feedback    string
 	reviewErr   error
 	reviewCalls int
+
+	gotReplyTranscript []DiscussionMessage
+
+	gotAnalyzeQuestion   *DiscussionQuestion
+	gotAnalyzeTranscript []DiscussionMessage
+	gotAnalyzeReflection string
+
+	gotReviewQuestion    *DiscussionQuestion
+	gotReviewFirstAnswer string
+	gotReviewRetryAnswer string
+	gotReviewExpressions []Expression
 }
 
-func (f *fakeCoach) Reply(_ context.Context, _ *DiscussionQuestion, _ []DiscussionMessage) (*CoachReply, error) {
+func (f *fakeCoach) Reply(_ context.Context, _ *DiscussionQuestion, transcript []DiscussionMessage) (*CoachReply, error) {
 	f.replyCalls++
+	f.gotReplyTranscript = transcript
 	return f.reply, f.replyErr
 }
-func (f *fakeCoach) AnalyzeGap(_ context.Context, _ *DiscussionQuestion, _ []DiscussionMessage, _ string) (*GapAnalysis, error) {
+func (f *fakeCoach) AnalyzeGap(_ context.Context, q *DiscussionQuestion, transcript []DiscussionMessage, reflectionJA string) (*GapAnalysis, error) {
+	f.gotAnalyzeQuestion = q
+	f.gotAnalyzeTranscript = transcript
+	f.gotAnalyzeReflection = reflectionJA
 	return f.analysis, f.analyzeErr
 }
-func (f *fakeCoach) ReviewRetry(_ context.Context, _ *DiscussionQuestion, _, _ string, _ []Expression) (string, error) {
+func (f *fakeCoach) ReviewRetry(_ context.Context, q *DiscussionQuestion, firstAnswer, retryAnswer string, expressions []Expression) (string, error) {
 	f.reviewCalls++
+	f.gotReviewQuestion = q
+	f.gotReviewFirstAnswer = firstAnswer
+	f.gotReviewRetryAnswer = retryAnswer
+	f.gotReviewExpressions = expressions
 	return f.feedback, f.reviewErr
 }
 
@@ -115,7 +141,8 @@ func TestGetDiscussionQuestionEmptyBank(t *testing.T) {
 
 func TestDiscussionReplyOK(t *testing.T) {
 	coach := &fakeCoach{reply: &CoachReply{Done: false, Message: "Why do you think so?"}}
-	srv := discussionServer(&fakeDiscussionRepo{question: testQuestion}, coach)
+	dRepo := &fakeDiscussionRepo{question: testQuestion}
+	srv := discussionServer(dRepo, coach)
 	rec := httptest.NewRecorder()
 	srv.discussionReply(rec, postJSON(t, "/api/discussion/reply", DiscussionReplyRequest{
 		QuestionID: 1, Transcript: msgs("I think companies."),
@@ -132,6 +159,12 @@ func TestDiscussionReplyOK(t *testing.T) {
 	}
 	if coach.replyCalls != 1 {
 		t.Fatalf("expected 1 coach call, got %d", coach.replyCalls)
+	}
+	if len(dRepo.gotQuestionIDs) != 1 || dRepo.gotQuestionIDs[0] != 1 {
+		t.Fatalf("expected GetQuestion called with id 1, got %v", dRepo.gotQuestionIDs)
+	}
+	if len(coach.gotReplyTranscript) != 1 || coach.gotReplyTranscript[0].Text != "I think companies." {
+		t.Fatalf("expected coach to receive the 1-message transcript, got %+v", coach.gotReplyTranscript)
 	}
 }
 
@@ -204,7 +237,8 @@ func TestDiscussionAnalyzeOK(t *testing.T) {
 		MissingIdeas:   []string{"Systemic change is needed."},
 		Expressions:    []Expression{{Phrase: "take responsibility for", MeaningJA: "〜に責任を持つ", ExampleEN: "x"}},
 	}
-	srv := discussionServer(&fakeDiscussionRepo{question: testQuestion}, &fakeCoach{analysis: analysis})
+	coach := &fakeCoach{analysis: analysis}
+	srv := discussionServer(&fakeDiscussionRepo{question: testQuestion}, coach)
 	rec := httptest.NewRecorder()
 	srv.discussionAnalyze(rec, postJSON(t, "/api/discussion/analyze", DiscussionAnalyzeRequest{
 		QuestionID: 1, Transcript: msgs("I think companies."), ReflectionJA: "制度を変えるべき。",
@@ -218,6 +252,15 @@ func TestDiscussionAnalyzeOK(t *testing.T) {
 	}
 	if len(got.Expressions) != 1 || got.Expressions[0].Phrase != "take responsibility for" {
 		t.Fatalf("unexpected analysis: %+v", got)
+	}
+	if coach.gotAnalyzeQuestion != testQuestion {
+		t.Fatalf("expected coach to receive the loaded question, got %+v", coach.gotAnalyzeQuestion)
+	}
+	if coach.gotAnalyzeReflection != "制度を変えるべき。" {
+		t.Fatalf("expected reflection to be passed through, got %q", coach.gotAnalyzeReflection)
+	}
+	if len(coach.gotAnalyzeTranscript) != 1 || coach.gotAnalyzeTranscript[0].Text != "I think companies." {
+		t.Fatalf("expected coach to receive the transcript, got %+v", coach.gotAnalyzeTranscript)
 	}
 }
 
@@ -271,6 +314,18 @@ func TestDiscussionCompleteOKSavesSession(t *testing.T) {
 		s.RetryAnswer != "Companies should take responsibility for their impact." ||
 		s.RetryFeedback != "You used both expressions!" || len(s.Transcript) != 3 {
 		t.Fatalf("unexpected saved session: %+v", s)
+	}
+	if coach.gotReviewQuestion != testQuestion {
+		t.Fatalf("expected coach to receive the loaded question, got %+v", coach.gotReviewQuestion)
+	}
+	if coach.gotReviewFirstAnswer != "I think companies." {
+		t.Fatalf("expected ReviewRetry to get firstAnswer %q, got %q", "I think companies.", coach.gotReviewFirstAnswer)
+	}
+	if coach.gotReviewRetryAnswer != "Companies should take responsibility for their impact." {
+		t.Fatalf("expected ReviewRetry to get the submitted retry answer, got %q", coach.gotReviewRetryAnswer)
+	}
+	if len(coach.gotReviewExpressions) != 1 || coach.gotReviewExpressions[0].Phrase != "take responsibility for" {
+		t.Fatalf("expected ReviewRetry to get the request's expressions, got %+v", coach.gotReviewExpressions)
 	}
 }
 
@@ -342,6 +397,12 @@ func TestListDiscussionSessions(t *testing.T) {
 	}
 	if len(got.Sessions) != 2 || got.Sessions[0].ID != "s2" {
 		t.Fatalf("unexpected sessions: %+v", got)
+	}
+	if dRepo.gotListUID != "u1" {
+		t.Fatalf("expected ListSessions called with uid u1, got %q", dRepo.gotListUID)
+	}
+	if dRepo.gotListLimit != maxDiscussionSessionList {
+		t.Fatalf("expected ListSessions called with limit %d, got %d", maxDiscussionSessionList, dRepo.gotListLimit)
 	}
 }
 
