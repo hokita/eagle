@@ -72,7 +72,7 @@
 {"id": 72, "topic": "entertainment", "level": 3, "question_en": "Have streaming services changed the way you watch movies and shows?", "target_skills": ["describing changes", "comparing past and present"], "is_active": 1}
 {"id": 73, "topic": "entertainment", "level": 3, "question_en": "Are video games a waste of time?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
 {"id": 74, "topic": "entertainment", "level": 4, "question_en": "Should governments give money to artists and musicians?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
-{"id": 75, "topic": "science", "level": 3, "question_en": "Does science and technology always make life better?", "target_skills": ["giving opinions", "giving examples"], "is_active": 1}
+{"id": 75, "topic": "science", "level": 3, "question_en": "Do science and technology always make life better?", "target_skills": ["giving opinions", "giving examples"], "is_active": 1}
 {"id": 76, "topic": "science", "level": 4, "question_en": "Should scientists be allowed to change human genes to prevent disease?", "target_skills": ["giving opinions", "discussing trade-offs"], "is_active": 1}
 {"id": 77, "topic": "science", "level": 3, "question_en": "Is space exploration worth the money it costs?", "target_skills": ["discussing trade-offs", "giving reasons"], "is_active": 1}
 {"id": 78, "topic": "science", "level": 4, "question_en": "Do people trust scientists less than they used to? Why?", "target_skills": ["describing changes", "giving reasons"], "is_active": 1}
