@@ -31,7 +31,7 @@ test('completes a discussion session end to end', async ({ page }) => {
   // Study phase shows the stub analysis, corrections included.
   await expect(page.getByText('Systemic change is more effective than individual action.')).toBeVisible()
   await expect(page.getByText('take responsibility for').first()).toBeVisible()
-  await expect(page.getByText('I agree with companies.')).toBeVisible()
+  await expect(page.getByText('I think companies are responsible.')).toBeVisible()
   await page.getByRole('button', { name: 'Try the question again' }).click()
 
   // Retry and comparison.

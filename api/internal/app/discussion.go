@@ -164,6 +164,34 @@ func validateTranscript(transcript []DiscussionMessage) error {
 	return nil
 }
 
+// normalizeForGrounding makes two renderings of the same sentence
+// comparable: the model is asked to quote the learner verbatim, but a
+// difference in capitalization or spacing is not evidence that it invented
+// the sentence.
+func normalizeForGrounding(text string) string {
+	return strings.ToLower(strings.Join(strings.Fields(text), " "))
+}
+
+// learnerWrote reports whether sentence appears in one of the learner's own
+// turns. Corrections are shown back as "what you wrote", so a sentence the
+// model hallucinated — or lifted from its own follow-up question — must
+// never reach the study screen or the saved session.
+func learnerWrote(transcript []DiscussionMessage, sentence string) bool {
+	needle := normalizeForGrounding(sentence)
+	if needle == "" {
+		return false
+	}
+	for _, m := range transcript {
+		if m.Role != "user" {
+			continue
+		}
+		if strings.Contains(normalizeForGrounding(m.Text), needle) {
+			return true
+		}
+	}
+	return false
+}
+
 func countAITurns(transcript []DiscussionMessage) int {
 	n := 0
 	for _, m := range transcript {

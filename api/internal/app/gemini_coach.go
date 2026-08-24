@@ -143,14 +143,19 @@ func (g *GeminiCoach) AnalyzeGap(ctx context.Context, q *DiscussionQuestion, tra
 	if analysis.MissingIdeas == nil {
 		analysis.MissingIdeas = []string{}
 	}
-	// Corrections get the same blank-field filtering as expressions, but an
-	// empty result is success rather than an error: a conversation with no
-	// mistakes has nothing to correct.
+	// Corrections get the same blank-field filtering as expressions, plus a
+	// grounding check the response schema cannot express: "original" is
+	// presented to the learner as their own sentence, so it has to actually
+	// be one. An empty result is success rather than an error — a
+	// conversation with no mistakes has nothing to correct.
 	validCorrections := make([]Correction, 0, len(analysis.Corrections))
 	for _, c := range analysis.Corrections {
 		if strings.TrimSpace(c.Original) == "" ||
 			strings.TrimSpace(c.Better) == "" ||
 			strings.TrimSpace(c.NoteJA) == "" {
+			continue
+		}
+		if !learnerWrote(transcript, c.Original) {
 			continue
 		}
 		validCorrections = append(validCorrections, c)

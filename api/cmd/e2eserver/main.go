@@ -58,7 +58,9 @@ func (stubCoach) AnalyzeGap(_ context.Context, _ *app.DiscussionQuestion, _ []ap
 			{Phrase: "make systemic changes", MeaningJA: "制度的な変更を行う", ExampleEN: "Governments can make systemic changes."},
 		},
 		Corrections: []app.Correction{
-			{Original: "I am agree with companies.", Better: "I agree with companies.", NoteJA: "agree は動詞なので be 動詞は不要です。"},
+			// Quotes the answer discussion.spec.ts actually types: the real
+			// coach drops corrections that are not grounded in a learner turn.
+			{Original: "I think companies.", Better: "I think companies are responsible.", NoteJA: "文が途中で終わっています。"},
 		},
 	}, nil
 }
