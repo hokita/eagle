@@ -48,6 +48,23 @@ describe('GapAndExpressions', () => {
     expect(screen.queryByText('Your English, made natural')).not.toBeInTheDocument()
   })
 
+  // A learner with nothing left to say gets an analysis with nothing to
+  // teach. The reflection can no longer be skipped, so this screen must
+  // still lead somewhere.
+  it('still offers the retry when there was nothing to teach', () => {
+    const empty = {
+      expressed_ideas: [],
+      missing_ideas: [],
+      expressions: [],
+      corrections: [],
+    }
+    render(<GapAndExpressions analysis={empty} onContinue={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Try the question again' })).toBeInTheDocument()
+    expect(screen.queryByText('Expressions to close the gap')).not.toBeInTheDocument()
+    expect(screen.queryByText('Ideas that stayed in Japanese')).not.toBeInTheDocument()
+    expect(screen.queryByText('What you expressed in English')).not.toBeInTheDocument()
+  })
+
   it('continues to the retry', () => {
     const onContinue = vi.fn()
     render(<GapAndExpressions analysis={analysis} onContinue={onContinue} />)

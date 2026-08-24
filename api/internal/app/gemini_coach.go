@@ -116,11 +116,13 @@ func (g *GeminiCoach) AnalyzeGap(ctx context.Context, q *DiscussionQuestion, tra
 	if err := json.Unmarshal([]byte(text), &analysis); err != nil {
 		return nil, fmt.Errorf("parse gap analysis: %w", err)
 	}
-	// Keep only well-formed expressions, then enforce the 2-4 range as
-	// best we can: truncate extras, error when nothing usable remains.
-	// The response schema only constrains field types, so a record can
-	// legally arrive with a blank gloss or example — all three fields must
-	// be non-blank or the study cards and saved history show empty slots.
+	// Keep only well-formed expressions and truncate extras. The response
+	// schema only constrains field types, so a record can legally arrive
+	// with a blank gloss or example — all three fields must be non-blank or
+	// the study cards and saved history show empty slots. Ending up with
+	// none is a valid outcome: a learner who could already express
+	// everything has nothing to be taught, and failing here would strand
+	// them on the reflection step, which can no longer be skipped.
 	valid := analysis.Expressions[:0]
 	for _, e := range analysis.Expressions {
 		if strings.TrimSpace(e.Phrase) == "" ||
@@ -130,11 +132,11 @@ func (g *GeminiCoach) AnalyzeGap(ctx context.Context, q *DiscussionQuestion, tra
 		}
 		valid = append(valid, e)
 	}
-	if len(valid) == 0 {
-		return nil, fmt.Errorf("gap analysis produced no usable expressions")
-	}
 	if len(valid) > maxSessionExpressions {
 		valid = valid[:maxSessionExpressions]
+	}
+	if valid == nil {
+		valid = []Expression{}
 	}
 	analysis.Expressions = valid
 	if analysis.ExpressedIdeas == nil {

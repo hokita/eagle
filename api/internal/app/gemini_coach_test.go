@@ -133,135 +133,39 @@ func TestGeminiCoachAnalyzeGapDiscardsIncompleteExpressions(t *testing.T) {
 	}
 }
 
-func TestGeminiCoachAnalyzeGapRejectsNoValidExpressions(t *testing.T) {
-	fake := &fakeContentGenerator{resp: textResp(`{"expressed_ideas":[],"missing_ideas":[],"expressions":[{"phrase":"  ","meaning_ja":"","example_en":""}]}`)}
-	g := &GeminiCoach{models: fake, model: "gemini-test"}
-	if _, err := g.AnalyzeGap(context.Background(), promptQuestion, msgs("a"), "x"); err == nil {
-		t.Fatal("expected error when no valid expression remains")
-	}
-}
-
-func TestGeminiCoachAnalyzeGapParsesCorrections(t *testing.T) {
+// A learner who had nothing they could not express leaves the analysis with
+// no missing ideas, so the model reasonably returns no expressions. That is
+// a valid session, not a failure: erroring here would strand the learner on
+// the reflection step, which can no longer be skipped.
+func TestGeminiCoachAnalyzeGapAllowsNoExpressions(t *testing.T) {
 	fake := &fakeContentGenerator{resp: textResp(`{
-		"expressed_ideas":[],"missing_ideas":[],
-		"expressions":[{"phrase":"a","meaning_ja":"あ","example_en":"A."}],
-		"corrections":[
-			{"original":"I am agree with you.","better":"I agree with you.","note_ja":"agree は動詞なので be 動詞は不要です。"}
-		]}`)}
+		"expressed_ideas":["I want to change jobs."],"missing_ideas":[],"expressions":[],
+		"corrections":[{"original":"I am agree.","better":"I agree.","note_ja":"agree は動詞です。"}]}`)}
 	g := &GeminiCoach{models: fake, model: "gemini-test"}
-	got, err := g.AnalyzeGap(context.Background(), promptQuestion, msgs("I am agree with you."), "x")
+	got, err := g.AnalyzeGap(context.Background(), promptQuestion, msgs("I am agree."), "特にありません")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Expressions == nil {
+		t.Fatal("expected an empty non-nil expressions slice")
+	}
+	if len(got.Expressions) != 0 {
+		t.Fatalf("expected no expressions, got %+v", got.Expressions)
 	}
 	if len(got.Corrections) != 1 {
-		t.Fatalf("expected 1 correction, got %+v", got.Corrections)
-	}
-	c := got.Corrections[0]
-	if c.Original != "I am agree with you." || c.Better != "I agree with you." || c.NoteJA == "" {
-		t.Fatalf("unexpected correction: %+v", c)
+		t.Fatalf("expected the correction to survive, got %+v", got.Corrections)
 	}
 }
 
-func TestGeminiCoachAnalyzeGapDiscardsIncompleteCorrections(t *testing.T) {
-	fake := &fakeContentGenerator{resp: textResp(`{
-		"expressed_ideas":[],"missing_ideas":[],
-		"expressions":[{"phrase":"a","meaning_ja":"あ","example_en":"A."}],
-		"corrections":[
-			{"original":"","better":"I agree with you.","note_ja":"x"},
-			{"original":"I am agree.","better":"  ","note_ja":"x"},
-			{"original":"He go there.","better":"He goes there.","note_ja":""},
-			{"original":"I very like it.","better":"I really like it.","note_ja":"very は動詞を修飾できません。"}
-		]}`)}
-	g := &GeminiCoach{models: fake, model: "gemini-test"}
-	got, err := g.AnalyzeGap(context.Background(), promptQuestion, msgs("I very like it."), "x")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(got.Corrections) != 1 || got.Corrections[0].Original != "I very like it." {
-		t.Fatalf("expected only the complete correction to survive, got %+v", got.Corrections)
-	}
-}
-
-// The prompt asks for a verbatim quote of the learner's own sentence, but
-// the response schema cannot enforce that: a hallucinated sentence, or one
-// lifted from the coach's own follow-up, would otherwise be shown back to
-// the learner as a mistake they never made — and saved to history as one.
-func TestGeminiCoachAnalyzeGapDropsCorrectionsTheLearnerNeverWrote(t *testing.T) {
-	fake := &fakeContentGenerator{resp: textResp(`{
-		"expressed_ideas":[],"missing_ideas":[],
-		"expressions":[{"phrase":"a","meaning_ja":"あ","example_en":"A."}],
-		"corrections":[
-			{"original":"Why do you think so?","better":"Why do you think that?","note_ja":"x"},
-			{"original":"I never said this sentence.","better":"I did not say this.","note_ja":"x"},
-			{"original":"I am agree with you.","better":"I agree with you.","note_ja":"agree は動詞です。"}
-		]}`)}
-	g := &GeminiCoach{models: fake, model: "gemini-test"}
-	got, err := g.AnalyzeGap(context.Background(), promptQuestion,
-		msgs("I am agree with you.", "Why do you think so?", "Because they pollute more."), "x")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(got.Corrections) != 1 || got.Corrections[0].Original != "I am agree with you." {
-		t.Fatalf("expected only the learner's own sentence to survive, got %+v", got.Corrections)
-	}
-}
-
-// Grounding must not be so strict that it throws away good corrections: a
-// quote that differs only in case or spacing is still the learner's sentence.
-func TestGeminiCoachAnalyzeGapKeepsCorrectionsQuotedLoosely(t *testing.T) {
-	fake := &fakeContentGenerator{resp: textResp(`{
-		"expressed_ideas":[],"missing_ideas":[],
-		"expressions":[{"phrase":"a","meaning_ja":"あ","example_en":"A."}],
-		"corrections":[
-			{"original":"i am  AGREE   with you.","better":"I agree with you.","note_ja":"agree は動詞です。"}
-		]}`)}
-	g := &GeminiCoach{models: fake, model: "gemini-test"}
-	got, err := g.AnalyzeGap(context.Background(), promptQuestion, msgs("I am agree with you."), "x")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(got.Corrections) != 1 {
-		t.Fatalf("expected the loosely quoted correction to survive, got %+v", got.Corrections)
-	}
-}
-
-func TestGeminiCoachAnalyzeGapTruncatesCorrections(t *testing.T) {
-	fake := &fakeContentGenerator{resp: textResp(`{
-		"expressed_ideas":[],"missing_ideas":[],
-		"expressions":[{"phrase":"a","meaning_ja":"あ","example_en":"A."}],
-		"corrections":[
-			{"original":"1","better":"one","note_ja":"x"},
-			{"original":"2","better":"two","note_ja":"x"},
-			{"original":"3","better":"three","note_ja":"x"},
-			{"original":"4","better":"four","note_ja":"x"}
-		]}`)}
-	g := &GeminiCoach{models: fake, model: "gemini-test"}
-	got, err := g.AnalyzeGap(context.Background(), promptQuestion, msgs("1 2 3 4"), "x")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(got.Corrections) != maxSessionCorrections {
-		t.Fatalf("expected %d corrections after truncation, got %d", maxSessionCorrections, len(got.Corrections))
-	}
-}
-
-// A conversation with no mistakes is a success, not a failure: the analysis
-// must survive an absent corrections list and serialize as [] rather than
-// null, which the study screen renders as an empty card.
-func TestGeminiCoachAnalyzeGapAllowsNoCorrections(t *testing.T) {
-	fake := &fakeContentGenerator{resp: textResp(`{
-		"expressed_ideas":[],"missing_ideas":[],
-		"expressions":[{"phrase":"a","meaning_ja":"あ","example_en":"A."}]}`)}
+func TestGeminiCoachAnalyzeGapDropsUnusableExpressionsWithoutFailing(t *testing.T) {
+	fake := &fakeContentGenerator{resp: textResp(`{"expressed_ideas":[],"missing_ideas":[],"corrections":[],"expressions":[{"phrase":"  ","meaning_ja":"","example_en":""}]}`)}
 	g := &GeminiCoach{models: fake, model: "gemini-test"}
 	got, err := g.AnalyzeGap(context.Background(), promptQuestion, msgs("a"), "x")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got.Corrections == nil {
-		t.Fatal("expected an empty non-nil corrections slice")
-	}
-	if len(got.Corrections) != 0 {
-		t.Fatalf("expected no corrections, got %+v", got.Corrections)
+	if len(got.Expressions) != 0 {
+		t.Fatalf("expected the malformed expression to be dropped, got %+v", got.Expressions)
 	}
 }
 

@@ -66,7 +66,7 @@ func TestBuildGapAnalysisPromptIncludesReflectionAndRules(t *testing.T) {
 		"Learner: I think companies.",
 		"制度を変える必要がある。",
 		"ideas and intentions, not literal wording",
-		"2 to 4",
+		"at most 4",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("prompt missing %q:\n%s", want, got)
@@ -85,6 +85,16 @@ func TestBuildGapAnalysisPromptAsksForEverydayExpressions(t *testing.T) {
 		if strings.Contains(got, forbidden) {
 			t.Fatalf("prompt must not pitch above the learner's level (%q):\n%s", forbidden, got)
 		}
+	}
+}
+
+// The reflection cannot be skipped, so a learner with nothing to add still
+// reaches the analysis. The prompt must allow that answer to produce nothing
+// to teach rather than pushing the model to invent expressions.
+func TestBuildGapAnalysisPromptAllowsNoExpressions(t *testing.T) {
+	got := buildGapAnalysisPrompt(promptQuestion, msgs("I think companies."), "特にありません。")
+	if !strings.Contains(got, "empty list when the learner expressed everything") {
+		t.Fatalf("prompt missing the no-expressions allowance:\n%s", got)
 	}
 }
 
