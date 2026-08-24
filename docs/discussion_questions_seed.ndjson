@@ -1,100 +1,100 @@
-{"id": 1, "topic": "daily life", "level": 2, "question_en": "Do you prefer eating at home or eating out? Why?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
-{"id": 2, "topic": "daily life", "level": 3, "question_en": "How has your daily routine changed in the last few years, and is it better now?", "target_skills": ["describing changes", "comparing past and present"], "is_active": 1}
-{"id": 3, "topic": "daily life", "level": 3, "question_en": "Is it better to live in a big city or in the countryside?", "target_skills": ["comparing options", "discussing advantages and disadvantages"], "is_active": 1}
-{"id": 4, "topic": "work", "level": 2, "question_en": "What is more important in a job: money or free time? Why?", "target_skills": ["giving opinions", "comparing options"], "is_active": 1}
-{"id": 5, "topic": "work", "level": 3, "question_en": "Should people be allowed to work from home whenever they want?", "target_skills": ["giving opinions", "discussing advantages and disadvantages"], "is_active": 1}
-{"id": 6, "topic": "work", "level": 4, "question_en": "Is it a company's job to make employees happy, or is that each person's own responsibility?", "target_skills": ["giving opinions", "giving reasons", "comparing options"], "is_active": 1}
-{"id": 7, "topic": "technology", "level": 2, "question_en": "Could you live without your smartphone for one week? Why or why not?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
-{"id": 8, "topic": "technology", "level": 3, "question_en": "Do social media bring people closer together or push them further apart?", "target_skills": ["giving opinions", "discussing advantages and disadvantages"], "is_active": 1}
-{"id": 9, "topic": "technology", "level": 4, "question_en": "Should children's screen time be limited by parents, by schools, or by nobody?", "target_skills": ["comparing options", "giving reasons"], "is_active": 1}
-{"id": 10, "topic": "AI", "level": 3, "question_en": "Would you trust an AI to make an important decision for you, like choosing a job?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
-{"id": 11, "topic": "AI", "level": 3, "question_en": "Which jobs do you think AI should never replace?", "target_skills": ["giving opinions", "giving examples"], "is_active": 1}
-{"id": 12, "topic": "AI", "level": 4, "question_en": "Who should be responsible when an AI system makes a serious mistake: the developer, the user, or the company?", "target_skills": ["comparing options", "giving reasons"], "is_active": 1}
-{"id": 13, "topic": "education", "level": 2, "question_en": "What school subject do you think is the most useful in real life?", "target_skills": ["giving opinions", "giving examples"], "is_active": 1}
-{"id": 14, "topic": "education", "level": 3, "question_en": "Who should take more responsibility for children's education: parents or schools?", "target_skills": ["comparing options", "giving reasons"], "is_active": 1}
-{"id": 15, "topic": "education", "level": 4, "question_en": "Should university education be free for everyone?", "target_skills": ["giving opinions", "discussing advantages and disadvantages"], "is_active": 1}
-{"id": 16, "topic": "environment", "level": 3, "question_en": "Who should take more responsibility for environmental problems: individuals, companies, or governments?", "target_skills": ["giving opinions", "giving reasons", "comparing options"], "is_active": 1}
-{"id": 17, "topic": "environment", "level": 2, "question_en": "What is one thing you do, or could do, to help the environment?", "target_skills": ["giving examples", "describing habits"], "is_active": 1}
-{"id": 18, "topic": "environment", "level": 4, "question_en": "Would you accept a higher cost of living if it helped stop climate change?", "target_skills": ["giving opinions", "discussing trade-offs"], "is_active": 1}
-{"id": 19, "topic": "society", "level": 3, "question_en": "Should people be required to retire at a certain age?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
-{"id": 20, "topic": "society", "level": 4, "question_en": "Is it fair that some jobs pay so much more than others?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
-{"id": 21, "topic": "society", "level": 3, "question_en": "Do you think cash will disappear in the future? Would that be good or bad?", "target_skills": ["making predictions", "discussing advantages and disadvantages"], "is_active": 1}
-{"id": 22, "topic": "travel", "level": 2, "question_en": "Do you prefer traveling alone or with other people? Why?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
-{"id": 23, "topic": "travel", "level": 3, "question_en": "Is it better to visit many places quickly or stay in one place for a long time?", "target_skills": ["comparing options", "giving reasons"], "is_active": 1}
-{"id": 24, "topic": "travel", "level": 3, "question_en": "Does tourism help or hurt the places people visit?", "target_skills": ["discussing advantages and disadvantages", "giving examples"], "is_active": 1}
-{"id": 25, "topic": "culture", "level": 3, "question_en": "What is one part of your culture you would like people from other countries to understand?", "target_skills": ["explaining", "giving examples"], "is_active": 1}
-{"id": 26, "topic": "culture", "level": 3, "question_en": "Is it important to keep old traditions, even when they are inconvenient?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
-{"id": 27, "topic": "culture", "level": 4, "question_en": "When companies from other countries use parts of your culture in their products, is that a problem?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
-{"id": 28, "topic": "career", "level": 2, "question_en": "Would you rather have a boring job with high pay or an interesting job with low pay?", "target_skills": ["comparing options", "giving reasons"], "is_active": 1}
-{"id": 29, "topic": "career", "level": 3, "question_en": "Is changing jobs often good or bad for a career?", "target_skills": ["giving opinions", "discussing advantages and disadvantages"], "is_active": 1}
-{"id": 30, "topic": "business", "level": 4, "question_en": "Should small local shops be protected from big chain stores?", "target_skills": ["giving opinions", "giving reasons", "discussing trade-offs"], "is_active": 1}
-{"id": 31, "topic": "health", "level": 2, "question_en": "Do you think you have a healthy lifestyle? Why or why not?", "target_skills": ["describing habits", "giving reasons"], "is_active": 1}
-{"id": 32, "topic": "health", "level": 3, "question_en": "Is it better to exercise alone or with other people?", "target_skills": ["comparing options", "giving reasons"], "is_active": 1}
-{"id": 33, "topic": "health", "level": 3, "question_en": "Should unhealthy food be more expensive than healthy food?", "target_skills": ["giving opinions", "discussing advantages and disadvantages"], "is_active": 1}
-{"id": 34, "topic": "health", "level": 4, "question_en": "Should employers be allowed to ask about an employee's mental health?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
-{"id": 35, "topic": "health", "level": 2, "question_en": "How much sleep do you usually get, and how do you feel when it isn't enough?", "target_skills": ["describing habits", "explaining"], "is_active": 1}
-{"id": 36, "topic": "health", "level": 4, "question_en": "Should healthcare be free for everyone, even if taxes go up?", "target_skills": ["giving opinions", "discussing trade-offs"], "is_active": 1}
-{"id": 37, "topic": "food", "level": 2, "question_en": "What food from your country would you recommend to a visitor, and why?", "target_skills": ["giving examples", "giving reasons"], "is_active": 1}
-{"id": 38, "topic": "food", "level": 3, "question_en": "Do you think people should eat less meat?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
-{"id": 39, "topic": "food", "level": 3, "question_en": "Has fast food changed the way people eat in your country?", "target_skills": ["describing changes", "giving examples"], "is_active": 1}
-{"id": 40, "topic": "food", "level": 4, "question_en": "Should restaurants be required to show calories on their menus?", "target_skills": ["giving opinions", "discussing advantages and disadvantages"], "is_active": 1}
-{"id": 41, "topic": "money", "level": 2, "question_en": "Are you more of a saver or a spender? Why?", "target_skills": ["describing habits", "giving reasons"], "is_active": 1}
-{"id": 42, "topic": "money", "level": 3, "question_en": "Is it better to buy a home or to rent one?", "target_skills": ["comparing options", "discussing advantages and disadvantages"], "is_active": 1}
-{"id": 43, "topic": "money", "level": 3, "question_en": "Should children be given pocket money for doing housework?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
-{"id": 44, "topic": "money", "level": 4, "question_en": "Does having more money actually make people happier?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
-{"id": 45, "topic": "money", "level": 4, "question_en": "Should there be a maximum salary that any one person can earn?", "target_skills": ["giving opinions", "discussing trade-offs"], "is_active": 1}
-{"id": 46, "topic": "media", "level": 2, "question_en": "Where do you usually get your news, and do you trust it?", "target_skills": ["describing habits", "giving reasons"], "is_active": 1}
-{"id": 47, "topic": "media", "level": 3, "question_en": "Should social media companies delete false information?", "target_skills": ["giving opinions", "discussing advantages and disadvantages"], "is_active": 1}
-{"id": 48, "topic": "media", "level": 4, "question_en": "Is it possible to be completely neutral when reporting the news?", "target_skills": ["giving opinions", "explaining"], "is_active": 1}
-{"id": 49, "topic": "media", "level": 3, "question_en": "Do influencers have too much power over young people?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
-{"id": 50, "topic": "sports", "level": 2, "question_en": "Is playing sports important for children? Why?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
-{"id": 51, "topic": "sports", "level": 3, "question_en": "Are professional athletes paid too much?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
-{"id": 52, "topic": "sports", "level": 4, "question_en": "Should countries spend public money on hosting events like the Olympics?", "target_skills": ["discussing trade-offs", "giving reasons"], "is_active": 1}
-{"id": 53, "topic": "relationships", "level": 2, "question_en": "What makes someone a good friend?", "target_skills": ["explaining", "giving examples"], "is_active": 1}
-{"id": 54, "topic": "relationships", "level": 3, "question_en": "Is it possible to stay close to friends who live far away?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
-{"id": 55, "topic": "family", "level": 3, "question_en": "Should adult children take care of their parents when they get old?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
-{"id": 56, "topic": "family", "level": 4, "question_en": "Has the meaning of family changed in your country over the last fifty years?", "target_skills": ["describing changes", "comparing past and present"], "is_active": 1}
-{"id": 57, "topic": "relationships", "level": 2, "question_en": "Do you prefer spending time in a big group or with one or two people?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
-{"id": 58, "topic": "family", "level": 4, "question_en": "Is it better for children to grow up with strict parents or relaxed parents?", "target_skills": ["comparing options", "discussing advantages and disadvantages"], "is_active": 1}
-{"id": 59, "topic": "city life", "level": 3, "question_en": "What is the biggest problem in the city or town where you live?", "target_skills": ["explaining", "giving examples"], "is_active": 1}
-{"id": 60, "topic": "city life", "level": 3, "question_en": "Should cars be banned from city centers?", "target_skills": ["giving opinions", "discussing advantages and disadvantages"], "is_active": 1}
-{"id": 61, "topic": "city life", "level": 2, "question_en": "How do you usually get around your city, and why?", "target_skills": ["describing habits", "giving reasons"], "is_active": 1}
-{"id": 62, "topic": "city life", "level": 4, "question_en": "Would you accept a smaller home in exchange for a shorter commute?", "target_skills": ["discussing trade-offs", "giving reasons"], "is_active": 1}
-{"id": 63, "topic": "future", "level": 3, "question_en": "What do you think daily life will be like in fifty years?", "target_skills": ["making predictions", "explaining"], "is_active": 1}
-{"id": 64, "topic": "future", "level": 4, "question_en": "Should we spend money on going to Mars while there are serious problems on Earth?", "target_skills": ["discussing trade-offs", "giving opinions"], "is_active": 1}
-{"id": 65, "topic": "future", "level": 3, "question_en": "Will people still need to learn foreign languages in the future?", "target_skills": ["making predictions", "giving reasons"], "is_active": 1}
-{"id": 66, "topic": "future", "level": 4, "question_en": "If people could live to 150, would that be good for society?", "target_skills": ["making predictions", "discussing advantages and disadvantages"], "is_active": 1}
-{"id": 67, "topic": "language learning", "level": 2, "question_en": "Why did you start learning English, and has that reason changed?", "target_skills": ["explaining", "comparing past and present"], "is_active": 1}
-{"id": 68, "topic": "language learning", "level": 3, "question_en": "What is the hardest part of learning a language, and how do you deal with it?", "target_skills": ["explaining", "describing habits"], "is_active": 1}
-{"id": 69, "topic": "language learning", "level": 3, "question_en": "Is it better to learn a language in a classroom or by living abroad?", "target_skills": ["comparing options", "giving reasons"], "is_active": 1}
-{"id": 70, "topic": "language learning", "level": 4, "question_en": "Should every child in the world learn the same second language?", "target_skills": ["giving opinions", "discussing advantages and disadvantages"], "is_active": 1}
-{"id": 71, "topic": "entertainment", "level": 2, "question_en": "What kind of movies or shows do you enjoy, and why?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
-{"id": 72, "topic": "entertainment", "level": 3, "question_en": "Have streaming services changed the way you watch movies and shows?", "target_skills": ["describing changes", "comparing past and present"], "is_active": 1}
-{"id": 73, "topic": "entertainment", "level": 3, "question_en": "Are video games a waste of time?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
-{"id": 74, "topic": "entertainment", "level": 4, "question_en": "Should governments give money to artists and musicians?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
-{"id": 75, "topic": "science", "level": 3, "question_en": "Do science and technology always make life better?", "target_skills": ["giving opinions", "giving examples"], "is_active": 1}
-{"id": 76, "topic": "science", "level": 4, "question_en": "Should scientists be allowed to change human genes to prevent disease?", "target_skills": ["giving opinions", "discussing trade-offs"], "is_active": 1}
-{"id": 77, "topic": "science", "level": 3, "question_en": "Is space exploration worth the money it costs?", "target_skills": ["discussing trade-offs", "giving reasons"], "is_active": 1}
-{"id": 78, "topic": "science", "level": 4, "question_en": "Do people trust scientists less than they used to? Why?", "target_skills": ["describing changes", "giving reasons"], "is_active": 1}
-{"id": 79, "topic": "work", "level": 3, "question_en": "Should companies hire based on skills alone, ignoring experience and education?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
-{"id": 80, "topic": "work", "level": 2, "question_en": "What does a good boss do differently from a bad one?", "target_skills": ["comparing options", "giving examples"], "is_active": 1}
-{"id": 81, "topic": "work", "level": 4, "question_en": "Would a four-day work week be good for both companies and workers?", "target_skills": ["discussing advantages and disadvantages", "making predictions"], "is_active": 1}
-{"id": 82, "topic": "work", "level": 3, "question_en": "Is it better to work for a large company or a small one?", "target_skills": ["comparing options", "giving reasons"], "is_active": 1}
-{"id": 83, "topic": "work", "level": 4, "question_en": "Should employees be able to see how much their colleagues earn?", "target_skills": ["giving opinions", "discussing advantages and disadvantages"], "is_active": 1}
-{"id": 84, "topic": "technology", "level": 3, "question_en": "Do you worry about how companies use your personal data?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
-{"id": 85, "topic": "technology", "level": 4, "question_en": "Should governments be able to read private messages in order to stop crime?", "target_skills": ["discussing trade-offs", "giving opinions"], "is_active": 1}
-{"id": 86, "topic": "technology", "level": 2, "question_en": "What is one app you could not live without, and why?", "target_skills": ["giving examples", "giving reasons"], "is_active": 1}
-{"id": 87, "topic": "technology", "level": 4, "question_en": "Has online shopping been good or bad for local communities?", "target_skills": ["discussing advantages and disadvantages", "giving examples"], "is_active": 1}
-{"id": 88, "topic": "AI", "level": 3, "question_en": "Is it acceptable for students to use AI to help with their homework?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
-{"id": 89, "topic": "AI", "level": 4, "question_en": "Should AI-generated art be allowed to win art competitions?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
-{"id": 90, "topic": "AI", "level": 3, "question_en": "How has AI changed the way you work or study?", "target_skills": ["describing changes", "giving examples"], "is_active": 1}
-{"id": 91, "topic": "AI", "level": 4, "question_en": "If AI replaces many jobs, what should governments do about it?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
-{"id": 92, "topic": "society", "level": 3, "question_en": "Should voting be required by law?", "target_skills": ["giving opinions", "discussing advantages and disadvantages"], "is_active": 1}
-{"id": 93, "topic": "society", "level": 4, "question_en": "Is it ever right to break a law you believe is unfair?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
-{"id": 94, "topic": "society", "level": 3, "question_en": "Do you think your country welcomes people from other countries?", "target_skills": ["giving opinions", "giving examples"], "is_active": 1}
-{"id": 95, "topic": "society", "level": 4, "question_en": "Should prisons focus on punishment or on helping people change?", "target_skills": ["comparing options", "giving reasons"], "is_active": 1}
-{"id": 96, "topic": "society", "level": 3, "question_en": "Is volunteering a good way to solve social problems, or should governments do more?", "target_skills": ["comparing options", "giving opinions"], "is_active": 1}
-{"id": 97, "topic": "personal growth", "level": 2, "question_en": "What is one thing you would like to be better at, and why?", "target_skills": ["explaining", "giving reasons"], "is_active": 1}
-{"id": 98, "topic": "personal growth", "level": 3, "question_en": "Do you think you have changed a lot in the last ten years?", "target_skills": ["describing changes", "comparing past and present"], "is_active": 1}
-{"id": 99, "topic": "personal growth", "level": 3, "question_en": "Is it better to plan everything carefully or to decide as you go?", "target_skills": ["comparing options", "giving reasons"], "is_active": 1}
-{"id": 100, "topic": "personal growth", "level": 4, "question_en": "What advice would you give to someone who is afraid of making mistakes?", "target_skills": ["explaining", "giving reasons"], "is_active": 1}
+{"id": 1, "topic": "daily life", "level": 1, "question_en": "What did you do last weekend?", "target_skills": ["describing past events", "giving details"], "is_active": 1}
+{"id": 2, "topic": "daily life", "level": 1, "question_en": "What is your morning routine like?", "target_skills": ["describing habits", "giving details"], "is_active": 1}
+{"id": 3, "topic": "daily life", "level": 1, "question_en": "How do you usually spend your evenings?", "target_skills": ["describing habits", "giving details"], "is_active": 1}
+{"id": 4, "topic": "daily life", "level": 1, "question_en": "What time do you usually wake up, and is that early for you?", "target_skills": ["describing habits", "giving reasons"], "is_active": 1}
+{"id": 5, "topic": "daily life", "level": 1, "question_en": "How much free time do you have on a normal day?", "target_skills": ["describing habits", "giving details"], "is_active": 1}
+{"id": 6, "topic": "daily life", "level": 1, "question_en": "What did you do yesterday evening?", "target_skills": ["describing past events", "giving details"], "is_active": 1}
+{"id": 7, "topic": "daily life", "level": 1, "question_en": "How long is your commute, and what do you do during it?", "target_skills": ["describing habits", "giving details"], "is_active": 1}
+{"id": 8, "topic": "daily life", "level": 1, "question_en": "What is the first thing you do after you get home?", "target_skills": ["describing habits", "giving details"], "is_active": 1}
+{"id": 9, "topic": "daily life", "level": 2, "question_en": "What is the busiest day of your week, and why?", "target_skills": ["describing habits", "giving reasons"], "is_active": 1}
+{"id": 10, "topic": "daily life", "level": 2, "question_en": "What is one small thing that made you happy recently?", "target_skills": ["describing past events", "giving details"], "is_active": 1}
+{"id": 11, "topic": "food", "level": 1, "question_en": "What did you eat for breakfast today?", "target_skills": ["describing past events", "giving details"], "is_active": 1}
+{"id": 12, "topic": "food", "level": 1, "question_en": "What is your favorite food, and how often do you eat it?", "target_skills": ["giving examples", "describing habits"], "is_active": 1}
+{"id": 13, "topic": "food", "level": 1, "question_en": "Do you drink coffee or tea? When do you usually drink it?", "target_skills": ["describing habits", "giving details"], "is_active": 1}
+{"id": 14, "topic": "food", "level": 1, "question_en": "Do you cook at home? What do you usually make?", "target_skills": ["describing habits", "giving examples"], "is_active": 1}
+{"id": 15, "topic": "food", "level": 2, "question_en": "Is there a food you did not like as a child but enjoy now?", "target_skills": ["comparing past and present", "giving reasons"], "is_active": 1}
+{"id": 16, "topic": "food", "level": 2, "question_en": "What is a restaurant you like, and what do you order there?", "target_skills": ["describing places", "giving details"], "is_active": 1}
+{"id": 17, "topic": "food", "level": 1, "question_en": "What did you have for dinner last night?", "target_skills": ["describing past events", "giving details"], "is_active": 1}
+{"id": 18, "topic": "food", "level": 2, "question_en": "Do you prefer cooking or eating out on a busy day?", "target_skills": ["comparing options", "giving reasons"], "is_active": 1}
+{"id": 19, "topic": "free time", "level": 1, "question_en": "What do you like to do on your days off?", "target_skills": ["describing habits", "giving examples"], "is_active": 1}
+{"id": 20, "topic": "free time", "level": 2, "question_en": "What is something new you tried recently?", "target_skills": ["describing past events", "giving details"], "is_active": 1}
+{"id": 21, "topic": "free time", "level": 2, "question_en": "What is a hobby you would like to start?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
+{"id": 22, "topic": "free time", "level": 2, "question_en": "Do you prefer staying home or going out on weekends?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
+{"id": 23, "topic": "free time", "level": 2, "question_en": "What is a movie or book you enjoyed recently?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
+{"id": 24, "topic": "free time", "level": 1, "question_en": "What do you do when you have a free afternoon?", "target_skills": ["describing habits", "giving examples"], "is_active": 1}
+{"id": 25, "topic": "free time", "level": 2, "question_en": "How did you get interested in your hobby?", "target_skills": ["describing past events", "explaining"], "is_active": 1}
+{"id": 26, "topic": "free time", "level": 3, "question_en": "How has the way you spend your free time changed in the last few years?", "target_skills": ["describing changes", "comparing past and present"], "is_active": 1}
+{"id": 27, "topic": "family", "level": 1, "question_en": "Can you tell me about your family?", "target_skills": ["describing people", "giving details"], "is_active": 1}
+{"id": 28, "topic": "family", "level": 2, "question_en": "What is something you learned from your family?", "target_skills": ["explaining", "giving examples"], "is_active": 1}
+{"id": 29, "topic": "friends", "level": 1, "question_en": "What do you usually do with your friends?", "target_skills": ["describing habits", "giving examples"], "is_active": 1}
+{"id": 30, "topic": "friends", "level": 2, "question_en": "How did you meet your closest friend?", "target_skills": ["describing past events", "explaining"], "is_active": 1}
+{"id": 31, "topic": "family", "level": 2, "question_en": "Who in your family are you most similar to?", "target_skills": ["describing people", "giving reasons"], "is_active": 1}
+{"id": 32, "topic": "friends", "level": 1, "question_en": "When did you last see your friends, and what did you do?", "target_skills": ["describing past events", "giving details"], "is_active": 1}
+{"id": 33, "topic": "family", "level": 3, "question_en": "How often do you see your family, and would you like to see them more?", "target_skills": ["describing habits", "giving opinions"], "is_active": 1}
+{"id": 34, "topic": "home", "level": 1, "question_en": "What is your home like?", "target_skills": ["describing places", "giving details"], "is_active": 1}
+{"id": 35, "topic": "home", "level": 2, "question_en": "What is your favorite room in your home, and why?", "target_skills": ["describing places", "giving reasons"], "is_active": 1}
+{"id": 36, "topic": "neighborhood", "level": 2, "question_en": "What is your favorite place in your neighborhood?", "target_skills": ["describing places", "giving reasons"], "is_active": 1}
+{"id": 37, "topic": "neighborhood", "level": 1, "question_en": "What shops or places are near your home?", "target_skills": ["describing places", "giving examples"], "is_active": 1}
+{"id": 38, "topic": "neighborhood", "level": 2, "question_en": "Is your neighborhood quiet or busy? Do you like it?", "target_skills": ["describing places", "giving opinions"], "is_active": 1}
+{"id": 39, "topic": "home", "level": 3, "question_en": "If you could change one thing about your home, what would it be?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
+{"id": 40, "topic": "travel", "level": 1, "question_en": "Where did you go on your last trip?", "target_skills": ["describing past events", "giving details"], "is_active": 1}
+{"id": 41, "topic": "travel", "level": 2, "question_en": "What is a place near you that visitors should see?", "target_skills": ["giving examples", "giving reasons"], "is_active": 1}
+{"id": 42, "topic": "travel", "level": 2, "question_en": "Do you prefer the mountains or the sea? Why?", "target_skills": ["comparing options", "giving reasons"], "is_active": 1}
+{"id": 43, "topic": "travel", "level": 2, "question_en": "Where would you like to travel next, and why?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
+{"id": 44, "topic": "travel", "level": 1, "question_en": "Have you been on a train or plane recently? Where did you go?", "target_skills": ["describing past events", "giving details"], "is_active": 1}
+{"id": 45, "topic": "travel", "level": 3, "question_en": "What is the most memorable trip you have taken?", "target_skills": ["describing past events", "explaining"], "is_active": 1}
+{"id": 46, "topic": "shopping", "level": 1, "question_en": "What was the last thing you bought?", "target_skills": ["describing past events", "giving reasons"], "is_active": 1}
+{"id": 47, "topic": "shopping", "level": 2, "question_en": "Do you prefer shopping online or in a store?", "target_skills": ["comparing options", "giving reasons"], "is_active": 1}
+{"id": 48, "topic": "shopping", "level": 2, "question_en": "What is something you bought recently that you are happy with?", "target_skills": ["describing past events", "giving reasons"], "is_active": 1}
+{"id": 49, "topic": "shopping", "level": 1, "question_en": "Where do you usually buy your food?", "target_skills": ["describing habits", "giving details"], "is_active": 1}
+{"id": 50, "topic": "weather", "level": 1, "question_en": "What is the weather like today, and do you like it?", "target_skills": ["giving details", "giving opinions"], "is_active": 1}
+{"id": 51, "topic": "seasons", "level": 1, "question_en": "Which season do you like best, and why?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
+{"id": 52, "topic": "seasons", "level": 2, "question_en": "What do you usually do during long holidays?", "target_skills": ["describing habits", "giving examples"], "is_active": 1}
+{"id": 53, "topic": "weather", "level": 2, "question_en": "What do you like to do on a rainy day?", "target_skills": ["describing habits", "giving examples"], "is_active": 1}
+{"id": 54, "topic": "seasons", "level": 2, "question_en": "Is there a season that is difficult for you? Why?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
+{"id": 55, "topic": "music", "level": 1, "question_en": "What music do you listen to, and when?", "target_skills": ["giving examples", "describing habits"], "is_active": 1}
+{"id": 56, "topic": "music", "level": 2, "question_en": "Have you been to a concert or live event? What was it like?", "target_skills": ["describing past events", "giving details"], "is_active": 1}
+{"id": 57, "topic": "entertainment", "level": 1, "question_en": "What do you watch when you want to relax?", "target_skills": ["describing habits", "giving examples"], "is_active": 1}
+{"id": 58, "topic": "entertainment", "level": 2, "question_en": "What show would you recommend to a friend, and why?", "target_skills": ["giving examples", "giving reasons"], "is_active": 1}
+{"id": 59, "topic": "pets", "level": 1, "question_en": "Do you have a pet, or would you like one?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
+{"id": 60, "topic": "nature", "level": 2, "question_en": "Do you spend much time outdoors? What do you do?", "target_skills": ["describing habits", "giving examples"], "is_active": 1}
+{"id": 61, "topic": "work", "level": 2, "question_en": "What does a typical day at work or school look like for you?", "target_skills": ["describing habits", "giving details"], "is_active": 1}
+{"id": 62, "topic": "work", "level": 2, "question_en": "What part of your day do you enjoy most?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
+{"id": 63, "topic": "work", "level": 2, "question_en": "How do you take a break during a busy day?", "target_skills": ["describing habits", "giving examples"], "is_active": 1}
+{"id": 64, "topic": "work", "level": 3, "question_en": "What is something you are good at in your work or study?", "target_skills": ["explaining", "giving examples"], "is_active": 1}
+{"id": 65, "topic": "work", "level": 2, "question_en": "Do you work better in the morning or at night?", "target_skills": ["comparing options", "giving reasons"], "is_active": 1}
+{"id": 66, "topic": "work", "level": 3, "question_en": "How did you choose your job or your field of study?", "target_skills": ["describing past events", "explaining"], "is_active": 1}
+{"id": 67, "topic": "health", "level": 2, "question_en": "What do you do when you feel tired or stressed?", "target_skills": ["describing habits", "giving examples"], "is_active": 1}
+{"id": 68, "topic": "health", "level": 1, "question_en": "Do you exercise? What kind of exercise do you do?", "target_skills": ["describing habits", "giving examples"], "is_active": 1}
+{"id": 69, "topic": "health", "level": 2, "question_en": "How do you sleep these days? Do you get enough?", "target_skills": ["describing habits", "giving details"], "is_active": 1}
+{"id": 70, "topic": "health", "level": 2, "question_en": "What helps you feel better when you are sick?", "target_skills": ["describing habits", "giving examples"], "is_active": 1}
+{"id": 71, "topic": "technology", "level": 2, "question_en": "What is the first thing you check on your phone in the morning?", "target_skills": ["describing habits", "giving details"], "is_active": 1}
+{"id": 72, "topic": "technology", "level": 1, "question_en": "What app do you use most every day?", "target_skills": ["giving examples", "describing habits"], "is_active": 1}
+{"id": 73, "topic": "technology", "level": 2, "question_en": "How do you usually keep in touch with people?", "target_skills": ["describing habits", "giving examples"], "is_active": 1}
+{"id": 74, "topic": "technology", "level": 3, "question_en": "Has your phone changed how you spend your free time?", "target_skills": ["describing changes", "giving examples"], "is_active": 1}
+{"id": 75, "topic": "celebrations", "level": 2, "question_en": "How do you usually celebrate your birthday?", "target_skills": ["describing habits", "giving details"], "is_active": 1}
+{"id": 76, "topic": "celebrations", "level": 2, "question_en": "What is your favorite holiday, and what do you do?", "target_skills": ["describing habits", "giving details"], "is_active": 1}
+{"id": 77, "topic": "celebrations", "level": 1, "question_en": "Did you celebrate anything recently?", "target_skills": ["describing past events", "giving details"], "is_active": 1}
+{"id": 78, "topic": "celebrations", "level": 3, "question_en": "How do people in your country celebrate the new year?", "target_skills": ["explaining", "giving details"], "is_active": 1}
+{"id": 79, "topic": "language learning", "level": 2, "question_en": "How do you practice English in your daily life?", "target_skills": ["describing habits", "giving examples"], "is_active": 1}
+{"id": 80, "topic": "language learning", "level": 2, "question_en": "What is easy for you in English, and what is hard?", "target_skills": ["comparing options", "explaining"], "is_active": 1}
+{"id": 81, "topic": "language learning", "level": 1, "question_en": "When do you use English?", "target_skills": ["describing habits", "giving examples"], "is_active": 1}
+{"id": 82, "topic": "language learning", "level": 3, "question_en": "How do you feel when you speak English with someone new?", "target_skills": ["explaining", "giving reasons"], "is_active": 1}
+{"id": 83, "topic": "childhood", "level": 2, "question_en": "What did you like to do when you were a child?", "target_skills": ["describing past events", "comparing past and present"], "is_active": 1}
+{"id": 84, "topic": "childhood", "level": 2, "question_en": "What was your favorite subject at school?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
+{"id": 85, "topic": "childhood", "level": 3, "question_en": "What is a place from your childhood you remember well?", "target_skills": ["describing places", "describing past events"], "is_active": 1}
+{"id": 86, "topic": "childhood", "level": 2, "question_en": "Did you have a favorite toy or game as a child?", "target_skills": ["describing past events", "giving details"], "is_active": 1}
+{"id": 87, "topic": "personal", "level": 2, "question_en": "What is something you would like to learn this year?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
+{"id": 88, "topic": "personal", "level": 2, "question_en": "What kind of weather or place makes you feel calm?", "target_skills": ["describing places", "giving reasons"], "is_active": 1}
+{"id": 89, "topic": "personal", "level": 3, "question_en": "What is a small habit you would like to change?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
+{"id": 90, "topic": "personal", "level": 2, "question_en": "What are you looking forward to?", "target_skills": ["giving details", "giving reasons"], "is_active": 1}
+{"id": 91, "topic": "city life", "level": 1, "question_en": "How do you usually get around your city?", "target_skills": ["describing habits", "giving reasons"], "is_active": 1}
+{"id": 92, "topic": "city life", "level": 2, "question_en": "What do you like about the city or town where you live?", "target_skills": ["describing places", "giving reasons"], "is_active": 1}
+{"id": 93, "topic": "city life", "level": 2, "question_en": "Is there somewhere you go often? What do you do there?", "target_skills": ["describing places", "describing habits"], "is_active": 1}
+{"id": 94, "topic": "sports", "level": 1, "question_en": "Do you watch or play any sports?", "target_skills": ["describing habits", "giving examples"], "is_active": 1}
+{"id": 95, "topic": "sports", "level": 2, "question_en": "Have you tried a new sport or activity recently?", "target_skills": ["describing past events", "giving details"], "is_active": 1}
+{"id": 96, "topic": "daily life", "level": 1, "question_en": "What is in your bag today?", "target_skills": ["giving details", "giving examples"], "is_active": 1}
+{"id": 97, "topic": "daily life", "level": 2, "question_en": "Do you make plans for the weekend, or decide on the day?", "target_skills": ["describing habits", "giving reasons"], "is_active": 1}
+{"id": 98, "topic": "daily life", "level": 2, "question_en": "What is something you do every week without fail?", "target_skills": ["describing habits", "giving reasons"], "is_active": 1}
+{"id": 99, "topic": "daily life", "level": 3, "question_en": "Has your daily routine changed since last year?", "target_skills": ["describing changes", "comparing past and present"], "is_active": 1}
+{"id": 100, "topic": "daily life", "level": 2, "question_en": "If you had a free day tomorrow, what would you do?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
