@@ -20,9 +20,10 @@ func renderTranscript(transcript []DiscussionMessage) string {
 }
 
 // buildDiscussionReplyPrompt is a pure function (unit-testable without
-// network) producing the follow-up-question prompt. The JSON shape of the
-// answer is enforced by the response schema in GeminiCoach; this prompt
-// carries the semantics of done/message and the learning-philosophy rules.
+// network) producing the follow-up-question prompt. How many follow-ups a
+// session gets is the server's decision (discussionFollowUps), so this
+// prompt never offers the model a way to end the conversation — it always
+// asks exactly one more question.
 func buildDiscussionReplyPrompt(q *DiscussionQuestion, transcript []DiscussionMessage) string {
 	var b strings.Builder
 	b.WriteString("You are a friendly English conversation partner helping a Japanese learner ")
@@ -38,16 +39,14 @@ func buildDiscussionReplyPrompt(q *DiscussionQuestion, transcript []DiscussionMe
 	b.WriteString("and never answer the question for them or suggest ideas.\n")
 	b.WriteString("- Never ask the learner to use Japanese.\n")
 	b.WriteString("- Keep your message to at most 2 short sentences of natural spoken English.\n")
-	fmt.Fprintf(&b, "- You have asked %d follow-up question(s) so far. ", countAITurns(transcript))
-	b.WriteString("Once the learner has answered at least 2 follow-up questions and the conversation feels ")
-	b.WriteString("complete, set \"done\" to true and make \"message\" a one-sentence friendly closing ")
-	b.WriteString("comment instead of a question.\n")
-	b.WriteString("\nRespond as JSON with fields \"done\" (boolean) and \"message\" (string).\n")
+	b.WriteString("\nRespond as JSON with the field \"message\" (string) holding your question.\n")
 	return b.String()
 }
 
 // buildGapAnalysisPrompt compares the ideas of the English conversation with
-// the Japanese reflection and asks for 2-4 reusable expressions.
+// the Japanese reflection, asks for 2-4 everyday expressions to close the
+// gap, and for corrections of the mistakes the learner actually made — the
+// only place in a session where their English is corrected at all.
 func buildGapAnalysisPrompt(q *DiscussionQuestion, transcript []DiscussionMessage, reflectionJA string) string {
 	var b strings.Builder
 	b.WriteString("You are an English tutor. A Japanese learner discussed a question in English, ")
@@ -61,18 +60,27 @@ func buildGapAnalysisPrompt(q *DiscussionQuestion, transcript []DiscussionMessag
 	b.WriteString("(short English sentences, at most 5).\n")
 	b.WriteString("2. missing_ideas: ideas present in the Japanese text that never appeared in the English ")
 	b.WriteString("conversation (short English sentences, at most 5).\n")
-	b.WriteString("3. expressions: 2 to 4 natural spoken-English expressions that would let the learner say ")
-	b.WriteString("the missing ideas. Prefer reusable chunks (\"take responsibility for\") over single words. ")
-	fmt.Fprintf(&b, "Pitch them slightly above the learner's current level — this question is level %d of 5. ", q.Level)
+	b.WriteString("3. expressions: 2 to 4 everyday spoken English phrases that would let the learner say ")
+	b.WriteString("the missing ideas. Prefer short reusable chunks of common words (\"kind of a hassle\", ")
+	b.WriteString("\"I'd rather\") over single words — no idioms, no business or literary vocabulary, ")
+	b.WriteString("nothing the learner could not use in a casual conversation today. ")
 	b.WriteString("For each: phrase (the chunk itself), meaning_ja (a short Japanese gloss), ")
 	b.WriteString("example_en (one natural example sentence using it).\n")
+	b.WriteString("4. corrections: at most 3 sentences from the learner's English that contain a grammar ")
+	b.WriteString("mistake or an unnatural word choice. Quote the sentence exactly as the learner wrote it ")
+	b.WriteString("in \"original\", give a natural spoken rewrite keeping their meaning in \"better\", and one ")
+	b.WriteString("short Japanese sentence explaining the fix in \"note_ja\". Flag only real mistakes — ")
+	b.WriteString("never invent a mistake and never flag a matter of style. Return an empty list when the ")
+	b.WriteString("learner's English was already fine.\n")
 	return b.String()
 }
 
 // buildRetryReviewPrompt produces encouraging usage feedback on the retry —
-// never a rewrite or correction list. A session where the learner skipped
-// the reflection has no taught expressions; the prompt must not claim any
-// were studied, or the model invents usage feedback about nothing.
+// never a rewrite or correction list; mistakes are handled by the gap
+// analysis instead. A session can still reach completion with no taught
+// expressions (the complete endpoint accepts an empty list), and the prompt
+// must not claim any were studied, or the model invents usage feedback about
+// nothing.
 func buildRetryReviewPrompt(q *DiscussionQuestion, firstAnswer, retryAnswer string, expressions []Expression) string {
 	var b strings.Builder
 	b.WriteString("You are an English tutor. A learner answered a discussion question")

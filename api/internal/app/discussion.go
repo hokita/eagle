@@ -24,12 +24,17 @@ const (
 	maxDiscussionTurnLength = 2000
 	// maxReflectionLength bounds the Japanese reflection text, in runes.
 	maxReflectionLength = 4000
-	// maxTranscriptMessages: initial answer + 5 follow-ups + 5 replies = 11,
-	// plus the AI's closing line when the conversation ends = 12.
+	// maxTranscriptMessages: the current flow produces at most
+	// 1 + 2*discussionFollowUps = 5 messages. The cap is left at the older,
+	// looser 12 so sessions recorded under the previous variable-length flow
+	// still validate on their way into history.
 	maxTranscriptMessages = 12
-	// maxAIFollowUps is the server-side hard cap on AI turns — the reply
-	// handler returns done without calling Gemini once it is reached.
-	maxAIFollowUps = 5
+	// discussionFollowUps is how many follow-up questions every session
+	// gets. It is server arithmetic, not a model decision: the reply handler
+	// returns done — without calling Gemini — once that many AI turns are in
+	// the transcript, and the coach prompt has no way to end the
+	// conversation early.
+	discussionFollowUps = 2
 	// maxDiscussionSessionList caps the history list response.
 	maxDiscussionSessionList = 50
 	// maxSessionExpressions caps the expressions list accepted by the
@@ -38,6 +43,11 @@ const (
 	// maxSessionIdeas caps the expressed/missing idea lists accepted by the
 	// complete endpoint and enforced by the coach's gap analysis.
 	maxSessionIdeas = 20
+	// maxSessionCorrections caps the mistake corrections accepted by the
+	// complete endpoint and enforced by the coach's gap analysis. Unlike
+	// expressions, an empty list is valid — a conversation with no mistakes
+	// has nothing to correct.
+	maxSessionCorrections = 3
 )
 
 type DiscussionQuestion struct {
@@ -59,14 +69,25 @@ type Expression struct {
 	ExampleEN string `json:"example_en"`
 }
 
+// Correction is one sentence the learner actually wrote, paired with a
+// natural rewrite and a short Japanese note explaining the fix.
+type Correction struct {
+	Original string `json:"original"`
+	Better   string `json:"better"`
+	NoteJA   string `json:"note_ja"`
+}
+
 type GapAnalysis struct {
 	ExpressedIdeas []string     `json:"expressed_ideas"`
 	MissingIdeas   []string     `json:"missing_ideas"`
 	Expressions    []Expression `json:"expressions"`
+	Corrections    []Correction `json:"corrections"`
 }
 
+// CoachReply is what the model produces for a follow-up turn: a question and
+// nothing else. Whether the conversation continues is the server's call, so
+// there is deliberately no "done" field for the model to set.
 type CoachReply struct {
-	Done    bool   `json:"done"`
 	Message string `json:"message"`
 }
 
@@ -80,6 +101,7 @@ type DiscussionSession struct {
 	ExpressedIdeas []string            `json:"expressed_ideas"`
 	MissingIdeas   []string            `json:"missing_ideas"`
 	Expressions    []Expression        `json:"expressions"`
+	Corrections    []Correction        `json:"corrections"`
 	FirstAnswer    string              `json:"first_answer"`
 	RetryAnswer    string              `json:"retry_answer"`
 	RetryFeedback  string              `json:"retry_feedback"`

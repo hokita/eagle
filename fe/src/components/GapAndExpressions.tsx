@@ -38,6 +38,23 @@ export default function GapAndExpressions({ analysis, onContinue }: Props) {
         </CardContent>
       </Card>
 
+      {analysis.corrections.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Your English, made natural</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {analysis.corrections.map((correction, i) => (
+              <div key={i} className="rounded-md border border-border p-3">
+                <p className="text-sm text-muted-foreground line-through">{correction.original}</p>
+                <p className="font-semibold text-foreground">{correction.better}</p>
+                <p className="text-sm text-muted-foreground">{correction.note_ja}</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Expressions to close the gap</CardTitle>

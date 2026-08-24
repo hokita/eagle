@@ -8,10 +8,9 @@ import { Textarea } from '@/components/ui/textarea'
 interface Props {
   loading: boolean
   onSubmit: (text: string) => void
-  onSkip: () => void
 }
 
-export default function ReflectionPrompt({ loading, onSubmit, onSkip }: Props) {
+export default function ReflectionPrompt({ loading, onSubmit }: Props) {
   const [draft, setDraft] = useState('')
 
   return (
@@ -33,18 +32,13 @@ export default function ReflectionPrompt({ loading, onSubmit, onSkip }: Props) {
           placeholder="日本語で自由に書いてください"
           maxLength={4000}
         />
-        <div className="flex gap-2">
-          <Button
-            onClick={() => onSubmit(draft.trim())}
-            disabled={loading || draft.trim() === ''}
-            className="flex-1"
-          >
-            {loading ? 'Analyzing…' : 'Submit'}
-          </Button>
-          <Button variant="outline" onClick={onSkip} disabled={loading}>
-            Nothing to add — skip
-          </Button>
-        </div>
+        <Button
+          onClick={() => onSubmit(draft.trim())}
+          disabled={loading || draft.trim() === ''}
+          className="w-full"
+        >
+          {loading ? 'Analyzing…' : 'Submit'}
+        </Button>
       </CardContent>
     </Card>
   )

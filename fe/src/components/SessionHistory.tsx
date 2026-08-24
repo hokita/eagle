@@ -155,6 +155,22 @@ export default function SessionHistory({ user }: Props) {
                             <p className="text-foreground">{detail.reflection_ja}</p>
                           </div>
                         )}
+                        {detail.corrections.length > 0 && (
+                          <div>
+                            <p className="text-xs font-semibold text-muted-foreground">
+                              Corrections
+                            </p>
+                            {detail.corrections.map((correction, i) => (
+                              <div key={i} className="mt-1">
+                                <p className="text-muted-foreground line-through">
+                                  {correction.original}
+                                </p>
+                                <p className="text-foreground">{correction.better}</p>
+                                <p className="text-xs text-muted-foreground">{correction.note_ja}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                         {detail.expressions.length > 0 && (
                           <div>
                             <p className="text-xs font-semibold text-muted-foreground">

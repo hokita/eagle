@@ -16,17 +16,16 @@ const (
 	// Output bounds per call — the input side is bounded by transcript
 	// validation; these keep the response side predictable too.
 	maxCoachReplyOutputTokens   = 256
-	maxCoachAnalyzeOutputTokens = 1024
+	maxCoachAnalyzeOutputTokens = 1536
 	maxCoachReviewOutputTokens  = 512
 )
 
 var coachReplySchema = &genai.Schema{
 	Type: genai.TypeObject,
 	Properties: map[string]*genai.Schema{
-		"done":    {Type: genai.TypeBoolean},
 		"message": {Type: genai.TypeString},
 	},
-	Required: []string{"done", "message"},
+	Required: []string{"message"},
 }
 
 var gapAnalysisSchema = &genai.Schema{
@@ -43,8 +42,17 @@ var gapAnalysisSchema = &genai.Schema{
 			},
 			Required: []string{"phrase", "meaning_ja", "example_en"},
 		}},
+		"corrections": {Type: genai.TypeArray, Items: &genai.Schema{
+			Type: genai.TypeObject,
+			Properties: map[string]*genai.Schema{
+				"original": {Type: genai.TypeString},
+				"better":   {Type: genai.TypeString},
+				"note_ja":  {Type: genai.TypeString},
+			},
+			Required: []string{"original", "better", "note_ja"},
+		}},
 	},
-	Required: []string{"expressed_ideas", "missing_ideas", "expressions"},
+	Required: []string{"expressed_ideas", "missing_ideas", "expressions", "corrections"},
 }
 
 // GeminiCoach implements DiscussionCoach using the Gemini API, reusing the
@@ -135,6 +143,22 @@ func (g *GeminiCoach) AnalyzeGap(ctx context.Context, q *DiscussionQuestion, tra
 	if analysis.MissingIdeas == nil {
 		analysis.MissingIdeas = []string{}
 	}
+	// Corrections get the same blank-field filtering as expressions, but an
+	// empty result is success rather than an error: a conversation with no
+	// mistakes has nothing to correct.
+	validCorrections := make([]Correction, 0, len(analysis.Corrections))
+	for _, c := range analysis.Corrections {
+		if strings.TrimSpace(c.Original) == "" ||
+			strings.TrimSpace(c.Better) == "" ||
+			strings.TrimSpace(c.NoteJA) == "" {
+			continue
+		}
+		validCorrections = append(validCorrections, c)
+	}
+	if len(validCorrections) > maxSessionCorrections {
+		validCorrections = validCorrections[:maxSessionCorrections]
+	}
+	analysis.Corrections = validCorrections
 	// The complete endpoint rejects idea lists longer than maxSessionIdeas —
 	// truncate here so a verbose model response can't brick the flow.
 	if len(analysis.ExpressedIdeas) > maxSessionIdeas {

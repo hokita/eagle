@@ -10,18 +10,14 @@ interface Props {
   question: string
   transcript: DiscussionMessage[]
   sending: boolean
-  canFinish: boolean
   onSend: (text: string) => void
-  onFinish: () => void
 }
 
 export default function ChatTranscript({
   question,
   transcript,
   sending,
-  canFinish,
   onSend,
-  onFinish,
 }: Props) {
   const [draft, setDraft] = useState('')
 
@@ -61,16 +57,9 @@ export default function ChatTranscript({
           placeholder="Answer in English"
           maxLength={2000}
         />
-        <div className="flex gap-2">
-          <Button onClick={submit} disabled={sending || draft.trim() === ''} className="flex-1">
-            Send
-          </Button>
-          {canFinish && (
-            <Button variant="outline" onClick={onFinish} disabled={sending}>
-              Finish conversation
-            </Button>
-          )}
-        </div>
+        <Button onClick={submit} disabled={sending || draft.trim() === ''} className="w-full">
+          Send
+        </Button>
       </CardContent>
     </Card>
   )

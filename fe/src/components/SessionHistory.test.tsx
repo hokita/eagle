@@ -37,6 +37,9 @@ const detail = {
   expressions: [
     { phrase: 'take responsibility for', meaning_ja: '〜に責任を持つ', example_en: 'x' },
   ],
+  corrections: [
+    { original: 'I am agree.', better: 'I agree.', note_ja: 'agree は動詞です。' },
+  ],
   first_answer: 'I think companies.',
   retry_answer: 'Companies should take responsibility.',
   retry_feedback: 'Nice improvement!',
@@ -79,6 +82,15 @@ describe('SessionHistory', () => {
     vi.mocked(api.listDiscussionSessions).mockResolvedValue({ sessions: [summary] })
     fireEvent.click(screen.getByRole('button', { name: 'Try Again' }))
     expect(await screen.findByText('Who is responsible?')).toBeInTheDocument()
+  })
+
+  it('shows the corrections from a saved session', async () => {
+    vi.mocked(api.listDiscussionSessions).mockResolvedValue({ sessions: [summary] })
+    vi.mocked(api.getDiscussionSession).mockResolvedValue(detail)
+    render(<SessionHistory user={user} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Who is responsible?' }))
+    expect(await screen.findByText('I agree.')).toBeInTheDocument()
+    expect(screen.getByText('agree は動詞です。')).toBeInTheDocument()
   })
 
   it('scopes a failed detail fetch to the session card, keeping the list visible', async () => {

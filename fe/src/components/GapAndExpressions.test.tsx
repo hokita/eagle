@@ -13,6 +13,13 @@ const analysis: GapAnalysis = {
       example_en: 'Companies should take responsibility for pollution.',
     },
   ],
+  corrections: [
+    {
+      original: 'I am agree with you.',
+      better: 'I agree with you.',
+      note_ja: 'agree は動詞なので be 動詞は不要です。',
+    },
+  ],
 }
 
 describe('GapAndExpressions', () => {
@@ -27,6 +34,18 @@ describe('GapAndExpressions', () => {
     expect(screen.getByText('take responsibility for')).toBeInTheDocument()
     expect(screen.getByText('〜に責任を持つ')).toBeInTheDocument()
     expect(screen.getByText('Companies should take responsibility for pollution.')).toBeInTheDocument()
+  })
+
+  it('shows each correction with the learner\'s own sentence and the fix', () => {
+    render(<GapAndExpressions analysis={analysis} onContinue={vi.fn()} />)
+    expect(screen.getByText('I am agree with you.')).toBeInTheDocument()
+    expect(screen.getByText('I agree with you.')).toBeInTheDocument()
+    expect(screen.getByText('agree は動詞なので be 動詞は不要です。')).toBeInTheDocument()
+  })
+
+  it('hides the corrections card when the conversation had no mistakes', () => {
+    render(<GapAndExpressions analysis={{ ...analysis, corrections: [] }} onContinue={vi.fn()} />)
+    expect(screen.queryByText('Your English, made natural')).not.toBeInTheDocument()
   })
 
   it('continues to the retry', () => {

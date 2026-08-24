@@ -33,9 +33,10 @@ func (stubAnalyzer) Analyze(_ context.Context, _ []app.MistakeSentence, _ string
 	return stubInsight, nil
 }
 
-// stubCoach avoids real Gemini calls in e2e tests. Deterministic: two
-// follow-ups, then done; fixed analysis; fixed retry feedback. The literals
-// are asserted verbatim by e2e/tests/discussion.spec.ts.
+// stubCoach avoids real Gemini calls in e2e tests. Deterministic: a numbered
+// follow-up per turn (the server decides when the conversation ends), fixed
+// analysis, fixed retry feedback. The literals are asserted verbatim by
+// e2e/tests/discussion.spec.ts.
 type stubCoach struct{}
 
 func (stubCoach) Reply(_ context.Context, _ *app.DiscussionQuestion, transcript []app.DiscussionMessage) (*app.CoachReply, error) {
@@ -45,10 +46,7 @@ func (stubCoach) Reply(_ context.Context, _ *app.DiscussionQuestion, transcript 
 			aiTurns++
 		}
 	}
-	if aiTurns >= 2 {
-		return &app.CoachReply{Done: true, Message: "Great, thanks for sharing your thoughts!"}, nil
-	}
-	return &app.CoachReply{Done: false, Message: fmt.Sprintf("Stub follow-up %d: can you tell me more?", aiTurns+1)}, nil
+	return &app.CoachReply{Message: fmt.Sprintf("Stub follow-up %d: can you tell me more?", aiTurns+1)}, nil
 }
 
 func (stubCoach) AnalyzeGap(_ context.Context, _ *app.DiscussionQuestion, _ []app.DiscussionMessage, _ string) (*app.GapAnalysis, error) {
@@ -58,6 +56,9 @@ func (stubCoach) AnalyzeGap(_ context.Context, _ *app.DiscussionQuestion, _ []ap
 		Expressions: []app.Expression{
 			{Phrase: "take responsibility for", MeaningJA: "〜に責任を持つ", ExampleEN: "Companies should take responsibility for their impact."},
 			{Phrase: "make systemic changes", MeaningJA: "制度的な変更を行う", ExampleEN: "Governments can make systemic changes."},
+		},
+		Corrections: []app.Correction{
+			{Original: "I am agree with companies.", Better: "I agree with companies.", NoteJA: "agree は動詞なので be 動詞は不要です。"},
 		},
 	}, nil
 }
