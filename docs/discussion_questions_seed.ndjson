@@ -32,7 +32,7 @@
 {"id": 32, "topic": "health", "level": 3, "question_en": "Is it better to exercise alone or with other people?", "target_skills": ["comparing options", "giving reasons"], "is_active": 1}
 {"id": 33, "topic": "health", "level": 3, "question_en": "Should unhealthy food be more expensive than healthy food?", "target_skills": ["giving opinions", "discussing advantages and disadvantages"], "is_active": 1}
 {"id": 34, "topic": "health", "level": 4, "question_en": "Should employers be allowed to ask about an employee's mental health?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
-{"id": 35, "topic": "health", "level": 2, "question_en": "How much sleep do you need, and what happens when you don't get enough?", "target_skills": ["describing habits", "explaining"], "is_active": 1}
+{"id": 35, "topic": "health", "level": 2, "question_en": "How much sleep do you usually get, and how do you feel when it isn't enough?", "target_skills": ["describing habits", "explaining"], "is_active": 1}
 {"id": 36, "topic": "health", "level": 4, "question_en": "Should healthcare be free for everyone, even if taxes go up?", "target_skills": ["giving opinions", "discussing trade-offs"], "is_active": 1}
 {"id": 37, "topic": "food", "level": 2, "question_en": "What food from your country would you recommend to a visitor, and why?", "target_skills": ["giving examples", "giving reasons"], "is_active": 1}
 {"id": 38, "topic": "food", "level": 3, "question_en": "Do you think people should eat less meat?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
@@ -93,7 +93,7 @@
 {"id": 93, "topic": "society", "level": 4, "question_en": "Is it ever right to break a law you believe is unfair?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
 {"id": 94, "topic": "society", "level": 3, "question_en": "Do you think your country welcomes people from other countries?", "target_skills": ["giving opinions", "giving examples"], "is_active": 1}
 {"id": 95, "topic": "society", "level": 4, "question_en": "Should prisons focus on punishment or on helping people change?", "target_skills": ["comparing options", "giving reasons"], "is_active": 1}
-{"id": 96, "topic": "society", "level": 3, "question_en": "Are volunteers a good way to solve social problems, or should governments do more?", "target_skills": ["comparing options", "giving opinions"], "is_active": 1}
+{"id": 96, "topic": "society", "level": 3, "question_en": "Is volunteering a good way to solve social problems, or should governments do more?", "target_skills": ["comparing options", "giving opinions"], "is_active": 1}
 {"id": 97, "topic": "personal growth", "level": 2, "question_en": "What is one thing you would like to be better at, and why?", "target_skills": ["explaining", "giving reasons"], "is_active": 1}
 {"id": 98, "topic": "personal growth", "level": 3, "question_en": "Do you think you have changed a lot in the last ten years?", "target_skills": ["describing changes", "comparing past and present"], "is_active": 1}
 {"id": 99, "topic": "personal growth", "level": 3, "question_en": "Is it better to plan everything carefully or to decide as you go?", "target_skills": ["comparing options", "giving reasons"], "is_active": 1}
