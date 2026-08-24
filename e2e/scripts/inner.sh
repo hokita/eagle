@@ -11,5 +11,8 @@ curl -s -X DELETE "http://${FIRESTORE_EMULATOR_HOST}/emulator/v1/projects/eagle-
 echo "Seeding fixture sentences..."
 (cd "$REPO_ROOT/api" && GOOGLE_CLOUD_PROJECT=eagle-test go run ./cmd/seed -file "$E2E_DIR/fixtures/sentences.ndjson")
 
+echo "Seeding fixture discussion questions..."
+(cd "$REPO_ROOT/api" && GOOGLE_CLOUD_PROJECT=eagle-test go run ./cmd/seedquestions -file "$E2E_DIR/fixtures/discussion_questions.ndjson")
+
 echo "Running Playwright..."
 (cd "$E2E_DIR" && npx playwright test)

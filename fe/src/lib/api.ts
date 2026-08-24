@@ -39,6 +39,74 @@ export interface MistakesInsightResponse {
   insight: string
 }
 
+export interface DiscussionQuestion {
+  id: number
+  question_en: string
+  topic: string
+  level: number
+  target_skills: string[]
+}
+
+export interface DiscussionMessage {
+  role: 'user' | 'ai'
+  text: string
+}
+
+export interface DiscussionReplyResponse {
+  done: boolean
+  message: string
+}
+
+export interface Expression {
+  phrase: string
+  meaning_ja: string
+  example_en: string
+}
+
+export interface GapAnalysis {
+  expressed_ideas: string[]
+  missing_ideas: string[]
+  expressions: Expression[]
+}
+
+export interface DiscussionCompleteRequest {
+  question_id: number
+  transcript: DiscussionMessage[]
+  reflection_ja: string
+  expressed_ideas: string[]
+  missing_ideas: string[]
+  expressions: Expression[]
+  retry_answer: string
+}
+
+export interface DiscussionCompleteResponse {
+  session_id: string
+  retry_feedback: string
+}
+
+export interface DiscussionSessionSummary {
+  id: string
+  question_en: string
+  topic: string
+  created_at: string
+}
+
+export interface DiscussionSessionDetail {
+  id: string
+  question_id: number
+  question_en: string
+  topic: string
+  transcript: DiscussionMessage[]
+  reflection_ja: string
+  expressed_ideas: string[]
+  missing_ideas: string[]
+  expressions: Expression[]
+  first_answer: string
+  retry_answer: string
+  retry_feedback: string
+  created_at: string
+}
+
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? ''
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -84,4 +152,30 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ sentence_id: sentenceId, user_answer: userAnswer, language }),
     }),
+
+  getDiscussionQuestion: () => request<DiscussionQuestion>('/api/discussion/question'),
+
+  discussionReply: (questionId: number, transcript: DiscussionMessage[]) =>
+    request<DiscussionReplyResponse>('/api/discussion/reply', {
+      method: 'POST',
+      body: JSON.stringify({ question_id: questionId, transcript }),
+    }),
+
+  discussionAnalyze: (questionId: number, transcript: DiscussionMessage[], reflectionJa: string) =>
+    request<GapAnalysis>('/api/discussion/analyze', {
+      method: 'POST',
+      body: JSON.stringify({ question_id: questionId, transcript, reflection_ja: reflectionJa }),
+    }),
+
+  discussionComplete: (payload: DiscussionCompleteRequest) =>
+    request<DiscussionCompleteResponse>('/api/discussion/complete', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  listDiscussionSessions: () =>
+    request<{ sessions: DiscussionSessionSummary[] }>('/api/discussion/sessions'),
+
+  getDiscussionSession: (id: string) =>
+    request<DiscussionSessionDetail>(`/api/discussion/sessions/${id}`),
 }

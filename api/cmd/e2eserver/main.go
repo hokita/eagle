@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -32,6 +33,39 @@ func (stubAnalyzer) Analyze(_ context.Context, _ []app.MistakeSentence, _ string
 	return stubInsight, nil
 }
 
+// stubCoach avoids real Gemini calls in e2e tests. Deterministic: two
+// follow-ups, then done; fixed analysis; fixed retry feedback. The literals
+// are asserted verbatim by e2e/tests/discussion.spec.ts.
+type stubCoach struct{}
+
+func (stubCoach) Reply(_ context.Context, _ *app.DiscussionQuestion, transcript []app.DiscussionMessage) (*app.CoachReply, error) {
+	aiTurns := 0
+	for _, m := range transcript {
+		if m.Role == "ai" {
+			aiTurns++
+		}
+	}
+	if aiTurns >= 2 {
+		return &app.CoachReply{Done: true, Message: "Great, thanks for sharing your thoughts!"}, nil
+	}
+	return &app.CoachReply{Done: false, Message: fmt.Sprintf("Stub follow-up %d: can you tell me more?", aiTurns+1)}, nil
+}
+
+func (stubCoach) AnalyzeGap(_ context.Context, _ *app.DiscussionQuestion, _ []app.DiscussionMessage, _ string) (*app.GapAnalysis, error) {
+	return &app.GapAnalysis{
+		ExpressedIdeas: []string{"You said companies are responsible."},
+		MissingIdeas:   []string{"Systemic change is more effective than individual action."},
+		Expressions: []app.Expression{
+			{Phrase: "take responsibility for", MeaningJA: "〜に責任を持つ", ExampleEN: "Companies should take responsibility for their impact."},
+			{Phrase: "make systemic changes", MeaningJA: "制度的な変更を行う", ExampleEN: "Governments can make systemic changes."},
+		},
+	}, nil
+}
+
+func (stubCoach) ReviewRetry(_ context.Context, _ *app.DiscussionQuestion, _, _ string, _ []app.Expression) (string, error) {
+	return "This is a stub retry feedback for e2e tests.", nil
+}
+
 func main() {
 	ctx := context.Background()
 
@@ -56,7 +90,8 @@ func main() {
 		log.Fatalf("failed to create auth verifier: %v", err)
 	}
 
-	srv := app.NewServer(app.NewFirestoreRepo(client), stubExplainer{}, stubAnalyzer{})
+	repo := app.NewFirestoreRepo(client)
+	srv := app.NewServer(repo, stubExplainer{}, stubAnalyzer{}).WithDiscussion(repo, stubCoach{})
 
 	frontendURL := os.Getenv("FRONTEND_URL")
 	mux := app.NewMux(srv, verifier, allowedEmails, frontendURL)
