@@ -232,6 +232,7 @@ describe('api.discussionComplete', () => {
       expressed_ideas: [],
       missing_ideas: [],
       expressions: [],
+      corrections: [],
       retry_answer: 'Companies should take responsibility.',
     }
     const result = await api.discussionComplete(payload)

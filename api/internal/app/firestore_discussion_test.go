@@ -37,6 +37,9 @@ func sampleSession() *DiscussionSession {
 		Expressions: []Expression{
 			{Phrase: "take responsibility for", MeaningJA: "〜に責任を持つ", ExampleEN: "Companies should take responsibility for pollution."},
 		},
+		Corrections: []Correction{
+			{Original: "I think companies.", Better: "I think companies are responsible.", NoteJA: "文が途中で終わっています。"},
+		},
 		FirstAnswer:   "I think companies.",
 		RetryAnswer:   "Companies should take responsibility for their impact.",
 		RetryFeedback: "Great improvement!",
@@ -104,6 +107,8 @@ func TestFirestoreSaveAndGetSession(t *testing.T) {
 	}
 	if got.ID != id || got.QuestionID != 1 || len(got.Transcript) != 3 ||
 		got.Expressions[0].Phrase != "take responsibility for" ||
+		len(got.Corrections) != 1 ||
+		got.Corrections[0].Better != "I think companies are responsible." ||
 		got.RetryFeedback != "Great improvement!" ||
 		got.CreatedAt != "2026-08-23T10:00:00Z" {
 		t.Fatalf("unexpected session: %+v", got)

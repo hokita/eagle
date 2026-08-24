@@ -34,6 +34,12 @@ type expressionDoc struct {
 	ExampleEN string `firestore:"example_en"`
 }
 
+type correctionDoc struct {
+	Original string `firestore:"original"`
+	Better   string `firestore:"better"`
+	NoteJA   string `firestore:"note_ja"`
+}
+
 type discussionSessionDoc struct {
 	QuestionID     int                    `firestore:"question_id"`
 	QuestionEN     string                 `firestore:"question_en"`
@@ -43,6 +49,7 @@ type discussionSessionDoc struct {
 	ExpressedIdeas []string               `firestore:"expressed_ideas"`
 	MissingIdeas   []string               `firestore:"missing_ideas"`
 	Expressions    []expressionDoc        `firestore:"expressions"`
+	Corrections    []correctionDoc        `firestore:"corrections"`
 	FirstAnswer    string                 `firestore:"first_answer"`
 	RetryAnswer    string                 `firestore:"retry_answer"`
 	RetryFeedback  string                 `firestore:"retry_feedback"`
@@ -112,12 +119,17 @@ func sessionToDoc(s *DiscussionSession, createdAt time.Time) *discussionSessionD
 	for i, e := range s.Expressions {
 		expressions[i] = expressionDoc{Phrase: e.Phrase, MeaningJA: e.MeaningJA, ExampleEN: e.ExampleEN}
 	}
+	corrections := make([]correctionDoc, len(s.Corrections))
+	for i, c := range s.Corrections {
+		corrections[i] = correctionDoc{Original: c.Original, Better: c.Better, NoteJA: c.NoteJA}
+	}
 	return &discussionSessionDoc{
 		QuestionID: s.QuestionID, QuestionEN: s.QuestionEN, Topic: s.Topic,
 		Transcript: transcript, ReflectionJA: s.ReflectionJA,
 		ExpressedIdeas: append([]string{}, s.ExpressedIdeas...),
 		MissingIdeas:   append([]string{}, s.MissingIdeas...),
 		Expressions:    expressions,
+		Corrections:    corrections,
 		FirstAnswer:    s.FirstAnswer, RetryAnswer: s.RetryAnswer,
 		RetryFeedback: s.RetryFeedback, CreatedAt: createdAt,
 	}
@@ -132,6 +144,10 @@ func sessionFromDoc(id string, sd *discussionSessionDoc) *DiscussionSession {
 	for i, e := range sd.Expressions {
 		expressions[i] = Expression{Phrase: e.Phrase, MeaningJA: e.MeaningJA, ExampleEN: e.ExampleEN}
 	}
+	corrections := make([]Correction, len(sd.Corrections))
+	for i, c := range sd.Corrections {
+		corrections[i] = Correction{Original: c.Original, Better: c.Better, NoteJA: c.NoteJA}
+	}
 	expressed := sd.ExpressedIdeas
 	if expressed == nil {
 		expressed = []string{}
@@ -144,6 +160,7 @@ func sessionFromDoc(id string, sd *discussionSessionDoc) *DiscussionSession {
 		ID: id, QuestionID: sd.QuestionID, QuestionEN: sd.QuestionEN, Topic: sd.Topic,
 		Transcript: transcript, ReflectionJA: sd.ReflectionJA,
 		ExpressedIdeas: expressed, MissingIdeas: missing, Expressions: expressions,
+		Corrections: corrections,
 		FirstAnswer: sd.FirstAnswer, RetryAnswer: sd.RetryAnswer,
 		RetryFeedback: sd.RetryFeedback,
 		CreatedAt:     sd.CreatedAt.UTC().Format(time.RFC3339),

@@ -91,10 +91,11 @@ func (s *Server) discussionReply(w http.ResponseWriter, r *http.Request) {
 	if q == nil {
 		return
 	}
-	// Server-side hard cap: past maxAIFollowUps the conversation is over no
-	// matter what the model would say — and Gemini is never even called.
-	if countAITurns(req.Transcript) >= maxAIFollowUps {
-		writeJSON(w, CoachReply{Done: true, Message: ""})
+	// Every session is exactly discussionFollowUps questions long, decided
+	// here rather than by the model: once they are answered the conversation
+	// is over and Gemini is never even called.
+	if countAITurns(req.Transcript) >= discussionFollowUps {
+		writeJSON(w, DiscussionReplyResponse{Done: true})
 		return
 	}
 	reply, err := s.coach.Reply(r.Context(), q, req.Transcript)
@@ -103,7 +104,7 @@ func (s *Server) discussionReply(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, reply)
+	writeJSON(w, DiscussionReplyResponse{Done: false, Message: reply.Message})
 }
 
 // discussionTrimmed reports whether text is non-blank after trimming and
@@ -113,6 +114,14 @@ func (s *Server) discussionReply(w http.ResponseWriter, r *http.Request) {
 func discussionTrimmed(text string, limit int) bool {
 	t := strings.TrimSpace(text)
 	return t != "" && utf8.RuneCountInString(text) <= limit
+}
+
+// DiscussionReplyResponse is the wire shape of a reply turn. "done" is the
+// server's decision (see discussionFollowUps), so it lives here rather than
+// on CoachReply; a done response carries no message.
+type DiscussionReplyResponse struct {
+	Done    bool   `json:"done"`
+	Message string `json:"message"`
 }
 
 type DiscussionAnalyzeRequest struct {
@@ -128,6 +137,7 @@ type DiscussionCompleteRequest struct {
 	ExpressedIdeas []string            `json:"expressed_ideas"`
 	MissingIdeas   []string            `json:"missing_ideas"`
 	Expressions    []Expression        `json:"expressions"`
+	Corrections    []Correction        `json:"corrections"`
 	RetryAnswer    string              `json:"retry_answer"`
 }
 
@@ -190,7 +200,8 @@ func (s *Server) discussionComplete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid reflection_ja", http.StatusBadRequest)
 		return
 	}
-	if len(req.Expressions) > maxSessionExpressions || len(req.ExpressedIdeas) > maxSessionIdeas || len(req.MissingIdeas) > maxSessionIdeas {
+	if len(req.Expressions) > maxSessionExpressions || len(req.ExpressedIdeas) > maxSessionIdeas ||
+		len(req.MissingIdeas) > maxSessionIdeas || len(req.Corrections) > maxSessionCorrections {
 		http.Error(w, "Invalid analysis payload", http.StatusBadRequest)
 		return
 	}
@@ -214,6 +225,7 @@ func (s *Server) discussionComplete(w http.ResponseWriter, r *http.Request) {
 		ExpressedIdeas: req.ExpressedIdeas,
 		MissingIdeas:   req.MissingIdeas,
 		Expressions:    req.Expressions,
+		Corrections:    req.Corrections,
 		FirstAnswer:    firstAnswer,
 		RetryAnswer:    req.RetryAnswer,
 		RetryFeedback:  feedback,

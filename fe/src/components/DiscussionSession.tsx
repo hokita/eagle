@@ -67,10 +67,9 @@ export default function DiscussionSession({ user }: Props) {
     setError(null)
     try {
       const reply = await api.discussionReply(question.id, current)
+      // A done reply carries no message — the server ends the conversation
+      // once both follow-ups are answered, so there is nothing to append.
       if (reply.done) {
-        if (reply.message) {
-          setTranscript([...current, { role: 'ai', text: reply.message }])
-        }
         setPhase('reflection')
       } else {
         setTranscript([...current, { role: 'ai', text: reply.message }])
@@ -113,15 +112,6 @@ export default function DiscussionSession({ user }: Props) {
     }
   }
 
-  const skipReflection = () => {
-    setReflectionJa('')
-    setAnalysis(null)
-    // Skipping intentionally abandons any failed analyze attempt — a stale
-    // error banner must not follow the learner into the retry phase.
-    setError(null)
-    setPhase('retry')
-  }
-
   const submitRetry = async (text: string) => {
     if (!question) return
     setBusy(true)
@@ -135,6 +125,7 @@ export default function DiscussionSession({ user }: Props) {
         expressed_ideas: analysis?.expressed_ideas ?? [],
         missing_ideas: analysis?.missing_ideas ?? [],
         expressions: analysis?.expressions ?? [],
+        corrections: analysis?.corrections ?? [],
         retry_answer: text,
       })
       setResult(res)
@@ -213,25 +204,12 @@ export default function DiscussionSession({ user }: Props) {
             question={question.question_en}
             transcript={transcript}
             sending={busy}
-            canFinish={transcript.length >= 3}
             onSend={sendMessage}
-            onFinish={() => setPhase('reflection')}
           />
         )}
 
         {phase === 'reflection' && (
-          <div className="space-y-3">
-            {transcript.length > 0 && transcript[transcript.length - 1].role === 'ai' && (
-              <Card>
-                <CardContent className="pt-6">
-                  <p className="text-sm text-foreground">
-                    {transcript[transcript.length - 1].text}
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-            <ReflectionPrompt loading={busy} onSubmit={submitReflection} onSkip={skipReflection} />
-          </div>
+          <ReflectionPrompt loading={busy} onSubmit={submitReflection} />
         )}
 
         {phase === 'studying' && analysis && (

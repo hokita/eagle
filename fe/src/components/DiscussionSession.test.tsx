@@ -31,6 +31,9 @@ const analysis = {
   expressions: [
     { phrase: 'take responsibility for', meaning_ja: '〜に責任を持つ', example_en: 'x' },
   ],
+  corrections: [
+    { original: 'I am agree.', better: 'I agree.', note_ja: 'agree は動詞です。' },
+  ],
 }
 
 beforeEach(() => {
@@ -64,18 +67,19 @@ describe('DiscussionSession', () => {
     expect(api.discussionReply).toHaveBeenCalledWith(16, [{ role: 'user', text: 'I think companies.' }])
   })
 
-  it('moves to reflection when the coach says done', async () => {
-    vi.mocked(api.discussionReply).mockResolvedValue({ done: true, message: 'Thanks for sharing!' })
+  // A done reply carries no message: the server ends the conversation once
+  // both follow-ups are answered, so there is no closing line to render.
+  it('moves to reflection when the server ends the conversation', async () => {
+    vi.mocked(api.discussionReply).mockResolvedValue({ done: true, message: '' })
     await startSession()
     await answerOnce('I think companies.')
     await waitFor(() =>
       expect(screen.getByText('日本語で答えるなら、他に言いたかったことはありますか？')).toBeInTheDocument()
     )
-    expect(screen.getByText('Thanks for sharing!')).toBeInTheDocument()
   })
 
   it('analyzes the reflection and shows the study phase', async () => {
-    vi.mocked(api.discussionReply).mockResolvedValue({ done: true, message: 'Thanks!' })
+    vi.mocked(api.discussionReply).mockResolvedValue({ done: true, message: '' })
     vi.mocked(api.discussionAnalyze).mockResolvedValue(analysis)
     await startSession()
     await answerOnce('I think companies.')
@@ -87,18 +91,8 @@ describe('DiscussionSession', () => {
     await waitFor(() => expect(screen.getByText('take responsibility for')).toBeInTheDocument())
   })
 
-  it('skipping reflection goes straight to retry with no analyze call', async () => {
-    vi.mocked(api.discussionReply).mockResolvedValue({ done: true, message: 'Thanks!' })
-    await startSession()
-    await answerOnce('I think companies.')
-    await waitFor(() => expect(screen.getByLabelText('Japanese reflection')).toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: 'Nothing to add — skip' }))
-    expect(await screen.findByLabelText('Your improved answer')).toBeInTheDocument()
-    expect(api.discussionAnalyze).not.toHaveBeenCalled()
-  })
-
   it('completes the session and shows the comparison', async () => {
-    vi.mocked(api.discussionReply).mockResolvedValue({ done: true, message: 'Thanks!' })
+    vi.mocked(api.discussionReply).mockResolvedValue({ done: true, message: '' })
     vi.mocked(api.discussionAnalyze).mockResolvedValue(analysis)
     vi.mocked(api.discussionComplete).mockResolvedValue({
       session_id: 's1',
@@ -121,6 +115,7 @@ describe('DiscussionSession', () => {
         question_id: 16,
         retry_answer: 'Companies should take responsibility.',
         expressions: analysis.expressions,
+        corrections: analysis.corrections,
       })
     )
     expect(screen.getByText('I think companies.')).toBeInTheDocument()
@@ -155,9 +150,9 @@ describe('DiscussionSession', () => {
     expect(lastCallTranscript).toEqual([{ role: 'user', text: 'I think companies, actually.' }])
   })
 
-  it('skipping after a failed analysis clears the stale error banner', async () => {
-    vi.mocked(api.discussionReply).mockResolvedValue({ done: true, message: 'Thanks!' })
-    vi.mocked(api.discussionAnalyze).mockRejectedValue(new Error('API error: 500'))
+  it('clears the stale error banner when a failed analysis is resubmitted', async () => {
+    vi.mocked(api.discussionReply).mockResolvedValue({ done: true, message: '' })
+    vi.mocked(api.discussionAnalyze).mockRejectedValueOnce(new Error('API error: 500'))
     await startSession()
     await answerOnce('I think companies.')
     await waitFor(() => expect(screen.getByLabelText('Japanese reflection')).toBeInTheDocument())
@@ -165,8 +160,9 @@ describe('DiscussionSession', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
     expect(await screen.findByText('Something went wrong. Please try again.')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Nothing to add — skip' }))
-    expect(await screen.findByLabelText('Your improved answer')).toBeInTheDocument()
+    vi.mocked(api.discussionAnalyze).mockResolvedValueOnce(analysis)
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+    await waitFor(() => expect(screen.getByText('take responsibility for')).toBeInTheDocument())
     expect(screen.queryByText('Something went wrong. Please try again.')).not.toBeInTheDocument()
   })
 

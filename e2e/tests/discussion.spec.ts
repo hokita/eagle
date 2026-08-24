@@ -22,15 +22,16 @@ test('completes a discussion session end to end', async ({ page }) => {
   await page.getByLabel('Your answer').fill('They can change their products.')
   await page.getByRole('button', { name: 'Send' }).click()
 
-  // Reflection phase (stub closing line is shown above the prompt).
+  // Reflection phase: the server ends the conversation after the second
+  // follow-up is answered, with no closing line of its own.
   await expect(page.getByText('日本語で答えるなら、他に言いたかったことはありますか？')).toBeVisible()
-  await expect(page.getByText('Great, thanks for sharing your thoughts!')).toBeVisible()
   await page.getByLabel('Japanese reflection').fill('制度そのものを変える必要があると思う。')
   await page.getByRole('button', { name: 'Submit' }).click()
 
-  // Study phase shows the stub analysis.
+  // Study phase shows the stub analysis, corrections included.
   await expect(page.getByText('Systemic change is more effective than individual action.')).toBeVisible()
   await expect(page.getByText('take responsibility for').first()).toBeVisible()
+  await expect(page.getByText('I think companies are responsible.')).toBeVisible()
   await page.getByRole('button', { name: 'Try the question again' }).click()
 
   // Retry and comparison.
@@ -47,26 +48,29 @@ test('completes a discussion session end to end', async ({ page }) => {
   await expect(page.getByText(QUESTION)).toBeVisible()
 })
 
-test('reflection can be skipped', async ({ page }) => {
+test('no step of the session can be skipped', async ({ page }) => {
   await signInAndGetSentence(page)
 
   await page.getByRole('link', { name: 'Discussion' }).click()
   await expect(page.getByText(QUESTION)).toBeVisible()
 
+  // The conversation runs a fixed two follow-ups with no way out of it.
+  await expect(page.getByRole('button', { name: 'Finish conversation' })).toHaveCount(0)
+
   await page.getByLabel('Your answer').fill('I think governments.')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.getByText('Stub follow-up 1: can you tell me more?')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Finish conversation' })).toHaveCount(0)
 
   await page.getByLabel('Your answer').fill('Because they make the rules.')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.getByText('Stub follow-up 2: can you tell me more?')).toBeVisible()
 
-  // Finish early instead of answering the second follow-up.
-  await page.getByRole('button', { name: 'Finish conversation' }).click()
-  await expect(page.getByText('日本語で答えるなら、他に言いたかったことはありますか？')).toBeVisible()
-  await page.getByRole('button', { name: 'Nothing to add — skip' }).click()
+  await page.getByLabel('Your answer').fill('They can pass stricter laws.')
+  await page.getByRole('button', { name: 'Send' }).click()
 
-  await page.getByLabel('Your improved answer').fill('I still think governments, because they set the rules.')
-  await page.getByRole('button', { name: 'Submit answer' }).click()
-  await expect(page.getByText('This is a stub retry feedback for e2e tests.')).toBeVisible()
+  // The reflection is required too — it is what the analysis is built from.
+  await expect(page.getByLabel('Japanese reflection')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Nothing to add — skip' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Submit' })).toBeDisabled()
 })

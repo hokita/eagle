@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest'
 import ReflectionPrompt from './ReflectionPrompt'
 
 function renderPrompt(overrides = {}) {
-  const props = { loading: false, onSubmit: vi.fn(), onSkip: vi.fn(), ...overrides }
+  const props = { loading: false, onSubmit: vi.fn(), ...overrides }
   render(<ReflectionPrompt {...props} />)
   return props
 }
@@ -33,10 +33,10 @@ describe('ReflectionPrompt', () => {
     expect(screen.getByRole('button', { name: 'Submit' })).toBeDisabled()
   })
 
-  it('skips without analyzing', () => {
-    const props = renderPrompt()
-    fireEvent.click(screen.getByRole('button', { name: 'Nothing to add — skip' }))
-    expect(props.onSkip).toHaveBeenCalledTimes(1)
-    expect(props.onSubmit).not.toHaveBeenCalled()
+  // The reflection is what the gap analysis and the corrections are built
+  // from, so it is a required step rather than an optional one.
+  it('cannot be skipped', () => {
+    renderPrompt()
+    expect(screen.queryByRole('button', { name: 'Nothing to add — skip' })).not.toBeInTheDocument()
   })
 })

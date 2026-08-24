@@ -140,7 +140,7 @@ func TestGetDiscussionQuestionEmptyBank(t *testing.T) {
 }
 
 func TestDiscussionReplyOK(t *testing.T) {
-	coach := &fakeCoach{reply: &CoachReply{Done: false, Message: "Why do you think so?"}}
+	coach := &fakeCoach{reply: &CoachReply{Message: "Why do you think so?"}}
 	dRepo := &fakeDiscussionRepo{question: testQuestion}
 	srv := discussionServer(dRepo, coach)
 	rec := httptest.NewRecorder()
@@ -150,7 +150,7 @@ func TestDiscussionReplyOK(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
-	var got CoachReply
+	var got DiscussionReplyResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
@@ -168,27 +168,48 @@ func TestDiscussionReplyOK(t *testing.T) {
 	}
 }
 
-func TestDiscussionReplyCapsAITurnsWithoutCallingCoach(t *testing.T) {
+// Every session is exactly discussionFollowUps follow-ups long, and that is
+// the server's arithmetic — not something the model can shorten or stretch.
+func TestDiscussionReplyEndsAfterTheFixedFollowUpsWithoutCallingCoach(t *testing.T) {
 	coach := &fakeCoach{reply: &CoachReply{Message: "should not be used"}}
 	srv := discussionServer(&fakeDiscussionRepo{question: testQuestion}, coach)
-	// 11 messages = 6 user + 5 ai turns, ending with the user.
-	transcript := msgs("a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k")
+	// 5 messages = 3 user + 2 ai turns, ending with the user: both
+	// follow-ups have been asked and answered.
 	rec := httptest.NewRecorder()
 	srv.discussionReply(rec, postJSON(t, "/api/discussion/reply", DiscussionReplyRequest{
-		QuestionID: 1, Transcript: transcript,
+		QuestionID: 1, Transcript: msgs("a", "b", "c", "d", "e"),
 	}))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
-	var got CoachReply
+	var got DiscussionReplyResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	if !got.Done {
-		t.Fatal("expected done=true at the AI-turn cap")
+		t.Fatal("expected done=true once both follow-ups are answered")
 	}
 	if coach.replyCalls != 0 {
 		t.Fatalf("expected no coach calls at the cap, got %d", coach.replyCalls)
+	}
+}
+
+func TestDiscussionReplyAsksTheSecondFollowUp(t *testing.T) {
+	coach := &fakeCoach{reply: &CoachReply{Message: "Can you give an example?"}}
+	srv := discussionServer(&fakeDiscussionRepo{question: testQuestion}, coach)
+	rec := httptest.NewRecorder()
+	srv.discussionReply(rec, postJSON(t, "/api/discussion/reply", DiscussionReplyRequest{
+		QuestionID: 1, Transcript: msgs("a", "b", "c"),
+	}))
+	var got DiscussionReplyResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.Done || got.Message != "Can you give an example?" {
+		t.Fatalf("expected the second follow-up question, got %+v", got)
+	}
+	if coach.replyCalls != 1 {
+		t.Fatalf("expected 1 coach call, got %d", coach.replyCalls)
 	}
 }
 
@@ -329,6 +350,27 @@ func TestDiscussionCompleteOKSavesSession(t *testing.T) {
 	}
 }
 
+func TestDiscussionCompleteSavesCorrections(t *testing.T) {
+	dRepo := &fakeDiscussionRepo{question: testQuestion, savedID: "sess-c"}
+	srv := discussionServer(dRepo, &fakeCoach{feedback: "Nice retry!"})
+	rec := httptest.NewRecorder()
+	srv.discussionComplete(rec, postJSON(t, "/api/discussion/complete", DiscussionCompleteRequest{
+		QuestionID:  1,
+		Transcript:  msgs("I am agree with you."),
+		RetryAnswer: "I agree with you because they pollute more.",
+		Corrections: []Correction{
+			{Original: "I am agree with you.", Better: "I agree with you.", NoteJA: "agree は動詞です。"},
+		},
+	}))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	s := dRepo.saved[0].session
+	if len(s.Corrections) != 1 || s.Corrections[0].Better != "I agree with you." {
+		t.Fatalf("expected the correction to be saved, got %+v", s.Corrections)
+	}
+}
+
 func TestDiscussionCompleteAllowsEmptyReflectionAndAnalysis(t *testing.T) {
 	dRepo := &fakeDiscussionRepo{question: testQuestion, savedID: "sess-2"}
 	srv := discussionServer(dRepo, &fakeCoach{feedback: "Nice retry!"})
@@ -354,6 +396,7 @@ func TestDiscussionCompleteRejectsBadInput(t *testing.T) {
 		{QuestionID: 1, Transcript: msgs("a"), RetryAnswer: strings.Repeat("a", maxDiscussionTurnLength+1)},
 		{QuestionID: 1, Transcript: msgs("a"), RetryAnswer: "ok", ReflectionJA: strings.Repeat("あ", maxReflectionLength+1)},
 		{QuestionID: 1, Transcript: msgs("a"), RetryAnswer: "ok", Expressions: []Expression{{Phrase: "a"}, {Phrase: "b"}, {Phrase: "c"}, {Phrase: "d"}, {Phrase: "e"}}},
+		{QuestionID: 1, Transcript: msgs("a"), RetryAnswer: "ok", Corrections: []Correction{{Original: "a"}, {Original: "b"}, {Original: "c"}, {Original: "d"}}},
 		{QuestionID: 1, Transcript: nil, RetryAnswer: "ok"},
 	}
 	for i, req := range cases {
@@ -391,6 +434,7 @@ func TestDiscussionCompleteAcceptsMaximalValidSession(t *testing.T) {
 		ExpressedIdeas: ideas,
 		MissingIdeas:   ideas,
 		Expressions:    []Expression{{Phrase: "p", MeaningJA: "m", ExampleEN: "e"}},
+		Corrections:    []Correction{{Original: "o", Better: "b", NoteJA: "n"}},
 		RetryAnswer:    long,
 	}
 	body, err := json.Marshal(req)

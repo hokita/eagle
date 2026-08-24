@@ -19,14 +19,14 @@ func textResp(text string) *genai.GenerateContentResponse {
 }
 
 func TestGeminiCoachReplyParsesJSON(t *testing.T) {
-	fake := &fakeContentGenerator{resp: textResp(`{"done":false,"message":"Why do you think so?"}`)}
+	fake := &fakeContentGenerator{resp: textResp(`{"message":"Why do you think so?"}`)}
 	g := &GeminiCoach{models: fake, model: "gemini-test"}
 
 	got, err := g.Reply(context.Background(), promptQuestion, msgs("I think companies."))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got.Done || got.Message != "Why do you think so?" {
+	if got.Message != "Why do you think so?" {
 		t.Fatalf("unexpected reply: %+v", got)
 	}
 	if fake.gotConfig == nil || fake.gotConfig.ResponseMIMEType != "application/json" {
@@ -49,7 +49,7 @@ func TestGeminiCoachReplyRejectsMalformedJSON(t *testing.T) {
 }
 
 func TestGeminiCoachReplyRejectsBlankMessage(t *testing.T) {
-	fake := &fakeContentGenerator{resp: textResp(`{"done":false,"message":"  "}`)}
+	fake := &fakeContentGenerator{resp: textResp(`{"message":"  "}`)}
 	g := &GeminiCoach{models: fake, model: "gemini-test"}
 	if _, err := g.Reply(context.Background(), promptQuestion, msgs("a")); err == nil {
 		t.Fatal("expected error for blank follow-up message")
@@ -133,11 +133,39 @@ func TestGeminiCoachAnalyzeGapDiscardsIncompleteExpressions(t *testing.T) {
 	}
 }
 
-func TestGeminiCoachAnalyzeGapRejectsNoValidExpressions(t *testing.T) {
-	fake := &fakeContentGenerator{resp: textResp(`{"expressed_ideas":[],"missing_ideas":[],"expressions":[{"phrase":"  ","meaning_ja":"","example_en":""}]}`)}
+// A learner who had nothing they could not express leaves the analysis with
+// no missing ideas, so the model reasonably returns no expressions. That is
+// a valid session, not a failure: erroring here would strand the learner on
+// the reflection step, which can no longer be skipped.
+func TestGeminiCoachAnalyzeGapAllowsNoExpressions(t *testing.T) {
+	fake := &fakeContentGenerator{resp: textResp(`{
+		"expressed_ideas":["I want to change jobs."],"missing_ideas":[],"expressions":[],
+		"corrections":[{"original":"I am agree.","better":"I agree.","note_ja":"agree は動詞です。"}]}`)}
 	g := &GeminiCoach{models: fake, model: "gemini-test"}
-	if _, err := g.AnalyzeGap(context.Background(), promptQuestion, msgs("a"), "x"); err == nil {
-		t.Fatal("expected error when no valid expression remains")
+	got, err := g.AnalyzeGap(context.Background(), promptQuestion, msgs("I am agree."), "特にありません")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Expressions == nil {
+		t.Fatal("expected an empty non-nil expressions slice")
+	}
+	if len(got.Expressions) != 0 {
+		t.Fatalf("expected no expressions, got %+v", got.Expressions)
+	}
+	if len(got.Corrections) != 1 {
+		t.Fatalf("expected the correction to survive, got %+v", got.Corrections)
+	}
+}
+
+func TestGeminiCoachAnalyzeGapDropsUnusableExpressionsWithoutFailing(t *testing.T) {
+	fake := &fakeContentGenerator{resp: textResp(`{"expressed_ideas":[],"missing_ideas":[],"corrections":[],"expressions":[{"phrase":"  ","meaning_ja":"","example_en":""}]}`)}
+	g := &GeminiCoach{models: fake, model: "gemini-test"}
+	got, err := g.AnalyzeGap(context.Background(), promptQuestion, msgs("a"), "x")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got.Expressions) != 0 {
+		t.Fatalf("expected the malformed expression to be dropped, got %+v", got.Expressions)
 	}
 }
 

@@ -13,9 +13,7 @@ function renderChat(overrides = {}) {
     question: 'Who is responsible?',
     transcript,
     sending: false,
-    canFinish: false,
     onSend: vi.fn(),
-    onFinish: vi.fn(),
     ...overrides,
   }
   render(<ChatTranscript {...props} />)
@@ -56,14 +54,10 @@ describe('ChatTranscript', () => {
     expect(props.onSend).not.toHaveBeenCalled()
   })
 
-  it('hides the finish button until canFinish', () => {
+  // Every session is a fixed two follow-ups and the learner answers all of
+  // them — there is deliberately no way out of the conversation.
+  it('offers no way to leave the conversation early', () => {
     renderChat()
     expect(screen.queryByRole('button', { name: 'Finish conversation' })).not.toBeInTheDocument()
-  })
-
-  it('calls onFinish when the finish button is clicked', () => {
-    const props = renderChat({ canFinish: true })
-    fireEvent.click(screen.getByRole('button', { name: 'Finish conversation' }))
-    expect(props.onFinish).toHaveBeenCalledTimes(1)
   })
 })

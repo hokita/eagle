@@ -63,10 +63,17 @@ export interface Expression {
   example_en: string
 }
 
+export interface Correction {
+  original: string
+  better: string
+  note_ja: string
+}
+
 export interface GapAnalysis {
   expressed_ideas: string[]
   missing_ideas: string[]
   expressions: Expression[]
+  corrections: Correction[]
 }
 
 export interface DiscussionCompleteRequest {
@@ -76,6 +83,7 @@ export interface DiscussionCompleteRequest {
   expressed_ideas: string[]
   missing_ideas: string[]
   expressions: Expression[]
+  corrections: Correction[]
   retry_answer: string
 }
 
@@ -101,6 +109,7 @@ export interface DiscussionSessionDetail {
   expressed_ideas: string[]
   missing_ideas: string[]
   expressions: Expression[]
+  corrections: Correction[]
   first_answer: string
   retry_answer: string
   retry_feedback: string

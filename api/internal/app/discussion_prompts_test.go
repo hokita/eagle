@@ -28,16 +28,34 @@ func TestBuildDiscussionReplyPromptIncludesQuestionAndTranscript(t *testing.T) {
 	}
 }
 
-func TestBuildDiscussionReplyPromptForbidsCorrectionAndTracksFollowUps(t *testing.T) {
+func TestBuildDiscussionReplyPromptForbidsCorrection(t *testing.T) {
 	got := buildDiscussionReplyPrompt(promptQuestion, msgs("I think companies.", "Why?", "Because."))
 	for _, want := range []string{
 		"Never correct the learner's grammar",
 		"never answer the question for them",
-		"You have asked 1 follow-up question(s) so far",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("prompt missing %q:\n%s", want, got)
 		}
+	}
+}
+
+// The number of follow-ups is decided by the server (discussionFollowUps),
+// not by the model, so the prompt must never offer it a way to end the
+// conversation — it always asks one more question.
+func TestBuildDiscussionReplyPromptNeverLetsTheModelEndTheConversation(t *testing.T) {
+	got := buildDiscussionReplyPrompt(promptQuestion, msgs("I think companies.", "Why?", "Because."))
+	for _, forbidden := range []string{
+		"You have asked",
+		"done",
+		"closing",
+	} {
+		if strings.Contains(got, forbidden) {
+			t.Fatalf("prompt must not mention %q:\n%s", forbidden, got)
+		}
+	}
+	if !strings.Contains(got, `"message"`) {
+		t.Fatalf("prompt missing the message-only response shape:\n%s", got)
 	}
 }
 
@@ -48,8 +66,47 @@ func TestBuildGapAnalysisPromptIncludesReflectionAndRules(t *testing.T) {
 		"Learner: I think companies.",
 		"制度を変える必要がある。",
 		"ideas and intentions, not literal wording",
-		"2 to 4",
-		"level 3 of 5",
+		"at most 4",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("prompt missing %q:\n%s", want, got)
+		}
+	}
+}
+
+// Learners found the taught expressions too hard: the old prompt pitched
+// them above the learner's level. They must now be everyday spoken phrases.
+func TestBuildGapAnalysisPromptAsksForEverydayExpressions(t *testing.T) {
+	got := buildGapAnalysisPrompt(promptQuestion, msgs("I think companies."), "制度を変える必要がある。")
+	if !strings.Contains(got, "everyday spoken English") {
+		t.Fatalf("prompt missing the everyday-phrase instruction:\n%s", got)
+	}
+	for _, forbidden := range []string{"slightly above", "level 3 of 5"} {
+		if strings.Contains(got, forbidden) {
+			t.Fatalf("prompt must not pitch above the learner's level (%q):\n%s", forbidden, got)
+		}
+	}
+}
+
+// The reflection cannot be skipped, so a learner with nothing to add still
+// reaches the analysis. The prompt must allow that answer to produce nothing
+// to teach rather than pushing the model to invent expressions.
+func TestBuildGapAnalysisPromptAllowsNoExpressions(t *testing.T) {
+	got := buildGapAnalysisPrompt(promptQuestion, msgs("I think companies."), "特にありません。")
+	if !strings.Contains(got, "empty list when the learner expressed everything") {
+		t.Fatalf("prompt missing the no-expressions allowance:\n%s", got)
+	}
+}
+
+func TestBuildGapAnalysisPromptAsksForCorrections(t *testing.T) {
+	got := buildGapAnalysisPrompt(promptQuestion, msgs("I think companies."), "制度を変える必要がある。")
+	for _, want := range []string{
+		"corrections",
+		"at most 3",
+		"exactly as the learner wrote it",
+		"never invent a mistake",
+		"empty list",
+		"note_ja",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("prompt missing %q:\n%s", want, got)
