@@ -88,7 +88,7 @@
 {"id": 88, "topic": "AI", "level": 3, "question_en": "Is it acceptable for students to use AI to help with their homework?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
 {"id": 89, "topic": "AI", "level": 4, "question_en": "Should AI-generated art be allowed to win art competitions?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
 {"id": 90, "topic": "AI", "level": 3, "question_en": "How has AI changed the way you work or study?", "target_skills": ["describing changes", "giving examples"], "is_active": 1}
-{"id": 91, "topic": "AI", "level": 4, "question_en": "If AI replaces many jobs, what should governments do about it?", "target_skills": ["making predictions", "giving reasons"], "is_active": 1}
+{"id": 91, "topic": "AI", "level": 4, "question_en": "If AI replaces many jobs, what should governments do about it?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
 {"id": 92, "topic": "society", "level": 3, "question_en": "Should voting be required by law?", "target_skills": ["giving opinions", "discussing advantages and disadvantages"], "is_active": 1}
 {"id": 93, "topic": "society", "level": 4, "question_en": "Is it ever right to break a law you believe is unfair?", "target_skills": ["giving opinions", "giving reasons"], "is_active": 1}
 {"id": 94, "topic": "society", "level": 3, "question_en": "Do you think your country welcomes people from other countries?", "target_skills": ["giving opinions", "giving examples"], "is_active": 1}
