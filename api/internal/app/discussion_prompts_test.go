@@ -126,3 +126,36 @@ func TestBuildSummaryPromptKeepsExplanationsInEnglish(t *testing.T) {
 		t.Fatalf("prompt must not ask for a Japanese gloss:\n%s", got)
 	}
 }
+
+// The explanation section is one overall diagnosis, not a per-sentence
+// list: the patterns that made the learner's English sound unnatural, and
+// what to do differently next time.
+func TestBuildSummaryPromptAsksWhyItSoundedUnnaturalAndHowToFixIt(t *testing.T) {
+	got := buildSummaryPrompt(promptQuestion, msgs("I like dogs."), "犬が好き")
+	for _, want := range []string{
+		"naturalness_why_en",
+		"naturalness_fix_en",
+		"patterns",
+		"at most 3 sentences",
+		"quote the learner's own words",
+		"invent problems",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("prompt missing %q:\n%s", want, got)
+		}
+	}
+}
+
+// A learner whose English already sounded natural still reads a section —
+// the model says so and names what to polish next, rather than going blank.
+func TestBuildSummaryPromptCoversTheAlreadyNaturalCase(t *testing.T) {
+	got := buildSummaryPrompt(promptQuestion, msgs("I like dogs."), "犬が好き")
+	for _, want := range []string{
+		"already sounded natural",
+		"never leave either field empty",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("prompt missing %q:\n%s", want, got)
+		}
+	}
+}

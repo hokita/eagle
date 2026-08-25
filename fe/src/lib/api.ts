@@ -66,6 +66,8 @@ export interface Phrase {
 export interface DiscussionCompleteResponse {
   session_id: string
   natural_english: string
+  naturalness_why_en: string
+  naturalness_fix_en: string
   phrases: Phrase[]
 }
 
@@ -84,6 +86,9 @@ export interface DiscussionSessionDetail {
   transcript: DiscussionMessage[]
   reflection_ja: string
   natural_english: string
+  // Empty on sessions saved before the explanation existed.
+  naturalness_why_en: string
+  naturalness_fix_en: string
   phrases: Phrase[]
   created_at: string
 }

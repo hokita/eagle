@@ -33,6 +33,8 @@ const detail = {
   ],
   reflection_ja: '制度を変えるべき。',
   natural_english: 'I think companies are responsible, and they should change the system.',
+  naturalness_why_en: 'You opened every turn with "I think that".',
+  naturalness_fix_en: 'Vary how you start a turn.',
   phrases: [
     { phrase: 'take responsibility for', meaning_en: 'to accept it is your job', example_en: 'x' },
   ],
@@ -66,6 +68,8 @@ describe('SessionHistory', () => {
     expect(api.getDiscussionSession).toHaveBeenCalledWith('s1')
     expect(screen.getByText('制度を変えるべき。')).toBeInTheDocument()
     expect(screen.getByText('take responsibility for')).toBeInTheDocument()
+    expect(screen.getByText(detail.naturalness_why_en)).toBeInTheDocument()
+    expect(screen.getByText(detail.naturalness_fix_en)).toBeInTheDocument()
   })
 
   it('shows an error with retry when loading fails', async () => {
@@ -84,6 +88,8 @@ describe('SessionHistory', () => {
     vi.mocked(api.getDiscussionSession).mockResolvedValue({
       ...detail,
       natural_english: '',
+      naturalness_why_en: '',
+      naturalness_fix_en: '',
       phrases: [],
     })
     render(<SessionHistory user={user} />)
@@ -91,6 +97,7 @@ describe('SessionHistory', () => {
     expect(await screen.findByText('I think companies.')).toBeInTheDocument()
     expect(screen.queryByText('Natural English')).not.toBeInTheDocument()
     expect(screen.queryByText('Useful phrases')).not.toBeInTheDocument()
+    expect(screen.queryByText('Why it sounded unnatural')).not.toBeInTheDocument()
   })
 
   it('scopes a failed detail fetch to the session card, keeping the list visible', async () => {

@@ -51,7 +51,9 @@ func (stubCoach) Reply(_ context.Context, _ *app.DiscussionQuestion, transcript 
 
 func (stubCoach) Summarize(_ context.Context, _ *app.DiscussionQuestion, _ []app.DiscussionMessage, _ string) (*app.Summary, error) {
 	return &app.Summary{
-		NaturalEnglish: "I think companies are responsible, and in the future they should make systemic changes.",
+		NaturalEnglish:   "I think companies are responsible, and in the future they should make systemic changes.",
+		NaturalnessWhyEN: "Stub explanation: you opened every turn with \"I think that\", which reads as written English rather than speech.",
+		NaturalnessFixEN: "Stub advice: drop \"that\" after \"I think\", and swap textbook words for everyday ones.",
 		Phrases: []app.Phrase{
 			{Phrase: "take responsibility for", MeaningEN: "to accept that something is your job or your fault", ExampleEN: "Companies should take responsibility for their impact."},
 			{Phrase: "in the future", MeaningEN: "at some time later than now", ExampleEN: "I want to live abroad in the future."},

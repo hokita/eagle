@@ -240,7 +240,9 @@ func TestDiscussionReplyCoachError(t *testing.T) {
 
 func testSummary() *Summary {
 	return &Summary{
-		NaturalEnglish: "I think companies are responsible, and they should change the system.",
+		NaturalEnglish:   "I think companies are responsible, and they should change the system.",
+		NaturalnessWhyEN: "You started every turn with \"I think that\", which sounds like written English.",
+		NaturalnessFixEN: "Drop \"that\" after \"I think\", and vary how you open a turn.",
 		Phrases: []Phrase{
 			{Phrase: "take responsibility for", MeaningEN: "to accept that something is your job", ExampleEN: "They take responsibility for it."},
 		},
@@ -281,8 +283,13 @@ func TestDiscussionCompleteOKSavesSession(t *testing.T) {
 		s.ReflectionJA != "制度を変えるべき。" || len(s.Transcript) != 3 {
 		t.Fatalf("unexpected saved session: %+v", s)
 	}
-	if s.NaturalEnglish != got.NaturalEnglish || len(s.Phrases) != 1 {
+	if s.NaturalEnglish != got.NaturalEnglish || len(s.Phrases) != 1 ||
+		s.NaturalnessWhyEN != got.NaturalnessWhyEN || s.NaturalnessFixEN != got.NaturalnessFixEN {
 		t.Fatalf("expected the summary to be saved, got %+v", s)
+	}
+	if !strings.Contains(got.NaturalnessWhyEN, "written English") ||
+		!strings.Contains(got.NaturalnessFixEN, "vary how you open a turn") {
+		t.Fatalf("expected the explanation in the response, got %+v", got)
 	}
 	if coach.gotSummarizeQuestion != testQuestion {
 		t.Fatalf("expected coach to receive the loaded question, got %+v", coach.gotSummarizeQuestion)
@@ -301,6 +308,8 @@ func TestDiscussionCompleteAllowsNoPhrases(t *testing.T) {
 	dRepo := &fakeDiscussionRepo{question: testQuestion, savedID: "sess-2"}
 	srv := discussionServer(dRepo, &fakeCoach{summary: &Summary{
 		NaturalEnglish: "I think companies are responsible.", Phrases: []Phrase{},
+		NaturalnessWhyEN: "Your English already sounded natural.",
+		NaturalnessFixEN: "Try adding a short example next time.",
 	}})
 	rec := httptest.NewRecorder()
 	srv.discussionComplete(rec, postJSON(t, "/api/discussion/complete", DiscussionCompleteRequest{
@@ -414,8 +423,10 @@ func TestListDiscussionSessions(t *testing.T) {
 func TestGetDiscussionSessionDetail(t *testing.T) {
 	session := &DiscussionSession{
 		ID: "s1", QuestionEN: "Q1",
-		NaturalEnglish: "I like dogs, especially Shiba Inu.",
-		Phrases:        []Phrase{{Phrase: "in the future", MeaningEN: "later", ExampleEN: "See you."}},
+		NaturalEnglish:   "I like dogs, especially Shiba Inu.",
+		NaturalnessWhyEN: "You leaned on textbook words like \"very difficult\".",
+		NaturalnessFixEN: "Swap them for everyday ones like \"really hard\".",
+		Phrases:          []Phrase{{Phrase: "in the future", MeaningEN: "later", ExampleEN: "See you."}},
 	}
 	srv := discussionServer(&fakeDiscussionRepo{session: session}, &fakeCoach{})
 	rec := httptest.NewRecorder()
@@ -428,6 +439,8 @@ func TestGetDiscussionSessionDetail(t *testing.T) {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	if got.ID != "s1" || got.NaturalEnglish != "I like dogs, especially Shiba Inu." ||
+		!strings.Contains(got.NaturalnessWhyEN, "textbook words") ||
+		!strings.Contains(got.NaturalnessFixEN, "really hard") ||
 		len(got.Phrases) != 1 || got.Phrases[0].Phrase != "in the future" {
 		t.Fatalf("unexpected session: %+v", got)
 	}

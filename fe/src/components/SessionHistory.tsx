@@ -165,6 +165,19 @@ export default function SessionHistory({ user }: Props) {
                             <p className="text-foreground">{detail.natural_english}</p>
                           </div>
                         )}
+                        {(detail.naturalness_why_en || detail.naturalness_fix_en) && (
+                          <div>
+                            <p className="text-xs font-semibold text-muted-foreground">
+                              Why it sounded unnatural
+                            </p>
+                            {detail.naturalness_why_en && (
+                              <p className="text-foreground">{detail.naturalness_why_en}</p>
+                            )}
+                            {detail.naturalness_fix_en && (
+                              <p className="mt-1 text-foreground">{detail.naturalness_fix_en}</p>
+                            )}
+                          </div>
+                        )}
                         {detail.phrases.length > 0 && (
                           <div>
                             <p className="text-xs font-semibold text-muted-foreground">

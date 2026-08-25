@@ -27,6 +27,8 @@ const question = {
 const summary = {
   session_id: 's1',
   natural_english: 'I think companies are responsible, because they pollute more than anyone else.',
+  naturalness_why_en: 'You opened every turn with "I think that".',
+  naturalness_fix_en: 'Vary how you start a turn.',
   phrases: [
     {
       phrase: 'take responsibility for',
@@ -90,6 +92,8 @@ describe('DiscussionSession', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Finish' }))
     await waitFor(() => expect(screen.getByText(summary.natural_english)).toBeInTheDocument())
     expect(screen.getByText('take responsibility for')).toBeInTheDocument()
+    expect(screen.getByText(summary.naturalness_why_en)).toBeInTheDocument()
+    expect(screen.getByText(summary.naturalness_fix_en)).toBeInTheDocument()
     expect(api.discussionComplete).toHaveBeenCalledWith(
       16,
       [{ role: 'user', text: 'I think companies.' }],
