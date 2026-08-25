@@ -59,6 +59,7 @@ func TestGeminiCoachReplyRejectsBlankMessage(t *testing.T) {
 func TestGeminiCoachSummarizeParsesAndValidates(t *testing.T) {
 	fake := &fakeContentGenerator{resp: textResp(`{
 		"natural_english":"I like dogs, especially Shiba Inu. I have a cat now, but I want a dog in the future.",
+		"naturalness_why_en":"w","naturalness_fix_en":"f",
 		"phrases":[{"phrase":"in the future","meaning_en":"at some later time","example_en":"I want to live abroad in the future."}]
 	}`)}
 	g := &GeminiCoach{models: fake, model: "gemini-test"}
@@ -105,7 +106,7 @@ func TestGeminiCoachSummarizeTruncatesToFourPhrases(t *testing.T) {
 		items = append(items, fmt.Sprintf(`{"phrase":"p%d","meaning_en":"m","example_en":"e"}`, i))
 	}
 	fake := &fakeContentGenerator{resp: textResp(fmt.Sprintf(
-		`{"natural_english":"ok","phrases":[%s]}`, strings.Join(items, ",")))}
+		`{"natural_english":"ok","naturalness_why_en":"w","naturalness_fix_en":"f","phrases":[%s]}`, strings.Join(items, ",")))}
 	g := &GeminiCoach{models: fake, model: "gemini-test"}
 	got, err := g.Summarize(context.Background(), promptQuestion, msgs("a"), "x")
 	if err != nil {
@@ -120,7 +121,7 @@ func TestGeminiCoachSummarizeTruncatesToFourPhrases(t *testing.T) {
 // legally arrive with a blank gloss and would render as an empty slot.
 func TestGeminiCoachSummarizeDropsIncompletePhrases(t *testing.T) {
 	fake := &fakeContentGenerator{resp: textResp(
-		`{"natural_english":"ok","phrases":[{"phrase":"  ","meaning_en":"","example_en":""},{"phrase":"in the future","meaning_en":"later","example_en":"See you in the future."}]}`)}
+		`{"natural_english":"ok","naturalness_why_en":"w","naturalness_fix_en":"f","phrases":[{"phrase":"  ","meaning_en":"","example_en":""},{"phrase":"in the future","meaning_en":"later","example_en":"See you in the future."}]}`)}
 	g := &GeminiCoach{models: fake, model: "gemini-test"}
 	got, err := g.Summarize(context.Background(), promptQuestion, msgs("a"), "x")
 	if err != nil {
@@ -134,7 +135,7 @@ func TestGeminiCoachSummarizeDropsIncompletePhrases(t *testing.T) {
 // A learner who already said everything naturally has nothing to pick up;
 // that is a valid summary, not an error, and must serialize as [] not null.
 func TestGeminiCoachSummarizeAllowsNoPhrases(t *testing.T) {
-	fake := &fakeContentGenerator{resp: textResp(`{"natural_english":"ok"}`)}
+	fake := &fakeContentGenerator{resp: textResp(`{"natural_english":"ok","naturalness_why_en":"w","naturalness_fix_en":"f"}`)}
 	g := &GeminiCoach{models: fake, model: "gemini-test"}
 	got, err := g.Summarize(context.Background(), promptQuestion, msgs("a"), "x")
 	if err != nil {
@@ -150,5 +151,45 @@ func TestGeminiCoachPropagatesError(t *testing.T) {
 	g := &GeminiCoach{models: fake, model: "gemini-test"}
 	if _, err := g.Reply(context.Background(), promptQuestion, msgs("a")); err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+// Both halves of the explanation are required: the card the learner reads
+// pairs why their English sounded unnatural with what to do about it, so
+// half a card is not a summary worth saving.
+func TestGeminiCoachSummarizeParsesNaturalnessExplanation(t *testing.T) {
+	fake := &fakeContentGenerator{resp: textResp(`{
+		"natural_english":"I like dogs.",
+		"naturalness_why_en":"You opened every turn with \"I think that\".",
+		"naturalness_fix_en":"Drop \"that\" and vary the opener.",
+		"phrases":[]
+	}`)}
+	g := &GeminiCoach{models: fake, model: "gemini-test"}
+
+	got, err := g.Summarize(context.Background(), promptQuestion, msgs("I like dogs."), "犬が好き")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(got.NaturalnessWhyEN, "I think that") {
+		t.Fatalf("unexpected why: %q", got.NaturalnessWhyEN)
+	}
+	if !strings.Contains(got.NaturalnessFixEN, "vary the opener") {
+		t.Fatalf("unexpected fix: %q", got.NaturalnessFixEN)
+	}
+}
+
+func TestGeminiCoachSummarizeRejectsBlankNaturalness(t *testing.T) {
+	for name, body := range map[string]string{
+		"blank why":    `{"natural_english":"ok","naturalness_why_en":"  ","naturalness_fix_en":"f","phrases":[]}`,
+		"blank fix":    `{"natural_english":"ok","naturalness_why_en":"w","naturalness_fix_en":"","phrases":[]}`,
+		"both missing": `{"natural_english":"ok","phrases":[]}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			fake := &fakeContentGenerator{resp: textResp(body)}
+			g := &GeminiCoach{models: fake, model: "gemini-test"}
+			if _, err := g.Summarize(context.Background(), promptQuestion, msgs("a"), "x"); err == nil {
+				t.Fatal("expected error for a blank explanation")
+			}
+		})
 	}
 }

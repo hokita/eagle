@@ -183,6 +183,8 @@ export default function DiscussionSession({ user }: Props) {
         {phase === 'summary' && result && (
           <SummaryView
             naturalEnglish={result.natural_english}
+            naturalnessWhyEn={result.naturalness_why_en}
+            naturalnessFixEn={result.naturalness_fix_en}
             phrases={result.phrases}
             onRestart={restart}
           />

@@ -65,11 +65,16 @@ type Phrase struct {
 }
 
 // Summary is what a finished session gives back: one natural rewrite of
-// everything the learner said, and a few phrases to keep. NaturalEnglish is
-// required; Phrases may legitimately be empty.
+// everything the learner said, an explanation of why their own wording
+// sounded unnatural and what to do about it, and a few phrases to keep.
+// NaturalEnglish and both halves of the explanation are required — a
+// learner whose English already sounded natural is told exactly that,
+// rather than shown a blank section. Phrases may legitimately be empty.
 type Summary struct {
-	NaturalEnglish string   `json:"natural_english"`
-	Phrases        []Phrase `json:"phrases"`
+	NaturalEnglish   string   `json:"natural_english"`
+	NaturalnessWhyEN string   `json:"naturalness_why_en"`
+	NaturalnessFixEN string   `json:"naturalness_fix_en"`
+	Phrases          []Phrase `json:"phrases"`
 }
 
 // CoachReply is what the model produces for a follow-up turn: a question and
@@ -87,8 +92,13 @@ type DiscussionSession struct {
 	Transcript     []DiscussionMessage `json:"transcript"`
 	ReflectionJA   string              `json:"reflection_ja"`
 	NaturalEnglish string              `json:"natural_english"`
-	Phrases        []Phrase            `json:"phrases"`
-	CreatedAt      string              `json:"created_at"`
+	// Sessions saved before the explanation existed read back with both
+	// fields empty; the summary screen hides the section rather than
+	// rendering an empty card.
+	NaturalnessWhyEN string   `json:"naturalness_why_en"`
+	NaturalnessFixEN string   `json:"naturalness_fix_en"`
+	Phrases          []Phrase `json:"phrases"`
+	CreatedAt        string   `json:"created_at"`
 }
 
 type DiscussionSessionSummary struct {

@@ -7,11 +7,19 @@ import type { Phrase } from '@/lib/api'
 
 interface Props {
   naturalEnglish: string
+  naturalnessWhyEn: string
+  naturalnessFixEn: string
   phrases: Phrase[]
   onRestart: () => void
 }
 
-export default function SummaryView({ naturalEnglish, phrases, onRestart }: Props) {
+export default function SummaryView({
+  naturalEnglish,
+  naturalnessWhyEn,
+  naturalnessFixEn,
+  phrases,
+  onRestart,
+}: Props) {
   return (
     <div className="space-y-3">
       <Card>
@@ -25,6 +33,27 @@ export default function SummaryView({ naturalEnglish, phrases, onRestart }: Prop
           <p className="mt-2 text-foreground">{naturalEnglish}</p>
         </CardContent>
       </Card>
+
+      {/* Hidden for sessions saved before this section existed, which read
+          back with both fields empty. A live session always has both: the
+          coach explains why the English sounded unnatural, or says it
+          already sounded natural and names what to polish next. */}
+      {(naturalnessWhyEn || naturalnessFixEn) && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Why it sounded unnatural</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {naturalnessWhyEn && <p className="text-foreground">{naturalnessWhyEn}</p>}
+            {naturalnessFixEn && (
+              <div>
+                <p className="text-sm font-semibold text-muted-foreground">How to fix it</p>
+                <p className="mt-1 text-foreground">{naturalnessFixEn}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Hidden rather than empty: a learner who already said everything
           naturally has nothing to pick up, and a bare heading reads as a

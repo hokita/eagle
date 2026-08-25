@@ -4,6 +4,10 @@ import { signInAndGetSentence } from './helpers'
 const QUESTION =
   'Who should take more responsibility for environmental problems: individuals, companies, or governments?'
 
+const STUB_WHY =
+  'Stub explanation: you opened every turn with "I think that", which reads as written English rather than speech.'
+const STUB_FIX =
+  'Stub advice: drop "that" after "I think", and swap textbook words for everyday ones.'
 const STUB_SUMMARY =
   'I think companies are responsible, and in the future they should make systemic changes.'
 
@@ -34,6 +38,10 @@ test('completes a discussion session end to end', async ({ page }) => {
   // The summary is the last screen: the natural rewrite plus the phrases.
   await expect(page.getByText('Natural English')).toBeVisible()
   await expect(page.getByText(STUB_SUMMARY)).toBeVisible()
+  await expect(page.getByText('Why it sounded unnatural')).toBeVisible()
+  await expect(page.getByText(STUB_WHY)).toBeVisible()
+  await expect(page.getByText('How to fix it')).toBeVisible()
+  await expect(page.getByText(STUB_FIX)).toBeVisible()
   await expect(page.getByText('Useful phrases')).toBeVisible()
   await expect(page.getByText('take responsibility for').first()).toBeVisible()
   await expect(page.getByText('in the future').first()).toBeVisible()
@@ -43,6 +51,7 @@ test('completes a discussion session end to end', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Discussion History' })).toBeVisible()
   await page.getByRole('button', { name: QUESTION }).click()
   await expect(page.getByText(STUB_SUMMARY)).toBeVisible()
+  await expect(page.getByText(STUB_WHY)).toBeVisible()
 })
 
 test('starting a new question resets the session', async ({ page }) => {

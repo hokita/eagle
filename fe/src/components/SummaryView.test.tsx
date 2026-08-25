@@ -15,6 +15,8 @@ function renderView(overrides = {}) {
   const props = {
     naturalEnglish:
       'I like dogs, especially Shiba Inu. I have a cat now, but I want a dog in the future.',
+    naturalnessWhyEn: 'You opened every turn with "I think that", which reads as written English.',
+    naturalnessFixEn: 'Drop "that" after "I think", and vary how you start a turn.',
     phrases,
     onRestart: vi.fn(),
     ...overrides,
@@ -32,6 +34,26 @@ describe('SummaryView', () => {
         'I like dogs, especially Shiba Inu. I have a cat now, but I want a dog in the future.'
       )
     ).toBeInTheDocument()
+  })
+
+  it('explains why the English sounded unnatural and how to fix it', () => {
+    renderView()
+    expect(screen.getByText('Why it sounded unnatural')).toBeInTheDocument()
+    expect(
+      screen.getByText('You opened every turn with "I think that", which reads as written English.')
+    ).toBeInTheDocument()
+    expect(screen.getByText('How to fix it')).toBeInTheDocument()
+    expect(
+      screen.getByText('Drop "that" after "I think", and vary how you start a turn.')
+    ).toBeInTheDocument()
+  })
+
+  // Sessions saved before the explanation existed read back with both fields
+  // empty; an empty card would look like a failed load.
+  it('hides the explanation card for a session that has none', () => {
+    renderView({ naturalnessWhyEn: '', naturalnessFixEn: '' })
+    expect(screen.queryByText('Why it sounded unnatural')).not.toBeInTheDocument()
+    expect(screen.queryByText('How to fix it')).not.toBeInTheDocument()
   })
 
   it('lists each phrase with its meaning and example', () => {

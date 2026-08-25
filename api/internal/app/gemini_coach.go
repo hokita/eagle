@@ -16,7 +16,7 @@ const (
 	// Output bounds per call — the input side is bounded by transcript
 	// validation; these keep the response side predictable too.
 	maxCoachReplyOutputTokens   = 256
-	maxCoachSummaryOutputTokens = 1536
+	maxCoachSummaryOutputTokens = 2048
 )
 
 var coachReplySchema = &genai.Schema{
@@ -30,7 +30,9 @@ var coachReplySchema = &genai.Schema{
 var summarySchema = &genai.Schema{
 	Type: genai.TypeObject,
 	Properties: map[string]*genai.Schema{
-		"natural_english": {Type: genai.TypeString},
+		"natural_english":    {Type: genai.TypeString},
+		"naturalness_why_en": {Type: genai.TypeString},
+		"naturalness_fix_en": {Type: genai.TypeString},
 		"phrases": {Type: genai.TypeArray, Items: &genai.Schema{
 			Type: genai.TypeObject,
 			Properties: map[string]*genai.Schema{
@@ -41,7 +43,7 @@ var summarySchema = &genai.Schema{
 			Required: []string{"phrase", "meaning_en", "example_en"},
 		}},
 	},
-	Required: []string{"natural_english", "phrases"},
+	Required: []string{"natural_english", "naturalness_why_en", "naturalness_fix_en", "phrases"},
 }
 
 // GeminiCoach implements DiscussionCoach using the Gemini API, reusing the
@@ -109,6 +111,12 @@ func (g *GeminiCoach) Summarize(ctx context.Context, q *DiscussionQuestion, tran
 	// the session has no other step left to fall back on.
 	if strings.TrimSpace(summary.NaturalEnglish) == "" {
 		return nil, fmt.Errorf("summary produced an empty rewrite")
+	}
+	// Both halves of the explanation are required for the same reason: the
+	// prompt has an answer even for a learner who sounded natural, so a
+	// blank field is the model failing to follow it, not an empty result.
+	if strings.TrimSpace(summary.NaturalnessWhyEN) == "" || strings.TrimSpace(summary.NaturalnessFixEN) == "" {
+		return nil, fmt.Errorf("summary produced an incomplete naturalness explanation")
 	}
 	// Keep only well-formed phrases and truncate extras. The response schema
 	// only constrains field types, so a record can legally arrive with a

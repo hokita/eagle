@@ -35,14 +35,16 @@ type phraseDoc struct {
 }
 
 type discussionSessionDoc struct {
-	QuestionID     int                    `firestore:"question_id"`
-	QuestionEN     string                 `firestore:"question_en"`
-	Topic          string                 `firestore:"topic"`
-	Transcript     []discussionMessageDoc `firestore:"transcript"`
-	ReflectionJA   string                 `firestore:"reflection_ja"`
-	NaturalEnglish string                 `firestore:"natural_english"`
-	Phrases        []phraseDoc            `firestore:"phrases"`
-	CreatedAt      time.Time              `firestore:"created_at"`
+	QuestionID       int                    `firestore:"question_id"`
+	QuestionEN       string                 `firestore:"question_en"`
+	Topic            string                 `firestore:"topic"`
+	Transcript       []discussionMessageDoc `firestore:"transcript"`
+	ReflectionJA     string                 `firestore:"reflection_ja"`
+	NaturalEnglish   string                 `firestore:"natural_english"`
+	NaturalnessWhyEN string                 `firestore:"naturalness_why_en"`
+	NaturalnessFixEN string                 `firestore:"naturalness_fix_en"`
+	Phrases          []phraseDoc            `firestore:"phrases"`
+	CreatedAt        time.Time              `firestore:"created_at"`
 }
 
 func (r *firestoreRepo) userDiscussionSessions(uid string) *firestore.CollectionRef {
@@ -111,9 +113,11 @@ func sessionToDoc(s *DiscussionSession, createdAt time.Time) *discussionSessionD
 	return &discussionSessionDoc{
 		QuestionID: s.QuestionID, QuestionEN: s.QuestionEN, Topic: s.Topic,
 		Transcript: transcript, ReflectionJA: s.ReflectionJA,
-		NaturalEnglish: s.NaturalEnglish,
-		Phrases:        phrases,
-		CreatedAt:      createdAt,
+		NaturalEnglish:   s.NaturalEnglish,
+		NaturalnessWhyEN: s.NaturalnessWhyEN,
+		NaturalnessFixEN: s.NaturalnessFixEN,
+		Phrases:          phrases,
+		CreatedAt:        createdAt,
 	}
 }
 
@@ -132,9 +136,11 @@ func sessionFromDoc(id string, sd *discussionSessionDoc) *DiscussionSession {
 	return &DiscussionSession{
 		ID: id, QuestionID: sd.QuestionID, QuestionEN: sd.QuestionEN, Topic: sd.Topic,
 		Transcript: transcript, ReflectionJA: sd.ReflectionJA,
-		NaturalEnglish: sd.NaturalEnglish,
-		Phrases:        phrases,
-		CreatedAt:      sd.CreatedAt.UTC().Format(time.RFC3339),
+		NaturalEnglish:   sd.NaturalEnglish,
+		NaturalnessWhyEN: sd.NaturalnessWhyEN,
+		NaturalnessFixEN: sd.NaturalnessFixEN,
+		Phrases:          phrases,
+		CreatedAt:        sd.CreatedAt.UTC().Format(time.RFC3339),
 	}
 }
 

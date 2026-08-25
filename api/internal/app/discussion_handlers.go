@@ -134,9 +134,11 @@ type DiscussionCompleteRequest struct {
 }
 
 type DiscussionCompleteResponse struct {
-	SessionID      string   `json:"session_id"`
-	NaturalEnglish string   `json:"natural_english"`
-	Phrases        []Phrase `json:"phrases"`
+	SessionID        string   `json:"session_id"`
+	NaturalEnglish   string   `json:"natural_english"`
+	NaturalnessWhyEN string   `json:"naturalness_why_en"`
+	NaturalnessFixEN string   `json:"naturalness_fix_en"`
+	Phrases          []Phrase `json:"phrases"`
 }
 
 // discussionComplete is the single closing step: it summarizes the session
@@ -172,13 +174,15 @@ func (s *Server) discussionComplete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	session := &DiscussionSession{
-		QuestionID:     q.ID,
-		QuestionEN:     q.QuestionEN,
-		Topic:          q.Topic,
-		Transcript:     req.Transcript,
-		ReflectionJA:   req.ReflectionJA,
-		NaturalEnglish: summary.NaturalEnglish,
-		Phrases:        summary.Phrases,
+		QuestionID:       q.ID,
+		QuestionEN:       q.QuestionEN,
+		Topic:            q.Topic,
+		Transcript:       req.Transcript,
+		ReflectionJA:     req.ReflectionJA,
+		NaturalEnglish:   summary.NaturalEnglish,
+		NaturalnessWhyEN: summary.NaturalnessWhyEN,
+		NaturalnessFixEN: summary.NaturalnessFixEN,
+		Phrases:          summary.Phrases,
 	}
 	sessionID, err := s.discussions.SaveSession(r.Context(), uid, session)
 	if err != nil {
@@ -187,9 +191,11 @@ func (s *Server) discussionComplete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, DiscussionCompleteResponse{
-		SessionID:      sessionID,
-		NaturalEnglish: summary.NaturalEnglish,
-		Phrases:        summary.Phrases,
+		SessionID:        sessionID,
+		NaturalEnglish:   summary.NaturalEnglish,
+		NaturalnessWhyEN: summary.NaturalnessWhyEN,
+		NaturalnessFixEN: summary.NaturalnessFixEN,
+		Phrases:          summary.Phrases,
 	})
 }
 

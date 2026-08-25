@@ -32,8 +32,10 @@ func sampleSession() *DiscussionSession {
 			{Role: "ai", Text: "Why do you think so?"},
 			{Role: "user", Text: "Because they pollute more."},
 		},
-		ReflectionJA:   "制度を変える必要がある。",
-		NaturalEnglish: "I think companies are responsible, because they pollute more than anyone else.",
+		ReflectionJA:     "制度を変える必要がある。",
+		NaturalEnglish:   "I think companies are responsible, because they pollute more than anyone else.",
+		NaturalnessWhyEN: "You repeated \"I think\" at the start of every turn.",
+		NaturalnessFixEN: "Vary your opener — try \"For me,\" or just state it.",
 		Phrases: []Phrase{
 			{Phrase: "take responsibility for", MeaningEN: "to accept that something is your job or your fault", ExampleEN: "Companies should take responsibility for pollution."},
 		},
@@ -102,6 +104,8 @@ func TestFirestoreSaveAndGetSession(t *testing.T) {
 	if got.ID != id || got.QuestionID != 1 || len(got.Transcript) != 3 ||
 		got.ReflectionJA != "制度を変える必要がある。" ||
 		!strings.Contains(got.NaturalEnglish, "pollute more") ||
+		!strings.Contains(got.NaturalnessWhyEN, "every turn") ||
+		!strings.Contains(got.NaturalnessFixEN, "Vary your opener") ||
 		len(got.Phrases) != 1 ||
 		got.Phrases[0].Phrase != "take responsibility for" ||
 		got.CreatedAt != "2026-08-23T10:00:00Z" {

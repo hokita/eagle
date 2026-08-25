@@ -44,11 +44,13 @@ func buildDiscussionReplyPrompt(q *DiscussionQuestion, transcript []DiscussionMe
 }
 
 // buildSummaryPrompt produces the one analysis prompt a session runs, after
-// the conversation and the Japanese reflection are both in. It asks for two
-// things the learner reads back in English: a single natural rewrite of
-// everything they said, and a few reusable phrases. Deliberately not a
-// per-sentence mistake list — the rewrite carries the corrections implicitly,
-// in the shape the learner would actually say.
+// the conversation and the Japanese reflection are both in. It asks for
+// three things the learner reads back in English: a single natural rewrite
+// of everything they said, an explanation of why their own wording sounded
+// unnatural and what to do about it, and a few reusable phrases. The
+// explanation is deliberately pitched at the pattern level rather than as a
+// per-sentence list — the rewrite already shows the shape they should have
+// used, so what is left to add is the habit behind the difference.
 func buildSummaryPrompt(q *DiscussionQuestion, transcript []DiscussionMessage, reflectionJA string) string {
 	var b strings.Builder
 	b.WriteString("You are an English tutor. A Japanese learner discussed a question in English, ")
@@ -63,7 +65,18 @@ func buildSummaryPrompt(q *DiscussionQuestion, transcript []DiscussionMessage, r
 	b.WriteString("the way a native speaker would say it in casual conversation. Merge their separate ")
 	b.WriteString("answers into connected sentences, keep their meaning and their opinions exactly, and ")
 	b.WriteString("invent no new content. Keep it to at most 4 sentences.\n")
-	b.WriteString("2. phrases: at most 4 phrases worth remembering, taken from either source — reusable ")
+	b.WriteString("2. naturalness_why_en: why the learner's English sounded unnatural to a native ear. ")
+	b.WriteString("Describe the patterns across their whole conversation — over-formal or textbook word ")
+	b.WriteString("choice, the same opener repeated every turn, phrasings carried over from Japanese ")
+	b.WriteString("word order or particles — not a sentence-by-sentence list. Name at most two patterns ")
+	b.WriteString("and quote the learner's own words in passing to show each one. Keep it to at most 3 sentences.\n")
+	b.WriteString("3. naturalness_fix_en: what the learner should do differently next time, concretely ")
+	b.WriteString("enough to act on — what to say instead of the habits you named. Keep it to at most 3 sentences.\n")
+	b.WriteString("Judge only what the learner actually wrote, and never invent problems they did not have. ")
+	b.WriteString("If their English already sounded natural, say that it already sounded natural in ")
+	b.WriteString("naturalness_why_en and name the one thing worth polishing next in naturalness_fix_en — ")
+	b.WriteString("never leave either field empty.\n")
+	b.WriteString("4. phrases: at most 4 phrases worth remembering, taken from either source — reusable ")
 	b.WriteString("chunks that appear in natural_english, or a phrase that would let the learner ")
 	b.WriteString("say an idea that stayed in the Japanese text. Prefer short chunks of common words ")
 	b.WriteString("(\"in the future\", \"kind of a hassle\", \"I'd rather\") over single words — everyday spoken English ")
