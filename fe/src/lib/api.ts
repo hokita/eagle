@@ -57,39 +57,16 @@ export interface DiscussionReplyResponse {
   message: string
 }
 
-export interface Expression {
+export interface Phrase {
   phrase: string
-  meaning_ja: string
+  meaning_en: string
   example_en: string
-}
-
-export interface Correction {
-  original: string
-  better: string
-  note_ja: string
-}
-
-export interface GapAnalysis {
-  expressed_ideas: string[]
-  missing_ideas: string[]
-  expressions: Expression[]
-  corrections: Correction[]
-}
-
-export interface DiscussionCompleteRequest {
-  question_id: number
-  transcript: DiscussionMessage[]
-  reflection_ja: string
-  expressed_ideas: string[]
-  missing_ideas: string[]
-  expressions: Expression[]
-  corrections: Correction[]
-  retry_answer: string
 }
 
 export interface DiscussionCompleteResponse {
   session_id: string
-  retry_feedback: string
+  natural_english: string
+  phrases: Phrase[]
 }
 
 export interface DiscussionSessionSummary {
@@ -106,13 +83,8 @@ export interface DiscussionSessionDetail {
   topic: string
   transcript: DiscussionMessage[]
   reflection_ja: string
-  expressed_ideas: string[]
-  missing_ideas: string[]
-  expressions: Expression[]
-  corrections: Correction[]
-  first_answer: string
-  retry_answer: string
-  retry_feedback: string
+  natural_english: string
+  phrases: Phrase[]
   created_at: string
 }
 
@@ -170,16 +142,10 @@ export const api = {
       body: JSON.stringify({ question_id: questionId, transcript }),
     }),
 
-  discussionAnalyze: (questionId: number, transcript: DiscussionMessage[], reflectionJa: string) =>
-    request<GapAnalysis>('/api/discussion/analyze', {
-      method: 'POST',
-      body: JSON.stringify({ question_id: questionId, transcript, reflection_ja: reflectionJa }),
-    }),
-
-  discussionComplete: (payload: DiscussionCompleteRequest) =>
+  discussionComplete: (questionId: number, transcript: DiscussionMessage[], reflectionJa: string) =>
     request<DiscussionCompleteResponse>('/api/discussion/complete', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ question_id: questionId, transcript, reflection_ja: reflectionJa }),
     }),
 
   listDiscussionSessions: () =>

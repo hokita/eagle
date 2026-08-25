@@ -59,14 +59,55 @@ func TestBuildDiscussionReplyPromptNeverLetsTheModelEndTheConversation(t *testin
 	}
 }
 
-func TestBuildGapAnalysisPromptIncludesReflectionAndRules(t *testing.T) {
-	got := buildGapAnalysisPrompt(promptQuestion, msgs("I think companies."), "制度を変える必要がある。")
+func TestBuildSummaryPromptIncludesConversationAndReflection(t *testing.T) {
+	got := buildSummaryPrompt(promptQuestion, msgs("I like dogs.", "What kind?", "I like shiba-dog."), "今は猫を飼っているが将来は犬を飼いたい")
 	for _, want := range []string{
 		promptQuestion.QuestionEN,
-		"Learner: I think companies.",
-		"制度を変える必要がある。",
-		"ideas and intentions, not literal wording",
+		"Learner: I like dogs.",
+		"You: What kind?",
+		"Learner: I like shiba-dog.",
+		"今は猫を飼っているが将来は犬を飼いたい",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("prompt missing %q:\n%s", want, got)
+		}
+	}
+}
+
+// The rewrite is one passage covering the whole conversation, not a
+// per-sentence correction list: the learner's turns are merged with the
+// ideas from their Japanese reflection into something they could have said.
+func TestBuildSummaryPromptAsksForOneNaturalPassage(t *testing.T) {
+	got := buildSummaryPrompt(promptQuestion, msgs("I like dogs."), "犬が好き")
+	for _, want := range []string{
+		"natural_english",
+		"single short paragraph",
+		"everything the learner said",
+		"including the ideas they could only write in Japanese",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("prompt missing %q:\n%s", want, got)
+		}
+	}
+	for _, forbidden := range []string{"corrections", "original", "note_ja"} {
+		if strings.Contains(got, forbidden) {
+			t.Fatalf("prompt must not ask for per-sentence corrections (%q):\n%s", forbidden, got)
+		}
+	}
+}
+
+// Phrases may come from either source: a reusable chunk of the rewrite, or
+// an expression that covers an idea which stayed in the Japanese text.
+func TestBuildSummaryPromptAsksForPhrasesFromBothSources(t *testing.T) {
+	got := buildSummaryPrompt(promptQuestion, msgs("I like dogs."), "犬が好き")
+	for _, want := range []string{
+		"phrases",
 		"at most 4",
+		"chunks that appear in natural_english",
+		"say an idea that stayed in the Japanese text",
+		"everyday spoken English",
+		"meaning_en",
+		"example_en",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("prompt missing %q:\n%s", want, got)
@@ -74,76 +115,14 @@ func TestBuildGapAnalysisPromptIncludesReflectionAndRules(t *testing.T) {
 	}
 }
 
-// Learners found the taught expressions too hard: the old prompt pitched
-// them above the learner's level. They must now be everyday spoken phrases.
-func TestBuildGapAnalysisPromptAsksForEverydayExpressions(t *testing.T) {
-	got := buildGapAnalysisPrompt(promptQuestion, msgs("I think companies."), "制度を変える必要がある。")
-	if !strings.Contains(got, "everyday spoken English") {
-		t.Fatalf("prompt missing the everyday-phrase instruction:\n%s", got)
+// The reflection is the only Japanese in the session; every question and
+// explanation the learner reads back is English.
+func TestBuildSummaryPromptKeepsExplanationsInEnglish(t *testing.T) {
+	got := buildSummaryPrompt(promptQuestion, msgs("I like dogs."), "犬が好き")
+	if !strings.Contains(got, "Write every part of your response in English") {
+		t.Fatalf("prompt missing the English-only instruction:\n%s", got)
 	}
-	for _, forbidden := range []string{"slightly above", "level 3 of 5"} {
-		if strings.Contains(got, forbidden) {
-			t.Fatalf("prompt must not pitch above the learner's level (%q):\n%s", forbidden, got)
-		}
-	}
-}
-
-// The reflection cannot be skipped, so a learner with nothing to add still
-// reaches the analysis. The prompt must allow that answer to produce nothing
-// to teach rather than pushing the model to invent expressions.
-func TestBuildGapAnalysisPromptAllowsNoExpressions(t *testing.T) {
-	got := buildGapAnalysisPrompt(promptQuestion, msgs("I think companies."), "特にありません。")
-	if !strings.Contains(got, "empty list when the learner expressed everything") {
-		t.Fatalf("prompt missing the no-expressions allowance:\n%s", got)
-	}
-}
-
-func TestBuildGapAnalysisPromptAsksForCorrections(t *testing.T) {
-	got := buildGapAnalysisPrompt(promptQuestion, msgs("I think companies."), "制度を変える必要がある。")
-	for _, want := range []string{
-		"corrections",
-		"at most 3",
-		"exactly as the learner wrote it",
-		"never invent a mistake",
-		"empty list",
-		"note_ja",
-	} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("prompt missing %q:\n%s", want, got)
-		}
-	}
-}
-
-func TestBuildRetryReviewPromptIncludesAnswersAndExpressions(t *testing.T) {
-	got := buildRetryReviewPrompt(promptQuestion, "I think companies.",
-		"Companies should take responsibility for their impact.",
-		[]Expression{{Phrase: "take responsibility for"}, {Phrase: "make systemic changes"}})
-	for _, want := range []string{
-		"First answer: I think companies.",
-		"New answer: Companies should take responsibility for their impact.",
-		"- take responsibility for",
-		"- make systemic changes",
-		"Do not rewrite",
-	} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("prompt missing %q:\n%s", want, got)
-		}
-	}
-}
-
-func TestBuildRetryReviewPromptWithoutExpressionsSkipsUsageFeedback(t *testing.T) {
-	got := buildRetryReviewPrompt(promptQuestion, "I think companies.",
-		"I still think companies, because they pollute more.", nil)
-	for _, forbidden := range []string{
-		"Expressions taught",
-		"taught expressions",
-		"studied a few new expressions",
-	} {
-		if strings.Contains(got, forbidden) {
-			t.Fatalf("prompt for a no-expressions session must not contain %q:\n%s", forbidden, got)
-		}
-	}
-	if !strings.Contains(got, "what improved compared with the first answer") {
-		t.Fatalf("prompt missing the before/after comparison request:\n%s", got)
+	if strings.Contains(got, "Japanese gloss") {
+		t.Fatalf("prompt must not ask for a Japanese gloss:\n%s", got)
 	}
 }

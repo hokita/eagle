@@ -6,7 +6,6 @@ vi.mock('@/lib/api', () => ({
   api: {
     getDiscussionQuestion: vi.fn(),
     discussionReply: vi.fn(),
-    discussionAnalyze: vi.fn(),
     discussionComplete: vi.fn(),
   },
 }))
@@ -25,14 +24,15 @@ const question = {
   target_skills: ['giving opinions'],
 }
 
-const analysis = {
-  expressed_ideas: ['Companies are responsible.'],
-  missing_ideas: ['Systemic change is needed.'],
-  expressions: [
-    { phrase: 'take responsibility for', meaning_ja: '〜に責任を持つ', example_en: 'x' },
-  ],
-  corrections: [
-    { original: 'I am agree.', better: 'I agree.', note_ja: 'agree は動詞です。' },
+const summary = {
+  session_id: 's1',
+  natural_english: 'I think companies are responsible, because they pollute more than anyone else.',
+  phrases: [
+    {
+      phrase: 'take responsibility for',
+      meaning_en: 'to accept that something is your job',
+      example_en: 'They take responsibility for it.',
+    },
   ],
 }
 
@@ -74,51 +74,43 @@ describe('DiscussionSession', () => {
     await startSession()
     await answerOnce('I think companies.')
     await waitFor(() =>
-      expect(screen.getByText('日本語で答えるなら、他に言いたかったことはありますか？')).toBeInTheDocument()
+      expect(screen.getByText('What else did you want to say? (in Japanese)')).toBeInTheDocument()
     )
   })
 
-  it('analyzes the reflection and shows the study phase', async () => {
+  it('summarizes the session when the reflection is submitted', async () => {
     vi.mocked(api.discussionReply).mockResolvedValue({ done: true, message: '' })
-    vi.mocked(api.discussionAnalyze).mockResolvedValue(analysis)
+    vi.mocked(api.discussionComplete).mockResolvedValue(summary)
     await startSession()
     await answerOnce('I think companies.')
     await waitFor(() => expect(screen.getByLabelText('Japanese reflection')).toBeInTheDocument())
     fireEvent.change(screen.getByLabelText('Japanese reflection'), {
       target: { value: '制度を変えるべき。' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
-    await waitFor(() => expect(screen.getByText('take responsibility for')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Finish' }))
+    await waitFor(() => expect(screen.getByText(summary.natural_english)).toBeInTheDocument())
+    expect(screen.getByText('take responsibility for')).toBeInTheDocument()
+    expect(api.discussionComplete).toHaveBeenCalledWith(
+      16,
+      [{ role: 'user', text: 'I think companies.' }],
+      '制度を変えるべき。'
+    )
   })
 
-  it('completes the session and shows the comparison', async () => {
+  // The summary is terminal: the only way on is a fresh question.
+  it('starts a new question from the summary', async () => {
     vi.mocked(api.discussionReply).mockResolvedValue({ done: true, message: '' })
-    vi.mocked(api.discussionAnalyze).mockResolvedValue(analysis)
-    vi.mocked(api.discussionComplete).mockResolvedValue({
-      session_id: 's1',
-      retry_feedback: 'You used the new expression!',
-    })
+    vi.mocked(api.discussionComplete).mockResolvedValue(summary)
     await startSession()
     await answerOnce('I think companies.')
     await waitFor(() => expect(screen.getByLabelText('Japanese reflection')).toBeInTheDocument())
     fireEvent.change(screen.getByLabelText('Japanese reflection'), { target: { value: 'あ' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Try the question again' })).toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: 'Try the question again' }))
-    fireEvent.change(screen.getByLabelText('Your improved answer'), {
-      target: { value: 'Companies should take responsibility.' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Submit answer' }))
-    await waitFor(() => expect(screen.getByText('You used the new expression!')).toBeInTheDocument())
-    expect(api.discussionComplete).toHaveBeenCalledWith(
-      expect.objectContaining({
-        question_id: 16,
-        retry_answer: 'Companies should take responsibility.',
-        expressions: analysis.expressions,
-        corrections: analysis.corrections,
-      })
-    )
-    expect(screen.getByText('I think companies.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Finish' }))
+    await waitFor(() => expect(screen.getByText(summary.natural_english)).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next question' }))
+    await waitFor(() => expect(screen.getByLabelText('Your answer')).toBeInTheDocument())
+    expect(screen.queryByText(summary.natural_english)).not.toBeInTheDocument()
   })
 
   it('shows an error with retry when the reply call fails', async () => {
@@ -150,19 +142,19 @@ describe('DiscussionSession', () => {
     expect(lastCallTranscript).toEqual([{ role: 'user', text: 'I think companies, actually.' }])
   })
 
-  it('clears the stale error banner when a failed analysis is resubmitted', async () => {
+  it('clears the stale error banner when a failed summary is resubmitted', async () => {
     vi.mocked(api.discussionReply).mockResolvedValue({ done: true, message: '' })
-    vi.mocked(api.discussionAnalyze).mockRejectedValueOnce(new Error('API error: 500'))
+    vi.mocked(api.discussionComplete).mockRejectedValueOnce(new Error('API error: 500'))
     await startSession()
     await answerOnce('I think companies.')
     await waitFor(() => expect(screen.getByLabelText('Japanese reflection')).toBeInTheDocument())
     fireEvent.change(screen.getByLabelText('Japanese reflection'), { target: { value: 'あ' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Finish' }))
     expect(await screen.findByText('Something went wrong. Please try again.')).toBeInTheDocument()
 
-    vi.mocked(api.discussionAnalyze).mockResolvedValueOnce(analysis)
-    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
-    await waitFor(() => expect(screen.getByText('take responsibility for')).toBeInTheDocument())
+    vi.mocked(api.discussionComplete).mockResolvedValueOnce(summary)
+    fireEvent.click(screen.getByRole('button', { name: 'Finish' }))
+    await waitFor(() => expect(screen.getByText(summary.natural_english)).toBeInTheDocument())
     expect(screen.queryByText('Something went wrong. Please try again.')).not.toBeInTheDocument()
   })
 

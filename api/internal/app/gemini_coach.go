@@ -16,8 +16,7 @@ const (
 	// Output bounds per call — the input side is bounded by transcript
 	// validation; these keep the response side predictable too.
 	maxCoachReplyOutputTokens   = 256
-	maxCoachAnalyzeOutputTokens = 1536
-	maxCoachReviewOutputTokens  = 512
+	maxCoachSummaryOutputTokens = 1536
 )
 
 var coachReplySchema = &genai.Schema{
@@ -28,31 +27,21 @@ var coachReplySchema = &genai.Schema{
 	Required: []string{"message"},
 }
 
-var gapAnalysisSchema = &genai.Schema{
+var summarySchema = &genai.Schema{
 	Type: genai.TypeObject,
 	Properties: map[string]*genai.Schema{
-		"expressed_ideas": {Type: genai.TypeArray, Items: &genai.Schema{Type: genai.TypeString}},
-		"missing_ideas":   {Type: genai.TypeArray, Items: &genai.Schema{Type: genai.TypeString}},
-		"expressions": {Type: genai.TypeArray, Items: &genai.Schema{
+		"natural_english": {Type: genai.TypeString},
+		"phrases": {Type: genai.TypeArray, Items: &genai.Schema{
 			Type: genai.TypeObject,
 			Properties: map[string]*genai.Schema{
 				"phrase":     {Type: genai.TypeString},
-				"meaning_ja": {Type: genai.TypeString},
+				"meaning_en": {Type: genai.TypeString},
 				"example_en": {Type: genai.TypeString},
 			},
-			Required: []string{"phrase", "meaning_ja", "example_en"},
-		}},
-		"corrections": {Type: genai.TypeArray, Items: &genai.Schema{
-			Type: genai.TypeObject,
-			Properties: map[string]*genai.Schema{
-				"original": {Type: genai.TypeString},
-				"better":   {Type: genai.TypeString},
-				"note_ja":  {Type: genai.TypeString},
-			},
-			Required: []string{"original", "better", "note_ja"},
+			Required: []string{"phrase", "meaning_en", "example_en"},
 		}},
 	},
-	Required: []string{"expressed_ideas", "missing_ideas", "expressions", "corrections"},
+	Required: []string{"natural_english", "phrases"},
 }
 
 // GeminiCoach implements DiscussionCoach using the Gemini API, reusing the
@@ -103,89 +92,41 @@ func (g *GeminiCoach) Reply(ctx context.Context, q *DiscussionQuestion, transcri
 	return &reply, nil
 }
 
-func (g *GeminiCoach) AnalyzeGap(ctx context.Context, q *DiscussionQuestion, transcript []DiscussionMessage, reflectionJA string) (*GapAnalysis, error) {
-	text, err := g.generate(ctx, buildGapAnalysisPrompt(q, transcript, reflectionJA), &genai.GenerateContentConfig{
-		MaxOutputTokens:  maxCoachAnalyzeOutputTokens,
+func (g *GeminiCoach) Summarize(ctx context.Context, q *DiscussionQuestion, transcript []DiscussionMessage, reflectionJA string) (*Summary, error) {
+	text, err := g.generate(ctx, buildSummaryPrompt(q, transcript, reflectionJA), &genai.GenerateContentConfig{
+		MaxOutputTokens:  maxCoachSummaryOutputTokens,
 		ResponseMIMEType: "application/json",
-		ResponseSchema:   gapAnalysisSchema,
+		ResponseSchema:   summarySchema,
 	})
 	if err != nil {
 		return nil, err
 	}
-	var analysis GapAnalysis
-	if err := json.Unmarshal([]byte(text), &analysis); err != nil {
-		return nil, fmt.Errorf("parse gap analysis: %w", err)
+	var summary Summary
+	if err := json.Unmarshal([]byte(text), &summary); err != nil {
+		return nil, fmt.Errorf("parse summary: %w", err)
 	}
-	// Keep only well-formed expressions and truncate extras. The response
-	// schema only constrains field types, so a record can legally arrive
-	// with a blank gloss or example — all three fields must be non-blank or
-	// the study cards and saved history show empty slots. Ending up with
-	// none is a valid outcome: a learner who could already express
-	// everything has nothing to be taught, and failing here would strand
-	// them on the reflection step, which can no longer be skipped.
-	valid := analysis.Expressions[:0]
-	for _, e := range analysis.Expressions {
-		if strings.TrimSpace(e.Phrase) == "" ||
-			strings.TrimSpace(e.MeaningJA) == "" ||
-			strings.TrimSpace(e.ExampleEN) == "" {
+	// The rewrite is the screen — without it there is nothing to show, and
+	// the session has no other step left to fall back on.
+	if strings.TrimSpace(summary.NaturalEnglish) == "" {
+		return nil, fmt.Errorf("summary produced an empty rewrite")
+	}
+	// Keep only well-formed phrases and truncate extras. The response schema
+	// only constrains field types, so a record can legally arrive with a
+	// blank gloss or example, which would render as an empty slot. Ending up
+	// with none is a valid outcome rather than an error: a learner who
+	// already said everything naturally has nothing worth picking up.
+	valid := make([]Phrase, 0, len(summary.Phrases))
+	for _, ph := range summary.Phrases {
+		if strings.TrimSpace(ph.Phrase) == "" ||
+			strings.TrimSpace(ph.MeaningEN) == "" ||
+			strings.TrimSpace(ph.ExampleEN) == "" {
 			continue
 		}
-		valid = append(valid, e)
+		valid = append(valid, ph)
 	}
-	if len(valid) > maxSessionExpressions {
-		valid = valid[:maxSessionExpressions]
+	if len(valid) > maxSessionPhrases {
+		valid = valid[:maxSessionPhrases]
 	}
-	if valid == nil {
-		valid = []Expression{}
-	}
-	analysis.Expressions = valid
-	if analysis.ExpressedIdeas == nil {
-		analysis.ExpressedIdeas = []string{}
-	}
-	if analysis.MissingIdeas == nil {
-		analysis.MissingIdeas = []string{}
-	}
-	// Corrections get the same blank-field filtering as expressions, plus a
-	// grounding check the response schema cannot express: "original" is
-	// presented to the learner as their own sentence, so it has to actually
-	// be one. An empty result is success rather than an error — a
-	// conversation with no mistakes has nothing to correct.
-	validCorrections := make([]Correction, 0, len(analysis.Corrections))
-	for _, c := range analysis.Corrections {
-		if strings.TrimSpace(c.Original) == "" ||
-			strings.TrimSpace(c.Better) == "" ||
-			strings.TrimSpace(c.NoteJA) == "" {
-			continue
-		}
-		if !learnerWrote(transcript, c.Original) {
-			continue
-		}
-		validCorrections = append(validCorrections, c)
-	}
-	if len(validCorrections) > maxSessionCorrections {
-		validCorrections = validCorrections[:maxSessionCorrections]
-	}
-	analysis.Corrections = validCorrections
-	// The complete endpoint rejects idea lists longer than maxSessionIdeas —
-	// truncate here so a verbose model response can't brick the flow.
-	if len(analysis.ExpressedIdeas) > maxSessionIdeas {
-		analysis.ExpressedIdeas = analysis.ExpressedIdeas[:maxSessionIdeas]
-	}
-	if len(analysis.MissingIdeas) > maxSessionIdeas {
-		analysis.MissingIdeas = analysis.MissingIdeas[:maxSessionIdeas]
-	}
-	return &analysis, nil
-}
-
-func (g *GeminiCoach) ReviewRetry(ctx context.Context, q *DiscussionQuestion, firstAnswer, retryAnswer string, expressions []Expression) (string, error) {
-	text, err := g.generate(ctx, buildRetryReviewPrompt(q, firstAnswer, retryAnswer, expressions), &genai.GenerateContentConfig{
-		MaxOutputTokens: maxCoachReviewOutputTokens,
-	})
-	if err != nil {
-		return "", err
-	}
-	if strings.TrimSpace(text) == "" {
-		return "", fmt.Errorf("retry review produced empty feedback")
-	}
-	return text, nil
+	summary.Phrases = valid
+	return &summary, nil
 }

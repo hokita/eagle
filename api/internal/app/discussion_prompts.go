@@ -43,11 +43,13 @@ func buildDiscussionReplyPrompt(q *DiscussionQuestion, transcript []DiscussionMe
 	return b.String()
 }
 
-// buildGapAnalysisPrompt compares the ideas of the English conversation with
-// the Japanese reflection, asks for 2-4 everyday expressions to close the
-// gap, and for corrections of the mistakes the learner actually made — the
-// only place in a session where their English is corrected at all.
-func buildGapAnalysisPrompt(q *DiscussionQuestion, transcript []DiscussionMessage, reflectionJA string) string {
+// buildSummaryPrompt produces the one analysis prompt a session runs, after
+// the conversation and the Japanese reflection are both in. It asks for two
+// things the learner reads back in English: a single natural rewrite of
+// everything they said, and a few reusable phrases. Deliberately not a
+// per-sentence mistake list — the rewrite carries the corrections implicitly,
+// in the shape the learner would actually say.
+func buildSummaryPrompt(q *DiscussionQuestion, transcript []DiscussionMessage, reflectionJA string) string {
 	var b strings.Builder
 	b.WriteString("You are an English tutor. A Japanese learner discussed a question in English, ")
 	b.WriteString("then wrote in Japanese what else they wanted to say but could not express in English.\n\n")
@@ -55,57 +57,19 @@ func buildGapAnalysisPrompt(q *DiscussionQuestion, transcript []DiscussionMessag
 	b.WriteString("English conversation:\n")
 	b.WriteString(renderTranscript(transcript))
 	fmt.Fprintf(&b, "\nWhat the learner also wanted to say (in Japanese):\n%s\n\n", reflectionJA)
-	b.WriteString("Compare the ideas and intentions, not literal wording. Produce:\n")
-	b.WriteString("1. expressed_ideas: the main ideas the learner successfully communicated in English ")
-	b.WriteString("(short English sentences, at most 5).\n")
-	b.WriteString("2. missing_ideas: ideas present in the Japanese text that never appeared in the English ")
-	b.WriteString("conversation (short English sentences, at most 5).\n")
-	b.WriteString("3. expressions: at most 4 everyday spoken English phrases that would let the learner say ")
-	b.WriteString("the missing ideas. Prefer short reusable chunks of common words (\"kind of a hassle\", ")
-	b.WriteString("\"I'd rather\") over single words — no idioms, no business or literary vocabulary, ")
-	b.WriteString("nothing the learner could not use in a casual conversation today. ")
-	b.WriteString("For each: phrase (the chunk itself), meaning_ja (a short Japanese gloss), ")
-	b.WriteString("example_en (one natural example sentence using it). Return an ")
-	b.WriteString("empty list when the learner expressed everything they wanted to say — never invent ")
-	b.WriteString("something to teach.\n")
-	b.WriteString("4. corrections: at most 3 sentences from the learner's English that contain a grammar ")
-	b.WriteString("mistake or an unnatural word choice. Quote the sentence exactly as the learner wrote it ")
-	b.WriteString("in \"original\", give a natural spoken rewrite keeping their meaning in \"better\", and one ")
-	b.WriteString("short Japanese sentence explaining the fix in \"note_ja\". Flag only real mistakes — ")
-	b.WriteString("never invent a mistake and never flag a matter of style. Return an empty list when the ")
-	b.WriteString("learner's English was already fine.\n")
-	return b.String()
-}
-
-// buildRetryReviewPrompt produces encouraging usage feedback on the retry —
-// never a rewrite or correction list; mistakes are handled by the gap
-// analysis instead. A session can still reach completion with no taught
-// expressions (the complete endpoint accepts an empty list), and the prompt
-// must not claim any were studied, or the model invents usage feedback about
-// nothing.
-func buildRetryReviewPrompt(q *DiscussionQuestion, firstAnswer, retryAnswer string, expressions []Expression) string {
-	var b strings.Builder
-	b.WriteString("You are an English tutor. A learner answered a discussion question")
-	if len(expressions) > 0 {
-		b.WriteString(", studied a few new expressions,")
-	}
-	b.WriteString(" and then answered the same question again.\n\n")
-	fmt.Fprintf(&b, "Question: %s\n", q.QuestionEN)
-	fmt.Fprintf(&b, "First answer: %s\n", firstAnswer)
-	if len(expressions) > 0 {
-		b.WriteString("Expressions taught:\n")
-		for _, e := range expressions {
-			fmt.Fprintf(&b, "- %s\n", e.Phrase)
-		}
-	}
-	fmt.Fprintf(&b, "New answer: %s\n\n", retryAnswer)
-	if len(expressions) > 0 {
-		b.WriteString("Write 2-3 friendly sentences in English: say which of the taught expressions the learner ")
-		b.WriteString("actually used, and what improved compared with the first answer. ")
-	} else {
-		b.WriteString("Write 2-3 friendly sentences in English about what improved compared with the first answer. ")
-	}
-	b.WriteString("Do not rewrite their answer, do not list grammar mistakes, do not suggest further corrections. ")
-	b.WriteString("Respond with plain text only.\n")
+	b.WriteString("Produce:\n")
+	b.WriteString("1. natural_english: a single short paragraph that says everything the learner said ")
+	b.WriteString("across the whole conversation, including the ideas they could only write in Japanese, ")
+	b.WriteString("the way a native speaker would say it in casual conversation. Merge their separate ")
+	b.WriteString("answers into connected sentences, keep their meaning and their opinions exactly, and ")
+	b.WriteString("invent no new content. Keep it to at most 4 sentences.\n")
+	b.WriteString("2. phrases: at most 4 phrases worth remembering, taken from either source — reusable ")
+	b.WriteString("chunks that appear in natural_english, or a phrase that would let the learner ")
+	b.WriteString("say an idea that stayed in the Japanese text. Prefer short chunks of common words ")
+	b.WriteString("(\"in the future\", \"kind of a hassle\", \"I'd rather\") over single words — everyday spoken English ")
+	b.WriteString("only, no idioms, no business or literary vocabulary, nothing the learner could not use ")
+	b.WriteString("in a casual conversation today. For each: phrase (the chunk itself), meaning_en (a short ")
+	b.WriteString("plain-English explanation), example_en (one natural example sentence using it).\n")
+	b.WriteString("\nWrite every part of your response in English, including the explanations.\n")
 	return b.String()
 }

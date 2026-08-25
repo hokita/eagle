@@ -9,9 +9,11 @@ function renderPrompt(overrides = {}) {
 }
 
 describe('ReflectionPrompt', () => {
-  it('shows the Japanese reflection question', () => {
+  // The question is English even though the answer is Japanese: every
+  // question and explanation in the app is in English.
+  it('asks the reflection question in English', () => {
     renderPrompt()
-    expect(screen.getByText('日本語で答えるなら、他に言いたかったことはありますか？')).toBeInTheDocument()
+    expect(screen.getByText('What else did you want to say? (in Japanese)')).toBeInTheDocument()
   })
 
   it('caps the reflection textarea below the server byte limit', () => {
@@ -24,17 +26,17 @@ describe('ReflectionPrompt', () => {
     fireEvent.change(screen.getByLabelText('Japanese reflection'), {
       target: { value: ' 制度を変えるべき。 ' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Finish' }))
     expect(props.onSubmit).toHaveBeenCalledWith('制度を変えるべき。')
   })
 
-  it('disables Submit when blank or loading', () => {
+  it('disables Finish when blank or loading', () => {
     renderPrompt()
-    expect(screen.getByRole('button', { name: 'Submit' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Finish' })).toBeDisabled()
   })
 
-  // The reflection is what the gap analysis and the corrections are built
-  // from, so it is a required step rather than an optional one.
+  // The reflection is what the summary is built from, so it is a required
+  // step rather than an optional one.
   it('cannot be skipped', () => {
     renderPrompt()
     expect(screen.queryByRole('button', { name: 'Nothing to add — skip' })).not.toBeInTheDocument()

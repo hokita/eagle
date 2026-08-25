@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -32,17 +33,10 @@ func sampleSession() *DiscussionSession {
 			{Role: "user", Text: "Because they pollute more."},
 		},
 		ReflectionJA:   "制度を変える必要がある。",
-		ExpressedIdeas: []string{"Companies are responsible."},
-		MissingIdeas:   []string{"Systemic change is needed."},
-		Expressions: []Expression{
-			{Phrase: "take responsibility for", MeaningJA: "〜に責任を持つ", ExampleEN: "Companies should take responsibility for pollution."},
+		NaturalEnglish: "I think companies are responsible, because they pollute more than anyone else.",
+		Phrases: []Phrase{
+			{Phrase: "take responsibility for", MeaningEN: "to accept that something is your job or your fault", ExampleEN: "Companies should take responsibility for pollution."},
 		},
-		Corrections: []Correction{
-			{Original: "I think companies.", Better: "I think companies are responsible.", NoteJA: "文が途中で終わっています。"},
-		},
-		FirstAnswer:   "I think companies.",
-		RetryAnswer:   "Companies should take responsibility for their impact.",
-		RetryFeedback: "Great improvement!",
 	}
 }
 
@@ -106,10 +100,10 @@ func TestFirestoreSaveAndGetSession(t *testing.T) {
 		t.Fatalf("get session: %v", err)
 	}
 	if got.ID != id || got.QuestionID != 1 || len(got.Transcript) != 3 ||
-		got.Expressions[0].Phrase != "take responsibility for" ||
-		len(got.Corrections) != 1 ||
-		got.Corrections[0].Better != "I think companies are responsible." ||
-		got.RetryFeedback != "Great improvement!" ||
+		got.ReflectionJA != "制度を変える必要がある。" ||
+		!strings.Contains(got.NaturalEnglish, "pollute more") ||
+		len(got.Phrases) != 1 ||
+		got.Phrases[0].Phrase != "take responsibility for" ||
 		got.CreatedAt != "2026-08-23T10:00:00Z" {
 		t.Fatalf("unexpected session: %+v", got)
 	}

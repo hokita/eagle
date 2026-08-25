@@ -12,11 +12,11 @@ const (
 	// authenticated caller can't exhaust memory or inflate Gemini request
 	// size. Sized from the complete endpoint's multibyte worst case — the
 	// field limits below are rune counts (matching the frontend textareas'
-	// character-based maxLength), so a maximal valid session is 12 messages
-	// x 2,000 runes + a 4,000-rune reflection + a 2,000-rune retry answer =
-	// 30,000 runes, up to 4 UTF-8 bytes each (~120 KiB) plus JSON escaping
-	// overhead and the coach-bounded analysis arrays. A body cap below that
-	// would reject a session whose every field passed its own validation.
+	// character-based maxLength), so a maximal valid request is 12 messages
+	// x 2,000 runes + a 4,000-rune reflection = 28,000 runes, up to 4 UTF-8
+	// bytes each (~112 KiB) plus JSON escaping overhead. A body cap below
+	// that would reject a session whose every field passed its own
+	// validation.
 	maxDiscussionRequestBytes = 192 * 1024
 	// maxDiscussionTurnLength bounds a single transcript message, in runes —
 	// the same unit the browser textareas' maxLength approximates, so text
@@ -37,17 +37,10 @@ const (
 	discussionFollowUps = 2
 	// maxDiscussionSessionList caps the history list response.
 	maxDiscussionSessionList = 50
-	// maxSessionExpressions caps the expressions list accepted by the
-	// complete endpoint and enforced by the coach's gap analysis.
-	maxSessionExpressions = 4
-	// maxSessionIdeas caps the expressed/missing idea lists accepted by the
-	// complete endpoint and enforced by the coach's gap analysis.
-	maxSessionIdeas = 20
-	// maxSessionCorrections caps the mistake corrections accepted by the
-	// complete endpoint and enforced by the coach's gap analysis. Unlike
-	// expressions, an empty list is valid — a conversation with no mistakes
-	// has nothing to correct.
-	maxSessionCorrections = 3
+	// maxSessionPhrases caps the phrase list the coach's summary may teach.
+	// An empty list is valid — a learner who already said everything
+	// naturally has nothing worth picking up.
+	maxSessionPhrases = 4
 )
 
 type DiscussionQuestion struct {
@@ -63,25 +56,20 @@ type DiscussionMessage struct {
 	Text string `json:"text"`
 }
 
-type Expression struct {
+// Phrase is one chunk worth remembering, explained in English — the
+// reflection is the only Japanese a session contains.
+type Phrase struct {
 	Phrase    string `json:"phrase"`
-	MeaningJA string `json:"meaning_ja"`
+	MeaningEN string `json:"meaning_en"`
 	ExampleEN string `json:"example_en"`
 }
 
-// Correction is one sentence the learner actually wrote, paired with a
-// natural rewrite and a short Japanese note explaining the fix.
-type Correction struct {
-	Original string `json:"original"`
-	Better   string `json:"better"`
-	NoteJA   string `json:"note_ja"`
-}
-
-type GapAnalysis struct {
-	ExpressedIdeas []string     `json:"expressed_ideas"`
-	MissingIdeas   []string     `json:"missing_ideas"`
-	Expressions    []Expression `json:"expressions"`
-	Corrections    []Correction `json:"corrections"`
+// Summary is what a finished session gives back: one natural rewrite of
+// everything the learner said, and a few phrases to keep. NaturalEnglish is
+// required; Phrases may legitimately be empty.
+type Summary struct {
+	NaturalEnglish string   `json:"natural_english"`
+	Phrases        []Phrase `json:"phrases"`
 }
 
 // CoachReply is what the model produces for a follow-up turn: a question and
@@ -98,13 +86,8 @@ type DiscussionSession struct {
 	Topic          string              `json:"topic"`
 	Transcript     []DiscussionMessage `json:"transcript"`
 	ReflectionJA   string              `json:"reflection_ja"`
-	ExpressedIdeas []string            `json:"expressed_ideas"`
-	MissingIdeas   []string            `json:"missing_ideas"`
-	Expressions    []Expression        `json:"expressions"`
-	Corrections    []Correction        `json:"corrections"`
-	FirstAnswer    string              `json:"first_answer"`
-	RetryAnswer    string              `json:"retry_answer"`
-	RetryFeedback  string              `json:"retry_feedback"`
+	NaturalEnglish string              `json:"natural_english"`
+	Phrases        []Phrase            `json:"phrases"`
 	CreatedAt      string              `json:"created_at"`
 }
 
@@ -129,11 +112,11 @@ type DiscussionRepository interface {
 	GetSession(ctx context.Context, uid, id string) (*DiscussionSession, error)
 }
 
-// DiscussionCoach is the LLM seam for the three AI steps of a session.
+// DiscussionCoach is the LLM seam for the two AI steps of a session: the
+// follow-up questions, and the closing summary.
 type DiscussionCoach interface {
 	Reply(ctx context.Context, q *DiscussionQuestion, transcript []DiscussionMessage) (*CoachReply, error)
-	AnalyzeGap(ctx context.Context, q *DiscussionQuestion, transcript []DiscussionMessage, reflectionJA string) (*GapAnalysis, error)
-	ReviewRetry(ctx context.Context, q *DiscussionQuestion, firstAnswer, retryAnswer string, expressions []Expression) (string, error)
+	Summarize(ctx context.Context, q *DiscussionQuestion, transcript []DiscussionMessage, reflectionJA string) (*Summary, error)
 }
 
 // validateTranscript enforces the transcript shape shared by every
@@ -162,34 +145,6 @@ func validateTranscript(transcript []DiscussionMessage) error {
 		}
 	}
 	return nil
-}
-
-// normalizeForGrounding makes two renderings of the same sentence
-// comparable: the model is asked to quote the learner verbatim, but a
-// difference in capitalization or spacing is not evidence that it invented
-// the sentence.
-func normalizeForGrounding(text string) string {
-	return strings.ToLower(strings.Join(strings.Fields(text), " "))
-}
-
-// learnerWrote reports whether sentence appears in one of the learner's own
-// turns. Corrections are shown back as "what you wrote", so a sentence the
-// model hallucinated — or lifted from its own follow-up question — must
-// never reach the study screen or the saved session.
-func learnerWrote(transcript []DiscussionMessage, sentence string) bool {
-	needle := normalizeForGrounding(sentence)
-	if needle == "" {
-		return false
-	}
-	for _, m := range transcript {
-		if m.Role != "user" {
-			continue
-		}
-		if strings.Contains(normalizeForGrounding(m.Text), needle) {
-			return true
-		}
-	}
-	return false
 }
 
 func countAITurns(transcript []DiscussionMessage) int {

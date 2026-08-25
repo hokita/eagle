@@ -34,8 +34,8 @@ func (stubAnalyzer) Analyze(_ context.Context, _ []app.MistakeSentence, _ string
 }
 
 // stubCoach avoids real Gemini calls in e2e tests. Deterministic: a numbered
-// follow-up per turn (the server decides when the conversation ends), fixed
-// analysis, fixed retry feedback. The literals are asserted verbatim by
+// follow-up per turn (the server decides when the conversation ends) and a
+// fixed summary. The literals are asserted verbatim by
 // e2e/tests/discussion.spec.ts.
 type stubCoach struct{}
 
@@ -49,24 +49,14 @@ func (stubCoach) Reply(_ context.Context, _ *app.DiscussionQuestion, transcript 
 	return &app.CoachReply{Message: fmt.Sprintf("Stub follow-up %d: can you tell me more?", aiTurns+1)}, nil
 }
 
-func (stubCoach) AnalyzeGap(_ context.Context, _ *app.DiscussionQuestion, _ []app.DiscussionMessage, _ string) (*app.GapAnalysis, error) {
-	return &app.GapAnalysis{
-		ExpressedIdeas: []string{"You said companies are responsible."},
-		MissingIdeas:   []string{"Systemic change is more effective than individual action."},
-		Expressions: []app.Expression{
-			{Phrase: "take responsibility for", MeaningJA: "〜に責任を持つ", ExampleEN: "Companies should take responsibility for their impact."},
-			{Phrase: "make systemic changes", MeaningJA: "制度的な変更を行う", ExampleEN: "Governments can make systemic changes."},
-		},
-		Corrections: []app.Correction{
-			// Quotes the answer discussion.spec.ts actually types: the real
-			// coach drops corrections that are not grounded in a learner turn.
-			{Original: "I think companies.", Better: "I think companies are responsible.", NoteJA: "文が途中で終わっています。"},
+func (stubCoach) Summarize(_ context.Context, _ *app.DiscussionQuestion, _ []app.DiscussionMessage, _ string) (*app.Summary, error) {
+	return &app.Summary{
+		NaturalEnglish: "I think companies are responsible, and in the future they should make systemic changes.",
+		Phrases: []app.Phrase{
+			{Phrase: "take responsibility for", MeaningEN: "to accept that something is your job or your fault", ExampleEN: "Companies should take responsibility for their impact."},
+			{Phrase: "in the future", MeaningEN: "at some time later than now", ExampleEN: "I want to live abroad in the future."},
 		},
 	}, nil
-}
-
-func (stubCoach) ReviewRetry(_ context.Context, _ *app.DiscussionQuestion, _, _ string, _ []app.Expression) (string, error) {
-	return "This is a stub retry feedback for e2e tests.", nil
 }
 
 func main() {

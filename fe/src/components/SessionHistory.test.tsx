@@ -32,17 +32,10 @@ const detail = {
     { role: 'ai' as const, text: 'Why?' },
   ],
   reflection_ja: '制度を変えるべき。',
-  expressed_ideas: ['Companies are responsible.'],
-  missing_ideas: ['Systemic change is needed.'],
-  expressions: [
-    { phrase: 'take responsibility for', meaning_ja: '〜に責任を持つ', example_en: 'x' },
+  natural_english: 'I think companies are responsible, and they should change the system.',
+  phrases: [
+    { phrase: 'take responsibility for', meaning_en: 'to accept it is your job', example_en: 'x' },
   ],
-  corrections: [
-    { original: 'I am agree.', better: 'I agree.', note_ja: 'agree は動詞です。' },
-  ],
-  first_answer: 'I think companies.',
-  retry_answer: 'Companies should take responsibility.',
-  retry_feedback: 'Nice improvement!',
   created_at: '2026-08-23T10:00:00Z',
 }
 
@@ -69,9 +62,9 @@ describe('SessionHistory', () => {
     vi.mocked(api.getDiscussionSession).mockResolvedValue(detail)
     render(<SessionHistory user={user} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Who is responsible?' }))
-    await waitFor(() => expect(screen.getByText('Nice improvement!')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(detail.natural_english)).toBeInTheDocument())
     expect(api.getDiscussionSession).toHaveBeenCalledWith('s1')
-    expect(screen.getByText('Companies should take responsibility.')).toBeInTheDocument()
+    expect(screen.getByText('制度を変えるべき。')).toBeInTheDocument()
     expect(screen.getByText('take responsibility for')).toBeInTheDocument()
   })
 
@@ -84,13 +77,20 @@ describe('SessionHistory', () => {
     expect(await screen.findByText('Who is responsible?')).toBeInTheDocument()
   })
 
-  it('shows the corrections from a saved session', async () => {
+  // Sessions saved before the summary replaced the study/retry flow carry
+  // neither field; the card must still open rather than crash on them.
+  it('renders a legacy session that has no summary', async () => {
     vi.mocked(api.listDiscussionSessions).mockResolvedValue({ sessions: [summary] })
-    vi.mocked(api.getDiscussionSession).mockResolvedValue(detail)
+    vi.mocked(api.getDiscussionSession).mockResolvedValue({
+      ...detail,
+      natural_english: '',
+      phrases: [],
+    })
     render(<SessionHistory user={user} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Who is responsible?' }))
-    expect(await screen.findByText('I agree.')).toBeInTheDocument()
-    expect(screen.getByText('agree は動詞です。')).toBeInTheDocument()
+    expect(await screen.findByText('I think companies.')).toBeInTheDocument()
+    expect(screen.queryByText('Natural English')).not.toBeInTheDocument()
+    expect(screen.queryByText('Useful phrases')).not.toBeInTheDocument()
   })
 
   it('scopes a failed detail fetch to the session card, keeping the list visible', async () => {
@@ -103,12 +103,12 @@ describe('SessionHistory', () => {
 
     vi.mocked(api.getDiscussionSession).mockResolvedValue(detail)
     fireEvent.click(screen.getByRole('button', { name: 'Try Again' }))
-    expect(await screen.findByText('Nice improvement!')).toBeInTheDocument()
+    expect(await screen.findByText(detail.natural_english)).toBeInTheDocument()
   })
 
   it('a stale detail failure never surfaces in another session card', async () => {
     const summary2 = { ...summary, id: 's2', question_en: 'Second question?' }
-    const detail2 = { ...detail, id: 's2', question_en: 'Second question?', retry_feedback: 'Second feedback!' }
+    const detail2 = { ...detail, id: 's2', question_en: 'Second question?', natural_english: 'Second summary!' }
     vi.mocked(api.listDiscussionSessions).mockResolvedValue({ sessions: [summary, summary2] })
     let rejectFirst: (err: Error) => void = () => {}
     vi.mocked(api.getDiscussionSession).mockImplementation(id =>
@@ -123,14 +123,14 @@ describe('SessionHistory', () => {
     // Open s1 (fetch stays pending), then switch to s2, which succeeds.
     fireEvent.click(await screen.findByRole('button', { name: 'Who is responsible?' }))
     fireEvent.click(screen.getByRole('button', { name: 'Second question?' }))
-    await waitFor(() => expect(screen.getByText('Second feedback!')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Second summary!')).toBeInTheDocument())
 
     // s1's late failure must not surface inside s2's open card.
     await act(async () => {
       rejectFirst(new Error('API error: 500'))
     })
     expect(screen.queryByText('Failed to load the session.')).not.toBeInTheDocument()
-    expect(screen.getByText('Second feedback!')).toBeInTheDocument()
+    expect(screen.getByText('Second summary!')).toBeInTheDocument()
   })
 
   it("a stale failure does not wipe another card's visible error", async () => {
@@ -177,7 +177,7 @@ describe('SessionHistory', () => {
     fireEvent.click(card)
     fireEvent.click(card)
     fireEvent.click(card)
-    await waitFor(() => expect(screen.getByText('Nice improvement!')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(detail.natural_english)).toBeInTheDocument())
 
     // The stale first request's late failure must not add an error next to
     // the successfully rendered detail.
@@ -185,6 +185,6 @@ describe('SessionHistory', () => {
       rejectFirst(new Error('API error: 500'))
     })
     expect(screen.queryByText('Failed to load the session.')).not.toBeInTheDocument()
-    expect(screen.getByText('Nice improvement!')).toBeInTheDocument()
+    expect(screen.getByText(detail.natural_english)).toBeInTheDocument()
   })
 })

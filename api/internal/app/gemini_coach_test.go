@@ -56,136 +56,92 @@ func TestGeminiCoachReplyRejectsBlankMessage(t *testing.T) {
 	}
 }
 
-func TestGeminiCoachAnalyzeGapParsesAndValidates(t *testing.T) {
+func TestGeminiCoachSummarizeParsesAndValidates(t *testing.T) {
 	fake := &fakeContentGenerator{resp: textResp(`{
-		"expressed_ideas":["Companies are responsible."],
-		"missing_ideas":["Systemic change is needed."],
-		"expressions":[
-			{"phrase":"take responsibility for","meaning_ja":"〜に責任を持つ","example_en":"Companies should take responsibility for pollution."},
-			{"phrase":"make systemic changes","meaning_ja":"制度的な変更を行う","example_en":"Governments can make systemic changes."}
-		]}`)}
+		"natural_english":"I like dogs, especially Shiba Inu. I have a cat now, but I want a dog in the future.",
+		"phrases":[{"phrase":"in the future","meaning_en":"at some later time","example_en":"I want to live abroad in the future."}]
+	}`)}
 	g := &GeminiCoach{models: fake, model: "gemini-test"}
 
-	got, err := g.AnalyzeGap(context.Background(), promptQuestion, msgs("I think companies."), "制度を変えるべき。")
+	got, err := g.Summarize(context.Background(), promptQuestion, msgs("I like dogs."), "将来は犬を飼いたい")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(got.Expressions) != 2 || got.Expressions[0].Phrase != "take responsibility for" {
-		t.Fatalf("unexpected analysis: %+v", got)
+	if !strings.Contains(got.NaturalEnglish, "Shiba Inu") {
+		t.Fatalf("unexpected rewrite: %q", got.NaturalEnglish)
+	}
+	if len(got.Phrases) != 1 || got.Phrases[0].Phrase != "in the future" {
+		t.Fatalf("unexpected phrases: %+v", got.Phrases)
+	}
+	if fake.gotConfig == nil || fake.gotConfig.ResponseMIMEType != "application/json" {
+		t.Fatalf("expected JSON response config, got %+v", fake.gotConfig)
+	}
+	if fake.gotConfig.ResponseSchema == nil {
+		t.Fatal("expected a response schema")
 	}
 }
 
-func TestGeminiCoachAnalyzeGapTruncatesToFourExpressions(t *testing.T) {
-	fake := &fakeContentGenerator{resp: textResp(`{
-		"expressed_ideas":[],"missing_ideas":[],
-		"expressions":[
-			{"phrase":"a","meaning_ja":"あ","example_en":"A."},
-			{"phrase":"b","meaning_ja":"い","example_en":"B."},
-			{"phrase":"c","meaning_ja":"う","example_en":"C."},
-			{"phrase":"d","meaning_ja":"え","example_en":"D."},
-			{"phrase":"e","meaning_ja":"お","example_en":"E."}
-		]}`)}
+func TestGeminiCoachSummarizeRejectsMalformedJSON(t *testing.T) {
+	fake := &fakeContentGenerator{resp: textResp("not json")}
 	g := &GeminiCoach{models: fake, model: "gemini-test"}
-	got, err := g.AnalyzeGap(context.Background(), promptQuestion, msgs("a"), "x")
+	if _, err := g.Summarize(context.Background(), promptQuestion, msgs("a"), "x"); err == nil {
+		t.Fatal("expected error for malformed JSON")
+	}
+}
+
+// The rewrite is the whole point of the screen — unlike the phrase list,
+// there is nothing to show without it, so a blank one is a failure.
+func TestGeminiCoachSummarizeRejectsBlankRewrite(t *testing.T) {
+	fake := &fakeContentGenerator{resp: textResp(`{"natural_english":"   ","phrases":[]}`)}
+	g := &GeminiCoach{models: fake, model: "gemini-test"}
+	if _, err := g.Summarize(context.Background(), promptQuestion, msgs("a"), "x"); err == nil {
+		t.Fatal("expected error for a blank rewrite")
+	}
+}
+
+func TestGeminiCoachSummarizeTruncatesToFourPhrases(t *testing.T) {
+	var items []string
+	for i := 0; i < 7; i++ {
+		items = append(items, fmt.Sprintf(`{"phrase":"p%d","meaning_en":"m","example_en":"e"}`, i))
+	}
+	fake := &fakeContentGenerator{resp: textResp(fmt.Sprintf(
+		`{"natural_english":"ok","phrases":[%s]}`, strings.Join(items, ",")))}
+	g := &GeminiCoach{models: fake, model: "gemini-test"}
+	got, err := g.Summarize(context.Background(), promptQuestion, msgs("a"), "x")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(got.Expressions) != 4 {
-		t.Fatalf("expected 4 expressions after truncation, got %d", len(got.Expressions))
+	if len(got.Phrases) != maxSessionPhrases {
+		t.Fatalf("expected %d phrases, got %d", maxSessionPhrases, len(got.Phrases))
 	}
 }
 
-func TestGeminiCoachAnalyzeGapTruncatesIdeasToTwenty(t *testing.T) {
-	ideas := make([]string, 25)
-	for i := range ideas {
-		ideas[i] = fmt.Sprintf(`"idea %d"`, i)
-	}
-	ideasJSON := "[" + strings.Join(ideas, ",") + "]"
-	fake := &fakeContentGenerator{resp: textResp(fmt.Sprintf(`{
-		"expressed_ideas":%s,"missing_ideas":%s,
-		"expressions":[{"phrase":"a","meaning_ja":"あ","example_en":"A."}]}`, ideasJSON, ideasJSON))}
+// The response schema constrains field types, not emptiness, so a phrase can
+// legally arrive with a blank gloss and would render as an empty slot.
+func TestGeminiCoachSummarizeDropsIncompletePhrases(t *testing.T) {
+	fake := &fakeContentGenerator{resp: textResp(
+		`{"natural_english":"ok","phrases":[{"phrase":"  ","meaning_en":"","example_en":""},{"phrase":"in the future","meaning_en":"later","example_en":"See you in the future."}]}`)}
 	g := &GeminiCoach{models: fake, model: "gemini-test"}
-	got, err := g.AnalyzeGap(context.Background(), promptQuestion, msgs("a"), "x")
+	got, err := g.Summarize(context.Background(), promptQuestion, msgs("a"), "x")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(got.ExpressedIdeas) != 20 {
-		t.Fatalf("expected 20 expressed_ideas after truncation, got %d", len(got.ExpressedIdeas))
-	}
-	if len(got.MissingIdeas) != 20 {
-		t.Fatalf("expected 20 missing_ideas after truncation, got %d", len(got.MissingIdeas))
+	if len(got.Phrases) != 1 || got.Phrases[0].Phrase != "in the future" {
+		t.Fatalf("expected the malformed phrase to be dropped, got %+v", got.Phrases)
 	}
 }
 
-func TestGeminiCoachAnalyzeGapDiscardsIncompleteExpressions(t *testing.T) {
-	fake := &fakeContentGenerator{resp: textResp(`{"expressed_ideas":[],"missing_ideas":[],"expressions":[
-		{"phrase":"take responsibility for","meaning_ja":"","example_en":"Companies should take responsibility for pollution."},
-		{"phrase":"have a greater impact on","meaning_ja":"〜により大きな影響を与える","example_en":"  "},
-		{"phrase":"make systemic changes","meaning_ja":"制度的な変更を行う","example_en":"Governments can make systemic changes."}
-	]}`)}
+// A learner who already said everything naturally has nothing to pick up;
+// that is a valid summary, not an error, and must serialize as [] not null.
+func TestGeminiCoachSummarizeAllowsNoPhrases(t *testing.T) {
+	fake := &fakeContentGenerator{resp: textResp(`{"natural_english":"ok"}`)}
 	g := &GeminiCoach{models: fake, model: "gemini-test"}
-	got, err := g.AnalyzeGap(context.Background(), promptQuestion, msgs("a"), "x")
+	got, err := g.Summarize(context.Background(), promptQuestion, msgs("a"), "x")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(got.Expressions) != 1 || got.Expressions[0].Phrase != "make systemic changes" {
-		t.Fatalf("expected only the complete expression to survive, got %+v", got.Expressions)
-	}
-}
-
-// A learner who had nothing they could not express leaves the analysis with
-// no missing ideas, so the model reasonably returns no expressions. That is
-// a valid session, not a failure: erroring here would strand the learner on
-// the reflection step, which can no longer be skipped.
-func TestGeminiCoachAnalyzeGapAllowsNoExpressions(t *testing.T) {
-	fake := &fakeContentGenerator{resp: textResp(`{
-		"expressed_ideas":["I want to change jobs."],"missing_ideas":[],"expressions":[],
-		"corrections":[{"original":"I am agree.","better":"I agree.","note_ja":"agree は動詞です。"}]}`)}
-	g := &GeminiCoach{models: fake, model: "gemini-test"}
-	got, err := g.AnalyzeGap(context.Background(), promptQuestion, msgs("I am agree."), "特にありません")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got.Expressions == nil {
-		t.Fatal("expected an empty non-nil expressions slice")
-	}
-	if len(got.Expressions) != 0 {
-		t.Fatalf("expected no expressions, got %+v", got.Expressions)
-	}
-	if len(got.Corrections) != 1 {
-		t.Fatalf("expected the correction to survive, got %+v", got.Corrections)
-	}
-}
-
-func TestGeminiCoachAnalyzeGapDropsUnusableExpressionsWithoutFailing(t *testing.T) {
-	fake := &fakeContentGenerator{resp: textResp(`{"expressed_ideas":[],"missing_ideas":[],"corrections":[],"expressions":[{"phrase":"  ","meaning_ja":"","example_en":""}]}`)}
-	g := &GeminiCoach{models: fake, model: "gemini-test"}
-	got, err := g.AnalyzeGap(context.Background(), promptQuestion, msgs("a"), "x")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(got.Expressions) != 0 {
-		t.Fatalf("expected the malformed expression to be dropped, got %+v", got.Expressions)
-	}
-}
-
-func TestGeminiCoachReviewRetryReturnsText(t *testing.T) {
-	fake := &fakeContentGenerator{resp: textResp("Nice use of the new expressions!")}
-	g := &GeminiCoach{models: fake, model: "gemini-test"}
-	got, err := g.ReviewRetry(context.Background(), promptQuestion, "first", "second", []Expression{{Phrase: "p"}})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got != "Nice use of the new expressions!" {
-		t.Fatalf("unexpected feedback: %q", got)
-	}
-}
-
-func TestGeminiCoachReviewRetryRejectsEmpty(t *testing.T) {
-	fake := &fakeContentGenerator{resp: textResp("   ")}
-	g := &GeminiCoach{models: fake, model: "gemini-test"}
-	if _, err := g.ReviewRetry(context.Background(), promptQuestion, "a", "b", nil); err == nil {
-		t.Fatal("expected error for empty feedback")
+	if got.Phrases == nil || len(got.Phrases) != 0 {
+		t.Fatalf("expected an empty non-nil phrase list, got %+v", got.Phrases)
 	}
 }
 

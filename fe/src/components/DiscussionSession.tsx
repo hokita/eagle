@@ -9,19 +9,16 @@ import AppHeader from './AppHeader'
 import SettingsSheet from './SettingsSheet'
 import ChatTranscript from './ChatTranscript'
 import ReflectionPrompt from './ReflectionPrompt'
-import GapAndExpressions from './GapAndExpressions'
-import RetryForm from './RetryForm'
-import ComparisonView from './ComparisonView'
+import SummaryView from './SummaryView'
 import { useSettings } from '@/lib/useSettings'
 import {
   api,
   type DiscussionQuestion,
   type DiscussionMessage,
-  type GapAnalysis,
   type DiscussionCompleteResponse,
 } from '@/lib/api'
 
-type Phase = 'loading' | 'conversation' | 'reflection' | 'studying' | 'retry' | 'comparison'
+type Phase = 'loading' | 'conversation' | 'reflection' | 'summary'
 
 interface Props {
   user: User
@@ -34,10 +31,7 @@ export default function DiscussionSession({ user }: Props) {
   const [phase, setPhase] = useState<Phase>('loading')
   const [question, setQuestion] = useState<DiscussionQuestion | null>(null)
   const [transcript, setTranscript] = useState<DiscussionMessage[]>([])
-  const [analysis, setAnalysis] = useState<GapAnalysis | null>(null)
-  const [reflectionJa, setReflectionJa] = useState('')
   const [result, setResult] = useState<DiscussionCompleteResponse | null>(null)
-  const [retryAnswer, setRetryAnswer] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -96,40 +90,17 @@ export default function DiscussionSession({ user }: Props) {
     requestReply(next)
   }
 
+  // The reflection is the last thing the learner writes: submitting it
+  // summarizes and saves the session in one call, so there is no step left
+  // between here and the summary screen.
   const submitReflection = async (text: string) => {
     if (!question) return
     setBusy(true)
     setError(null)
     try {
-      const gap = await api.discussionAnalyze(question.id, transcript, text)
-      setReflectionJa(text)
-      setAnalysis(gap)
-      setPhase('studying')
-    } catch {
-      setError('Something went wrong. Please try again.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const submitRetry = async (text: string) => {
-    if (!question) return
-    setBusy(true)
-    setError(null)
-    setRetryAnswer(text)
-    try {
-      const res = await api.discussionComplete({
-        question_id: question.id,
-        transcript,
-        reflection_ja: reflectionJa,
-        expressed_ideas: analysis?.expressed_ideas ?? [],
-        missing_ideas: analysis?.missing_ideas ?? [],
-        expressions: analysis?.expressions ?? [],
-        corrections: analysis?.corrections ?? [],
-        retry_answer: text,
-      })
+      const res = await api.discussionComplete(question.id, transcript, text)
       setResult(res)
-      setPhase('comparison')
+      setPhase('summary')
     } catch {
       setError('Something went wrong. Please try again.')
     } finally {
@@ -140,17 +111,14 @@ export default function DiscussionSession({ user }: Props) {
   const restart = () => {
     setQuestion(null)
     setTranscript([])
-    setAnalysis(null)
-    setReflectionJa('')
     setResult(null)
-    setRetryAnswer('')
     loadQuestion()
   }
 
   // The conversation error is the only one whose input (the sent message) is
   // already consumed — recover by re-requesting a reply for the transcript
-  // as it stands. Reflection/retry keep their drafts, so plain resubmission
-  // covers those.
+  // as it stands. The reflection keeps its draft, so plain resubmission
+  // covers that one.
   const canRetryReply =
     phase === 'conversation' &&
     transcript.length > 0 &&
@@ -212,25 +180,10 @@ export default function DiscussionSession({ user }: Props) {
           <ReflectionPrompt loading={busy} onSubmit={submitReflection} />
         )}
 
-        {phase === 'studying' && analysis && (
-          <GapAndExpressions analysis={analysis} onContinue={() => setPhase('retry')} />
-        )}
-
-        {phase === 'retry' && question && (
-          <RetryForm
-            question={question.question_en}
-            expressions={analysis?.expressions ?? []}
-            loading={busy}
-            onSubmit={submitRetry}
-          />
-        )}
-
-        {phase === 'comparison' && result && (
-          <ComparisonView
-            before={transcript[0]?.text ?? ''}
-            after={retryAnswer}
-            expressions={analysis?.expressions ?? []}
-            feedback={result.retry_feedback}
+        {phase === 'summary' && result && (
+          <SummaryView
+            naturalEnglish={result.natural_english}
+            phrases={result.phrases}
             onRestart={restart}
           />
         )}
