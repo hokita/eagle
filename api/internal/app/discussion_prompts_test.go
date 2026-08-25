@@ -117,8 +117,25 @@ func TestBuildSummaryPromptTakesPhrasesFromTheGapFirst(t *testing.T) {
 			t.Fatalf("prompt missing %q:\n%s", want, got)
 		}
 	}
-	if strings.Contains(got, "either source") {
+	// Matched on the full old phrasing, not on "either source" alone — that
+	// substring also lives inside "neither source", which the ranked version
+	// legitimately uses.
+	if strings.Contains(got, "taken from either source") {
 		t.Fatalf("prompt must rank the phrase sources, not offer them as equals:\n%s", got)
+	}
+}
+
+// "Never pad" is about the absence of phrases worth teaching, not about how
+// many ideas the reflection happened to hold. Tying it to the gap count
+// cancels the fallback the sentence before it grants: three gap phrases plus
+// one worthwhile rewrite chunk is a legitimate four.
+func TestBuildSummaryPromptLetsRewriteChunksFillRemainingSlots(t *testing.T) {
+	got := buildSummaryPrompt(promptQuestion, msgs("I like dogs."), "\u72ac\u304c\u597d\u304d")
+	if !strings.Contains(got, "If neither source offers four phrases worth remembering, return fewer") {
+		t.Fatalf("prompt must tie \"never pad\" to candidate worth, not to the gap count:\n%s", got)
+	}
+	if strings.Contains(got, "fewer than four such ideas") {
+		t.Fatalf("prompt must not cap the list at the number of ideas in the reflection:\n%s", got)
 	}
 }
 
