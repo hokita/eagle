@@ -47,7 +47,10 @@ func buildDiscussionReplyPrompt(q *DiscussionQuestion, transcript []DiscussionMe
 // the conversation and the Japanese reflection are both in. It asks for
 // three things the learner reads back in English: a single natural rewrite
 // of everything they said, an explanation of why their own wording sounded
-// unnatural and what to do about it, and a few reusable phrases. The
+// unnatural and what to do about it, and a few reusable phrases drawn first
+// from the gap the reflection exposes — the ideas the learner had but could
+// not reach in English are the point of the mode, so wording they already
+// managed only fills what the gap leaves over. The
 // explanation is deliberately pitched at the pattern level rather than as a
 // per-sentence list — the rewrite already shows the shape they should have
 // used, so what is left to add is the habit behind the difference.
@@ -76,12 +79,17 @@ func buildSummaryPrompt(q *DiscussionQuestion, transcript []DiscussionMessage, r
 	b.WriteString("If their English already sounded natural, say that it already sounded natural in ")
 	b.WriteString("naturalness_why_en and name the one thing worth polishing next in naturalness_fix_en — ")
 	b.WriteString("never leave either field empty.\n")
-	b.WriteString("4. phrases: at most 4 phrases worth remembering, taken from either source — reusable ")
-	b.WriteString("chunks that appear in natural_english, or a phrase that would let the learner ")
-	b.WriteString("say an idea that stayed in the Japanese text. Prefer short chunks of common words ")
-	b.WriteString("(\"in the future\", \"kind of a hassle\", \"I'd rather\") over single words — everyday spoken English ")
-	b.WriteString("only, no idioms, no business or literary vocabulary, nothing the learner could not use ")
-	b.WriteString("in a casual conversation today. For each: phrase (the chunk itself), meaning_en (a short ")
+	b.WriteString("4. phrases: at most 4 phrases worth remembering. Start from what the learner ")
+	b.WriteString("could not say: for each idea that stayed in the Japanese text, give the phrase a ")
+	b.WriteString("native speaker would use to say it. Only once those are covered may you add ")
+	b.WriteString("reusable chunks from natural_english that replace clumsy wording the learner ")
+	b.WriteString("actually used. If the Japanese text holds fewer than four such ideas, return ")
+	b.WriteString("fewer phrases — never pad the list. Every phrase must pass this test: ")
+	b.WriteString("would a friend say it to you in ordinary conversation today? Prefer the plainest ")
+	b.WriteString("wording that carries the idea (\"kind of a hassle\" over \"somewhat burdensome\"), and ")
+	b.WriteString("short chunks of common words (\"in the future\", \"I'd rather\") over single words. ")
+	b.WriteString("Nothing the learner would have to reach for. When unsure whether a phrase is ")
+	b.WriteString("common enough, leave it out. For each: phrase (the chunk itself), meaning_en (a short ")
 	b.WriteString("plain-English explanation), example_en (one natural example sentence using it).\n")
 	b.WriteString("\nWrite every part of your response in English, including the explanations.\n")
 	return b.String()

@@ -96,18 +96,41 @@ func TestBuildSummaryPromptAsksForOneNaturalPassage(t *testing.T) {
 	}
 }
 
-// Phrases may come from either source: a reusable chunk of the rewrite, or
-// an expression that covers an idea which stayed in the Japanese text.
-func TestBuildSummaryPromptAsksForPhrasesFromBothSources(t *testing.T) {
+// The two phrase sources are ranked, not interchangeable. The point of the
+// mode is the gap — the idea the learner had but could not get into English
+// — so phrases start from the Japanese reflection, and chunks of the rewrite
+// only fill slots the gap left over. A model free to choose "either source"
+// can spend all four slots on wording the learner already managed.
+func TestBuildSummaryPromptTakesPhrasesFromTheGapFirst(t *testing.T) {
 	got := buildSummaryPrompt(promptQuestion, msgs("I like dogs."), "犬が好き")
 	for _, want := range []string{
 		"phrases",
 		"at most 4",
-		"chunks that appear in natural_english",
-		"say an idea that stayed in the Japanese text",
-		"everyday spoken English",
+		"Start from what the learner could not say",
+		"each idea that stayed in the Japanese text",
+		"Only once those are covered",
+		"never pad the list",
 		"meaning_en",
 		"example_en",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("prompt missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "either source") {
+		t.Fatalf("prompt must rank the phrase sources, not offer them as equals:\n%s", got)
+	}
+}
+
+// "Everyday" is stated as a test the model can apply, not as a list of
+// prohibitions that leaves it guessing what is left. Reaching for a fancier
+// phrase is worse than returning fewer, so unsure means drop it.
+func TestBuildSummaryPromptKeepsPhrasesToEverydaySpeech(t *testing.T) {
+	got := buildSummaryPrompt(promptQuestion, msgs("I like dogs."), "犬が好き")
+	for _, want := range []string{
+		"would a friend say it to you in ordinary conversation today",
+		"Prefer the plainest wording that carries the idea",
+		"leave it out",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("prompt missing %q:\n%s", want, got)
