@@ -107,7 +107,7 @@ func TestBuildSummaryPromptTakesPhrasesFromTheGapFirst(t *testing.T) {
 		"phrases",
 		"at most 4",
 		"Start from what the learner could not say",
-		"each idea that stayed in the Japanese text",
+		"ideas that stayed in the Japanese text",
 		"Only once those are covered",
 		"never pad the list",
 		"meaning_en",
@@ -122,6 +122,27 @@ func TestBuildSummaryPromptTakesPhrasesFromTheGapFirst(t *testing.T) {
 	// legitimately uses.
 	if strings.Contains(got, "taken from either source") {
 		t.Fatalf("prompt must rank the phrase sources, not offer them as equals:\n%s", got)
+	}
+}
+
+// The gap step selects, it does not enumerate. A reflection may run to
+// maxReflectionLength runes and hold well over four ideas, so "one phrase per
+// idea" would collide with the four-phrase cap — and Summarize resolves that
+// collision by keeping the first four the model happened to emit, dropping
+// the rest regardless of worth. Asking for the most useful few makes the
+// selection the model's, in priority order, rather than the slice's.
+func TestBuildSummaryPromptPrioritizesGapIdeasWithinTheCap(t *testing.T) {
+	got := buildSummaryPrompt(promptQuestion, msgs("I like dogs."), "\u72ac\u304c\u597d\u304d")
+	for _, want := range []string{
+		"which would help them most",
+		"up to the four-phrase cap",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("prompt missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "for each idea that stayed in the Japanese text") {
+		t.Fatalf("prompt must not demand a phrase for every idea; the cap is 4:\n%s", got)
 	}
 }
 
