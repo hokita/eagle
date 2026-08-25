@@ -96,18 +96,79 @@ func TestBuildSummaryPromptAsksForOneNaturalPassage(t *testing.T) {
 	}
 }
 
-// Phrases may come from either source: a reusable chunk of the rewrite, or
-// an expression that covers an idea which stayed in the Japanese text.
-func TestBuildSummaryPromptAsksForPhrasesFromBothSources(t *testing.T) {
+// The two phrase sources are ranked, not interchangeable. The point of the
+// mode is the gap — the idea the learner had but could not get into English
+// — so phrases start from the Japanese reflection, and chunks of the rewrite
+// only fill slots the gap left over. A model free to choose "either source"
+// can spend all four slots on wording the learner already managed.
+func TestBuildSummaryPromptTakesPhrasesFromTheGapFirst(t *testing.T) {
 	got := buildSummaryPrompt(promptQuestion, msgs("I like dogs."), "犬が好き")
 	for _, want := range []string{
 		"phrases",
 		"at most 4",
-		"chunks that appear in natural_english",
-		"say an idea that stayed in the Japanese text",
-		"everyday spoken English",
+		"Start from what the learner could not say",
+		"ideas that stayed in the Japanese text",
+		"Only once those are covered",
+		"never pad the list",
 		"meaning_en",
 		"example_en",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("prompt missing %q:\n%s", want, got)
+		}
+	}
+	// Matched on the full old phrasing, not on "either source" alone — that
+	// substring also lives inside "neither source", which the ranked version
+	// legitimately uses.
+	if strings.Contains(got, "taken from either source") {
+		t.Fatalf("prompt must rank the phrase sources, not offer them as equals:\n%s", got)
+	}
+}
+
+// The gap step selects, it does not enumerate. A reflection may run to
+// maxReflectionLength runes and hold well over four ideas, so "one phrase per
+// idea" would collide with the four-phrase cap — and Summarize resolves that
+// collision by keeping the first four the model happened to emit, dropping
+// the rest regardless of worth. Asking for the most useful few makes the
+// selection the model's, in priority order, rather than the slice's.
+func TestBuildSummaryPromptPrioritizesGapIdeasWithinTheCap(t *testing.T) {
+	got := buildSummaryPrompt(promptQuestion, msgs("I like dogs."), "\u72ac\u304c\u597d\u304d")
+	for _, want := range []string{
+		"which would help them most",
+		"up to the four-phrase cap",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("prompt missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "for each idea that stayed in the Japanese text") {
+		t.Fatalf("prompt must not demand a phrase for every idea; the cap is 4:\n%s", got)
+	}
+}
+
+// "Never pad" is about the absence of phrases worth teaching, not about how
+// many ideas the reflection happened to hold. Tying it to the gap count
+// cancels the fallback the sentence before it grants: three gap phrases plus
+// one worthwhile rewrite chunk is a legitimate four.
+func TestBuildSummaryPromptLetsRewriteChunksFillRemainingSlots(t *testing.T) {
+	got := buildSummaryPrompt(promptQuestion, msgs("I like dogs."), "\u72ac\u304c\u597d\u304d")
+	if !strings.Contains(got, "If neither source offers four phrases worth remembering, return fewer") {
+		t.Fatalf("prompt must tie \"never pad\" to candidate worth, not to the gap count:\n%s", got)
+	}
+	if strings.Contains(got, "fewer than four such ideas") {
+		t.Fatalf("prompt must not cap the list at the number of ideas in the reflection:\n%s", got)
+	}
+}
+
+// "Everyday" is stated as a test the model can apply, not as a list of
+// prohibitions that leaves it guessing what is left. Reaching for a fancier
+// phrase is worse than returning fewer, so unsure means drop it.
+func TestBuildSummaryPromptKeepsPhrasesToEverydaySpeech(t *testing.T) {
+	got := buildSummaryPrompt(promptQuestion, msgs("I like dogs."), "犬が好き")
+	for _, want := range []string{
+		"would a friend say it to you in ordinary conversation today",
+		"Prefer the plainest wording that carries the idea",
+		"leave it out",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("prompt missing %q:\n%s", want, got)
