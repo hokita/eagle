@@ -100,6 +100,18 @@ describe('SessionHistory', () => {
     expect(screen.queryByText('Why it sounded unnatural')).not.toBeInTheDocument()
   })
 
+  // A phrase without its gloss and example is a label, not something you can
+  // learn from later — history has to teach the same way the summary does.
+  it('shows each phrase with its meaning and example', async () => {
+    vi.mocked(api.listDiscussionSessions).mockResolvedValue({ sessions: [summary] })
+    vi.mocked(api.getDiscussionSession).mockResolvedValue(detail)
+    render(<SessionHistory user={user} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Who is responsible?' }))
+    expect(await screen.findByText('take responsibility for')).toBeInTheDocument()
+    expect(screen.getByText('to accept it is your job')).toBeInTheDocument()
+    expect(screen.getByText('x')).toBeInTheDocument()
+  })
+
   it('scopes a failed detail fetch to the session card, keeping the list visible', async () => {
     vi.mocked(api.listDiscussionSessions).mockResolvedValue({ sessions: [summary] })
     vi.mocked(api.getDiscussionSession).mockRejectedValueOnce(new Error('API error: 500'))

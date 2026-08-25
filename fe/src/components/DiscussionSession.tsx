@@ -180,8 +180,10 @@ export default function DiscussionSession({ user }: Props) {
           <ReflectionPrompt loading={busy} onSubmit={submitReflection} />
         )}
 
-        {phase === 'summary' && result && (
+        {phase === 'summary' && result && question && (
           <SummaryView
+            question={question.question_en}
+            transcript={transcript}
             naturalEnglish={result.natural_english}
             naturalnessWhyEn={result.naturalness_why_en}
             naturalnessFixEn={result.naturalness_fix_en}

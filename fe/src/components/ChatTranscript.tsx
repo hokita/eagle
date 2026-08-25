@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
+import Transcript from './Transcript'
 import type { DiscussionMessage } from '@/lib/api'
 
 interface Props {
@@ -13,12 +14,7 @@ interface Props {
   onSend: (text: string) => void
 }
 
-export default function ChatTranscript({
-  question,
-  transcript,
-  sending,
-  onSend,
-}: Props) {
+export default function ChatTranscript({ question, transcript, sending, onSend }: Props) {
   const [draft, setDraft] = useState('')
 
   const submit = () => {
@@ -35,19 +31,7 @@ export default function ChatTranscript({
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="space-y-2">
-          {transcript.map((message, i) => (
-            <div key={i} className={message.role === 'user' ? 'text-right' : 'text-left'}>
-              <span
-                className={
-                  message.role === 'user'
-                    ? 'inline-block rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white'
-                    : 'inline-block rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground'
-                }
-              >
-                {message.text}
-              </span>
-            </div>
-          ))}
+          <Transcript messages={transcript} />
           {sending && <p className="text-sm text-muted-foreground">Thinking…</p>}
         </div>
         <Textarea

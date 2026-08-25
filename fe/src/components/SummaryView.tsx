@@ -3,9 +3,13 @@
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import type { Phrase } from '@/lib/api'
+import PhraseList from './PhraseList'
+import Transcript from './Transcript'
+import type { DiscussionMessage, Phrase } from '@/lib/api'
 
 interface Props {
+  question: string
+  transcript: DiscussionMessage[]
   naturalEnglish: string
   naturalnessWhyEn: string
   naturalnessFixEn: string
@@ -14,6 +18,8 @@ interface Props {
 }
 
 export default function SummaryView({
+  question,
+  transcript,
   naturalEnglish,
   naturalnessWhyEn,
   naturalnessFixEn,
@@ -22,6 +28,19 @@ export default function SummaryView({
 }: Props) {
   return (
     <div className="space-y-3">
+      {/* First, not last: the rewrite below claims to say all of this the way
+          a native speaker would, and that claim is only checkable with the
+          learner's own words directly above it. */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Conversation</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <p className="text-sm font-semibold text-muted-foreground">{question}</p>
+          <Transcript messages={transcript} />
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Natural English</CardTitle>
@@ -63,14 +82,8 @@ export default function SummaryView({
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Useful phrases</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {phrases.map(phrase => (
-              <div key={phrase.phrase} className="rounded-md border border-border p-3">
-                <p className="font-semibold text-foreground">{phrase.phrase}</p>
-                <p className="text-sm text-muted-foreground">{phrase.meaning_en}</p>
-                <p className="text-sm italic text-foreground">{phrase.example_en}</p>
-              </div>
-            ))}
+          <CardContent>
+            <PhraseList phrases={phrases} />
           </CardContent>
         </Card>
       )}

@@ -5,6 +5,8 @@ import type { User } from 'firebase/auth'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import AppHeader from './AppHeader'
+import PhraseList from './PhraseList'
+import Transcript from './Transcript'
 import SettingsSheet from './SettingsSheet'
 import { useSettings } from '@/lib/useSettings'
 import { api, type DiscussionSessionSummary, type DiscussionSessionDetail } from '@/lib/api'
@@ -139,19 +141,16 @@ export default function SessionHistory({ user }: Props) {
                     {detail && (
                       <div className="space-y-3 border-t border-border pt-3 text-sm">
                         <div>
-                          <p className="text-xs font-semibold text-muted-foreground">Conversation</p>
-                          {detail.transcript.map((message, i) => (
-                            <p key={i} className="text-foreground">
-                              <span className="text-muted-foreground">
-                                {message.role === 'user' ? 'You: ' : 'AI: '}
-                              </span>
-                              {message.text}
-                            </p>
-                          ))}
+                          <p className="mb-1 text-xs font-semibold text-muted-foreground">
+                            Conversation
+                          </p>
+                          <Transcript messages={detail.transcript} />
                         </div>
                         {detail.reflection_ja && (
                           <div>
-                            <p className="text-xs font-semibold text-muted-foreground">Reflection</p>
+                            <p className="text-xs font-semibold text-muted-foreground">
+                              Reflection
+                            </p>
                             <p className="text-foreground">{detail.reflection_ja}</p>
                           </div>
                         )}
@@ -183,15 +182,8 @@ export default function SessionHistory({ user }: Props) {
                             <p className="text-xs font-semibold text-muted-foreground">
                               Useful phrases
                             </p>
-                            <div className="flex flex-wrap gap-1.5">
-                              {detail.phrases.map(phrase => (
-                                <span
-                                  key={phrase.phrase}
-                                  className="rounded-md border border-border bg-muted px-2 py-1 text-xs text-foreground"
-                                >
-                                  {phrase.phrase}
-                                </span>
-                              ))}
+                            <div className="mt-1">
+                              <PhraseList phrases={detail.phrases} />
                             </div>
                           </div>
                         )}

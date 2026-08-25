@@ -18,6 +18,12 @@ function renderView(overrides = {}) {
     naturalnessWhyEn: 'You opened every turn with "I think that", which reads as written English.',
     naturalnessFixEn: 'Drop "that" after "I think", and vary how you start a turn.',
     phrases,
+    question: 'Who should take responsibility?',
+    transcript: [
+      { role: 'user' as const, text: 'I think companies are responsible.' },
+      { role: 'ai' as const, text: 'What makes you say that?' },
+      { role: 'user' as const, text: 'Because they make the most impact.' },
+    ],
     onRestart: vi.fn(),
     ...overrides,
   }
@@ -26,6 +32,20 @@ function renderView(overrides = {}) {
 }
 
 describe('SummaryView', () => {
+  // The summary is where the learner compares what they said against the
+  // natural version, so what they actually said has to be on the same screen.
+  // The opening question is not part of the transcript — it is asked before
+  // the first turn — so it has to be rendered alongside it or the first
+  // answer reads as a reply to nothing.
+  it('shows the question and the whole conversation', () => {
+    renderView()
+    expect(screen.getByText('Conversation')).toBeInTheDocument()
+    expect(screen.getByText('Who should take responsibility?')).toBeInTheDocument()
+    expect(screen.getByText('I think companies are responsible.')).toBeInTheDocument()
+    expect(screen.getByText('What makes you say that?')).toBeInTheDocument()
+    expect(screen.getByText('Because they make the most impact.')).toBeInTheDocument()
+  })
+
   it('shows the natural English rewrite', () => {
     renderView()
     expect(screen.getByText('Natural English')).toBeInTheDocument()
