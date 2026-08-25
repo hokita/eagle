@@ -4,6 +4,9 @@ import { signInAndGetSentence } from './helpers'
 const QUESTION =
   'Who should take more responsibility for environmental problems: individuals, companies, or governments?'
 
+const STUB_SUMMARY =
+  'I think companies are responsible, and in the future they should make systemic changes.'
+
 test('completes a discussion session end to end', async ({ page }) => {
   await signInAndGetSentence(page)
 
@@ -24,28 +27,42 @@ test('completes a discussion session end to end', async ({ page }) => {
 
   // Reflection phase: the server ends the conversation after the second
   // follow-up is answered, with no closing line of its own.
-  await expect(page.getByText('日本語で答えるなら、他に言いたかったことはありますか？')).toBeVisible()
+  await expect(page.getByText('What else did you want to say? (in Japanese)')).toBeVisible()
   await page.getByLabel('Japanese reflection').fill('制度そのものを変える必要があると思う。')
-  await page.getByRole('button', { name: 'Submit' }).click()
+  await page.getByRole('button', { name: 'Finish' }).click()
 
-  // Study phase shows the stub analysis, corrections included.
-  await expect(page.getByText('Systemic change is more effective than individual action.')).toBeVisible()
+  // The summary is the last screen: the natural rewrite plus the phrases.
+  await expect(page.getByText('Natural English')).toBeVisible()
+  await expect(page.getByText(STUB_SUMMARY)).toBeVisible()
+  await expect(page.getByText('Useful phrases')).toBeVisible()
   await expect(page.getByText('take responsibility for').first()).toBeVisible()
-  await expect(page.getByText('I think companies are responsible.')).toBeVisible()
-  await page.getByRole('button', { name: 'Try the question again' }).click()
+  await expect(page.getByText('in the future').first()).toBeVisible()
 
-  // Retry and comparison.
-  await page
-    .getByLabel('Your improved answer')
-    .fill('Companies should take responsibility for their impact and make systemic changes.')
-  await page.getByRole('button', { name: 'Submit answer' }).click()
-  await expect(page.getByText('This is a stub retry feedback for e2e tests.')).toBeVisible()
-  await expect(page.getByText('I think companies.')).toBeVisible()
-
-  // History shows the saved session.
+  // History shows the saved session, summary included.
   await page.getByRole('link', { name: 'View history' }).click()
   await expect(page.getByRole('heading', { name: 'Discussion History' })).toBeVisible()
+  await page.getByRole('button', { name: QUESTION }).click()
+  await expect(page.getByText(STUB_SUMMARY)).toBeVisible()
+})
+
+test('starting a new question resets the session', async ({ page }) => {
+  await signInAndGetSentence(page)
+
+  await page.getByRole('link', { name: 'Discussion' }).click()
   await expect(page.getByText(QUESTION)).toBeVisible()
+
+  for (const answer of ['I think companies.', 'Because they pollute more.', 'They can change.']) {
+    await page.getByLabel('Your answer').fill(answer)
+    await page.getByRole('button', { name: 'Send' }).click()
+  }
+
+  await page.getByLabel('Japanese reflection').fill('制度そのものを変える必要があると思う。')
+  await page.getByRole('button', { name: 'Finish' }).click()
+  await expect(page.getByText(STUB_SUMMARY)).toBeVisible()
+
+  await page.getByRole('button', { name: 'Next question' }).click()
+  await expect(page.getByLabel('Your answer')).toBeVisible()
+  await expect(page.getByText(STUB_SUMMARY)).toHaveCount(0)
 })
 
 test('no step of the session can be skipped', async ({ page }) => {
@@ -69,8 +86,8 @@ test('no step of the session can be skipped', async ({ page }) => {
   await page.getByLabel('Your answer').fill('They can pass stricter laws.')
   await page.getByRole('button', { name: 'Send' }).click()
 
-  // The reflection is required too — it is what the analysis is built from.
+  // The reflection is required too — it is what the summary is built from.
   await expect(page.getByLabel('Japanese reflection')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Nothing to add — skip' })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Submit' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Finish' })).toBeDisabled()
 })

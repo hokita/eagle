@@ -124,58 +124,24 @@ type DiscussionReplyResponse struct {
 	Message string `json:"message"`
 }
 
-type DiscussionAnalyzeRequest struct {
+// DiscussionCompleteRequest carries only what the learner produced. The
+// summary is generated here rather than sent up, so a client cannot decide
+// what gets stored as its own feedback.
+type DiscussionCompleteRequest struct {
 	QuestionID   int                 `json:"question_id"`
 	Transcript   []DiscussionMessage `json:"transcript"`
 	ReflectionJA string              `json:"reflection_ja"`
 }
 
-type DiscussionCompleteRequest struct {
-	QuestionID     int                 `json:"question_id"`
-	Transcript     []DiscussionMessage `json:"transcript"`
-	ReflectionJA   string              `json:"reflection_ja"`
-	ExpressedIdeas []string            `json:"expressed_ideas"`
-	MissingIdeas   []string            `json:"missing_ideas"`
-	Expressions    []Expression        `json:"expressions"`
-	Corrections    []Correction        `json:"corrections"`
-	RetryAnswer    string              `json:"retry_answer"`
-}
-
 type DiscussionCompleteResponse struct {
-	SessionID     string `json:"session_id"`
-	RetryFeedback string `json:"retry_feedback"`
+	SessionID      string   `json:"session_id"`
+	NaturalEnglish string   `json:"natural_english"`
+	Phrases        []Phrase `json:"phrases"`
 }
 
-func (s *Server) discussionAnalyze(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	var req DiscussionAnalyzeRequest
-	if !decodeDiscussionBody(w, r, &req, maxDiscussionRequestBytes) {
-		return
-	}
-	if err := validateTranscript(req.Transcript); err != nil {
-		http.Error(w, "Invalid transcript", http.StatusBadRequest)
-		return
-	}
-	if !discussionTrimmed(req.ReflectionJA, maxReflectionLength) {
-		http.Error(w, "Invalid reflection_ja", http.StatusBadRequest)
-		return
-	}
-	q := s.loadDiscussionQuestion(w, r, req.QuestionID)
-	if q == nil {
-		return
-	}
-	analysis, err := s.coach.AnalyzeGap(r.Context(), q, req.Transcript, req.ReflectionJA)
-	if err != nil {
-		log.Printf("discussion analyze error: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, analysis)
-}
-
+// discussionComplete is the single closing step: it summarizes the session
+// and persists it in one round trip. There is nothing for the learner to do
+// between the two, so splitting them would only cost a request.
 func (s *Server) discussionComplete(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -190,29 +156,18 @@ func (s *Server) discussionComplete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid transcript", http.StatusBadRequest)
 		return
 	}
-	if !discussionTrimmed(req.RetryAnswer, maxDiscussionTurnLength) {
-		http.Error(w, "Invalid retry_answer", http.StatusBadRequest)
-		return
-	}
-	// ReflectionJA is "" when the reflection was skipped; when present it
-	// obeys the same bound as the analyze endpoint.
-	if utf8.RuneCountInString(req.ReflectionJA) > maxReflectionLength {
+	// The reflection cannot be skipped, so it is always present here.
+	if !discussionTrimmed(req.ReflectionJA, maxReflectionLength) {
 		http.Error(w, "Invalid reflection_ja", http.StatusBadRequest)
-		return
-	}
-	if len(req.Expressions) > maxSessionExpressions || len(req.ExpressedIdeas) > maxSessionIdeas ||
-		len(req.MissingIdeas) > maxSessionIdeas || len(req.Corrections) > maxSessionCorrections {
-		http.Error(w, "Invalid analysis payload", http.StatusBadRequest)
 		return
 	}
 	q := s.loadDiscussionQuestion(w, r, req.QuestionID)
 	if q == nil {
 		return
 	}
-	firstAnswer := req.Transcript[0].Text
-	feedback, err := s.coach.ReviewRetry(r.Context(), q, firstAnswer, req.RetryAnswer, req.Expressions)
+	summary, err := s.coach.Summarize(r.Context(), q, req.Transcript, req.ReflectionJA)
 	if err != nil {
-		log.Printf("discussion retry review error: %v", err)
+		log.Printf("discussion summarize error: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -222,13 +177,8 @@ func (s *Server) discussionComplete(w http.ResponseWriter, r *http.Request) {
 		Topic:          q.Topic,
 		Transcript:     req.Transcript,
 		ReflectionJA:   req.ReflectionJA,
-		ExpressedIdeas: req.ExpressedIdeas,
-		MissingIdeas:   req.MissingIdeas,
-		Expressions:    req.Expressions,
-		Corrections:    req.Corrections,
-		FirstAnswer:    firstAnswer,
-		RetryAnswer:    req.RetryAnswer,
-		RetryFeedback:  feedback,
+		NaturalEnglish: summary.NaturalEnglish,
+		Phrases:        summary.Phrases,
 	}
 	sessionID, err := s.discussions.SaveSession(r.Context(), uid, session)
 	if err != nil {
@@ -236,7 +186,11 @@ func (s *Server) discussionComplete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, DiscussionCompleteResponse{SessionID: sessionID, RetryFeedback: feedback})
+	writeJSON(w, DiscussionCompleteResponse{
+		SessionID:      sessionID,
+		NaturalEnglish: summary.NaturalEnglish,
+		Phrases:        summary.Phrases,
+	})
 }
 
 type DiscussionSessionsResponse struct {

@@ -28,16 +28,10 @@ type discussionMessageDoc struct {
 	Text string `firestore:"text"`
 }
 
-type expressionDoc struct {
+type phraseDoc struct {
 	Phrase    string `firestore:"phrase"`
-	MeaningJA string `firestore:"meaning_ja"`
+	MeaningEN string `firestore:"meaning_en"`
 	ExampleEN string `firestore:"example_en"`
-}
-
-type correctionDoc struct {
-	Original string `firestore:"original"`
-	Better   string `firestore:"better"`
-	NoteJA   string `firestore:"note_ja"`
 }
 
 type discussionSessionDoc struct {
@@ -46,13 +40,8 @@ type discussionSessionDoc struct {
 	Topic          string                 `firestore:"topic"`
 	Transcript     []discussionMessageDoc `firestore:"transcript"`
 	ReflectionJA   string                 `firestore:"reflection_ja"`
-	ExpressedIdeas []string               `firestore:"expressed_ideas"`
-	MissingIdeas   []string               `firestore:"missing_ideas"`
-	Expressions    []expressionDoc        `firestore:"expressions"`
-	Corrections    []correctionDoc        `firestore:"corrections"`
-	FirstAnswer    string                 `firestore:"first_answer"`
-	RetryAnswer    string                 `firestore:"retry_answer"`
-	RetryFeedback  string                 `firestore:"retry_feedback"`
+	NaturalEnglish string                 `firestore:"natural_english"`
+	Phrases        []phraseDoc            `firestore:"phrases"`
 	CreatedAt      time.Time              `firestore:"created_at"`
 }
 
@@ -115,23 +104,16 @@ func sessionToDoc(s *DiscussionSession, createdAt time.Time) *discussionSessionD
 	for i, m := range s.Transcript {
 		transcript[i] = discussionMessageDoc{Role: m.Role, Text: m.Text}
 	}
-	expressions := make([]expressionDoc, len(s.Expressions))
-	for i, e := range s.Expressions {
-		expressions[i] = expressionDoc{Phrase: e.Phrase, MeaningJA: e.MeaningJA, ExampleEN: e.ExampleEN}
-	}
-	corrections := make([]correctionDoc, len(s.Corrections))
-	for i, c := range s.Corrections {
-		corrections[i] = correctionDoc{Original: c.Original, Better: c.Better, NoteJA: c.NoteJA}
+	phrases := make([]phraseDoc, len(s.Phrases))
+	for i, p := range s.Phrases {
+		phrases[i] = phraseDoc{Phrase: p.Phrase, MeaningEN: p.MeaningEN, ExampleEN: p.ExampleEN}
 	}
 	return &discussionSessionDoc{
 		QuestionID: s.QuestionID, QuestionEN: s.QuestionEN, Topic: s.Topic,
 		Transcript: transcript, ReflectionJA: s.ReflectionJA,
-		ExpressedIdeas: append([]string{}, s.ExpressedIdeas...),
-		MissingIdeas:   append([]string{}, s.MissingIdeas...),
-		Expressions:    expressions,
-		Corrections:    corrections,
-		FirstAnswer:    s.FirstAnswer, RetryAnswer: s.RetryAnswer,
-		RetryFeedback: s.RetryFeedback, CreatedAt: createdAt,
+		NaturalEnglish: s.NaturalEnglish,
+		Phrases:        phrases,
+		CreatedAt:      createdAt,
 	}
 }
 
@@ -140,30 +122,19 @@ func sessionFromDoc(id string, sd *discussionSessionDoc) *DiscussionSession {
 	for i, m := range sd.Transcript {
 		transcript[i] = DiscussionMessage{Role: m.Role, Text: m.Text}
 	}
-	expressions := make([]Expression, len(sd.Expressions))
-	for i, e := range sd.Expressions {
-		expressions[i] = Expression{Phrase: e.Phrase, MeaningJA: e.MeaningJA, ExampleEN: e.ExampleEN}
-	}
-	corrections := make([]Correction, len(sd.Corrections))
-	for i, c := range sd.Corrections {
-		corrections[i] = Correction{Original: c.Original, Better: c.Better, NoteJA: c.NoteJA}
-	}
-	expressed := sd.ExpressedIdeas
-	if expressed == nil {
-		expressed = []string{}
-	}
-	missing := sd.MissingIdeas
-	if missing == nil {
-		missing = []string{}
+	// Sessions written before the summary replaced the study/retry flow have
+	// no phrases field at all; an empty list keeps the detail view rendering
+	// rather than serializing null.
+	phrases := make([]Phrase, len(sd.Phrases))
+	for i, p := range sd.Phrases {
+		phrases[i] = Phrase{Phrase: p.Phrase, MeaningEN: p.MeaningEN, ExampleEN: p.ExampleEN}
 	}
 	return &DiscussionSession{
 		ID: id, QuestionID: sd.QuestionID, QuestionEN: sd.QuestionEN, Topic: sd.Topic,
 		Transcript: transcript, ReflectionJA: sd.ReflectionJA,
-		ExpressedIdeas: expressed, MissingIdeas: missing, Expressions: expressions,
-		Corrections: corrections,
-		FirstAnswer: sd.FirstAnswer, RetryAnswer: sd.RetryAnswer,
-		RetryFeedback: sd.RetryFeedback,
-		CreatedAt:     sd.CreatedAt.UTC().Format(time.RFC3339),
+		NaturalEnglish: sd.NaturalEnglish,
+		Phrases:        phrases,
+		CreatedAt:      sd.CreatedAt.UTC().Format(time.RFC3339),
 	}
 }
 

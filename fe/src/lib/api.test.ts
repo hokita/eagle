@@ -207,40 +207,20 @@ describe('api.discussionReply', () => {
   })
 })
 
-describe('api.discussionAnalyze', () => {
-  it('sends POST /api/discussion/analyze with the reflection', async () => {
-    mockResponse({ expressed_ideas: [], missing_ideas: [], expressions: [] })
+describe('api.discussionComplete', () => {
+  it('sends POST /api/discussion/complete with the transcript and reflection', async () => {
+    mockResponse({ session_id: 's1', natural_english: 'I think companies are responsible.', phrases: [] })
     const transcript = [{ role: 'user' as const, text: 'I think companies.' }]
-    await api.discussionAnalyze(16, transcript, '制度を変えるべき。')
+    const result = await api.discussionComplete(16, transcript, '制度を変えるべき。')
     expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining('/api/discussion/analyze'),
+      expect.stringContaining('/api/discussion/complete'),
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({ question_id: 16, transcript, reflection_ja: '制度を変えるべき。' }),
       })
     )
-  })
-})
-
-describe('api.discussionComplete', () => {
-  it('sends POST /api/discussion/complete with the whole session payload', async () => {
-    mockResponse({ session_id: 's1', retry_feedback: 'Nice!' })
-    const payload = {
-      question_id: 16,
-      transcript: [{ role: 'user' as const, text: 'I think companies.' }],
-      reflection_ja: '',
-      expressed_ideas: [],
-      missing_ideas: [],
-      expressions: [],
-      corrections: [],
-      retry_answer: 'Companies should take responsibility.',
-    }
-    const result = await api.discussionComplete(payload)
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining('/api/discussion/complete'),
-      expect.objectContaining({ method: 'POST', body: JSON.stringify(payload) })
-    )
     expect(result.session_id).toBe('s1')
+    expect(result.natural_english).toBe('I think companies are responsible.')
   })
 })
 
@@ -256,7 +236,7 @@ describe('api.listDiscussionSessions / getDiscussionSession', () => {
   })
 
   it('sends GET /api/discussion/sessions/{id}', async () => {
-    mockResponse({ id: 's1', question_en: 'Q', retry_answer: 'better' })
+    mockResponse({ id: 's1', question_en: 'Q', natural_english: 'better', phrases: [] })
     const result = await api.getDiscussionSession('s1')
     expect(mockFetch).toHaveBeenCalledWith(
       expect.stringContaining('/api/discussion/sessions/s1'),

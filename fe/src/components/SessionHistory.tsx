@@ -155,49 +155,33 @@ export default function SessionHistory({ user }: Props) {
                             <p className="text-foreground">{detail.reflection_ja}</p>
                           </div>
                         )}
-                        {detail.corrections.length > 0 && (
+                        {/* Sessions recorded before the summary replaced the
+                            study/retry flow have neither field. */}
+                        {detail.natural_english && (
                           <div>
                             <p className="text-xs font-semibold text-muted-foreground">
-                              Corrections
+                              Natural English
                             </p>
-                            {detail.corrections.map((correction, i) => (
-                              <div key={i} className="mt-1">
-                                <p className="text-muted-foreground line-through">
-                                  {correction.original}
-                                </p>
-                                <p className="text-foreground">{correction.better}</p>
-                                <p className="text-xs text-muted-foreground">{correction.note_ja}</p>
-                              </div>
-                            ))}
+                            <p className="text-foreground">{detail.natural_english}</p>
                           </div>
                         )}
-                        {detail.expressions.length > 0 && (
+                        {detail.phrases.length > 0 && (
                           <div>
                             <p className="text-xs font-semibold text-muted-foreground">
-                              Expressions learned
+                              Useful phrases
                             </p>
                             <div className="flex flex-wrap gap-1.5">
-                              {detail.expressions.map(expression => (
+                              {detail.phrases.map(phrase => (
                                 <span
-                                  key={expression.phrase}
+                                  key={phrase.phrase}
                                   className="rounded-md border border-border bg-muted px-2 py-1 text-xs text-foreground"
                                 >
-                                  {expression.phrase}
+                                  {phrase.phrase}
                                 </span>
                               ))}
                             </div>
                           </div>
                         )}
-                        <div>
-                          <p className="text-xs font-semibold text-muted-foreground">Before</p>
-                          <p className="text-muted-foreground">{detail.first_answer}</p>
-                          <p className="mt-1 text-xs font-semibold text-muted-foreground">After</p>
-                          <p className="text-foreground">{detail.retry_answer}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-semibold text-muted-foreground">Feedback</p>
-                          <p className="text-foreground">{detail.retry_feedback}</p>
-                        </div>
                       </div>
                     )}
                   </CardContent>

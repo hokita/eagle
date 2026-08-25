@@ -16,13 +16,11 @@ export default function ReflectionPrompt({ loading, onSubmit }: Props) {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">
-          日本語で答えるなら、他に言いたかったことはありますか？
-        </CardTitle>
+        <CardTitle className="text-base">What else did you want to say? (in Japanese)</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          Write freely in Japanese — this is used to find ideas you could not yet express in
+          Write freely in Japanese — this is used to find the ideas you could not yet express in
           English.
         </p>
         <Textarea
@@ -37,7 +35,7 @@ export default function ReflectionPrompt({ loading, onSubmit }: Props) {
           disabled={loading || draft.trim() === ''}
           className="w-full"
         >
-          {loading ? 'Analyzing…' : 'Submit'}
+          {loading ? 'Summarizing…' : 'Finish'}
         </Button>
       </CardContent>
     </Card>
