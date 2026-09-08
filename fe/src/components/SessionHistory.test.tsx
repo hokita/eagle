@@ -72,6 +72,41 @@ describe('SessionHistory', () => {
     expect(screen.getByText(detail.naturalness_fix_en)).toBeInTheDocument()
   })
 
+  // A session read back later is the same session, so it is shown exactly as
+  // the summary showed it when it ended: the same titled cards, in the same
+  // order, with the lines that say what each one is for, and the question
+  // above the conversation.
+  it('shows an opened session the way the summary screen shows it', async () => {
+    vi.mocked(api.listDiscussionSessions).mockResolvedValue({ sessions: [summary] })
+    vi.mocked(api.getDiscussionSession).mockResolvedValue(detail)
+    render(<SessionHistory user={user} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Who is responsible?' }))
+
+    const titles = await screen.findAllByRole('heading', { level: 3 })
+    expect(titles.map(t => t.textContent)).toEqual([
+      'Conversation',
+      'Reflection',
+      'Natural English',
+      'Why it sounded unnatural',
+      'Useful phrases',
+    ])
+    expect(
+      screen.getByText('Everything you said, the way a native speaker would say it.')
+    ).toBeInTheDocument()
+    expect(screen.getByText('How to fix it')).toBeInTheDocument()
+
+    // The question is asked once, above the conversation, where the summary
+    // asks it — the list entry steps back to the topic and date rather than
+    // printing it a second time.
+    expect(screen.getAllByText('Who is responsible?')).toHaveLength(1)
+    expect(screen.getByText('Conversation').closest('.rounded-lg')).toHaveTextContent(
+      'Who is responsible?'
+    )
+    // The entry itself still says which session this is.
+    expect(screen.getByText('environment')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Who is responsible?' })).toBeInTheDocument()
+  })
+
   it('shows an error with retry when loading fails', async () => {
     vi.mocked(api.listDiscussionSessions).mockRejectedValueOnce(new Error('API error: 500'))
     render(<SessionHistory user={user} />)

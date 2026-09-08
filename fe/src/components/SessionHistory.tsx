@@ -5,8 +5,7 @@ import type { User } from 'firebase/auth'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import AppHeader from './AppHeader'
-import PhraseList from './PhraseList'
-import Transcript from './Transcript'
+import SessionSummary from './SessionSummary'
 import SettingsSheet from './SettingsSheet'
 import { useSettings } from '@/lib/useSettings'
 import { api, type DiscussionSessionSummary, type DiscussionSessionDetail } from '@/lib/api'
@@ -111,86 +110,81 @@ export default function SessionHistory({ user }: Props) {
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-3">
+          // Sessions are spaced further apart than the cards inside an open
+          // one, so an expanded session reads as one group rather than as
+          // more list entries.
+          <div className="space-y-6">
             {sessions.map(session => {
-              const detail = openId === session.id ? details[session.id] : undefined
+              const open = openId === session.id
+              const detail = open ? details[session.id] : undefined
+              const meta = (
+                <p className="text-xs text-muted-foreground">
+                  <span>{session.topic}</span>
+                  {' · '}
+                  <span>{new Date(session.created_at).toLocaleDateString()}</span>
+                </p>
+              )
               return (
-                <Card key={session.id}>
-                  <CardContent className="pt-6 space-y-3">
+                <div key={session.id} className="space-y-3">
+                  {/* This is the list entry and, most of the time, the only
+                      thing naming the session. It steps back to the topic and
+                      date exactly when the loaded session is on screen below
+                      it: the conversation card asks the question there, where
+                      the summary screen asks it, so an open session is that
+                      screen exactly rather than that screen with its question
+                      printed twice. While the detail is still loading or
+                      failed, nothing else names the session, so the question
+                      stays here. The label is the question either way, so the
+                      control reads the same to a screen reader in both
+                      states. */}
+                  {detail ? (
                     <button
                       type="button"
                       onClick={() => toggle(session.id)}
                       aria-label={session.question_en}
-                      className="w-full text-left"
+                      className="w-full px-1 text-left"
                     >
-                      <p className="font-semibold text-foreground">{session.question_en}</p>
-                      <p className="text-xs text-muted-foreground">
-                        <span>{session.topic}</span>
-                        {' · '}
-                        <span>{new Date(session.created_at).toLocaleDateString()}</span>
-                      </p>
+                      {meta}
                     </button>
-                    {openId === session.id && detailErrors[session.id] && (
-                      <div className="space-y-2 border-t border-border pt-3 text-sm">
+                  ) : (
+                    <Card>
+                      <CardContent className="pt-6">
+                        <button
+                          type="button"
+                          onClick={() => toggle(session.id)}
+                          aria-label={session.question_en}
+                          className="w-full text-left"
+                        >
+                          <p className="font-semibold text-foreground">{session.question_en}</p>
+                          {meta}
+                        </button>
+                      </CardContent>
+                    </Card>
+                  )}
+                  {open && detailErrors[session.id] && (
+                    <Card>
+                      <CardContent className="pt-6 space-y-2 text-sm">
                         <p className="text-foreground">Failed to load the session.</p>
                         <Button onClick={() => fetchDetail(session.id)} className="w-full">
                           Try Again
                         </Button>
-                      </div>
-                    )}
-                    {detail && (
-                      <div className="space-y-3 border-t border-border pt-3 text-sm">
-                        <div>
-                          <p className="mb-1 text-xs font-semibold text-muted-foreground">
-                            Conversation
-                          </p>
-                          <Transcript messages={detail.transcript} />
-                        </div>
-                        {detail.reflection_ja && (
-                          <div>
-                            <p className="text-xs font-semibold text-muted-foreground">
-                              Reflection
-                            </p>
-                            <p className="text-foreground">{detail.reflection_ja}</p>
-                          </div>
-                        )}
-                        {/* Sessions recorded before the summary replaced the
-                            study/retry flow have neither field. */}
-                        {detail.natural_english && (
-                          <div>
-                            <p className="text-xs font-semibold text-muted-foreground">
-                              Natural English
-                            </p>
-                            <p className="text-foreground">{detail.natural_english}</p>
-                          </div>
-                        )}
-                        {(detail.naturalness_why_en || detail.naturalness_fix_en) && (
-                          <div>
-                            <p className="text-xs font-semibold text-muted-foreground">
-                              Why it sounded unnatural
-                            </p>
-                            {detail.naturalness_why_en && (
-                              <p className="text-foreground">{detail.naturalness_why_en}</p>
-                            )}
-                            {detail.naturalness_fix_en && (
-                              <p className="mt-1 text-foreground">{detail.naturalness_fix_en}</p>
-                            )}
-                          </div>
-                        )}
-                        {detail.phrases.length > 0 && (
-                          <div>
-                            <p className="text-xs font-semibold text-muted-foreground">
-                              Useful phrases
-                            </p>
-                            <div className="mt-1">
-                              <PhraseList phrases={detail.phrases} />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                      </CardContent>
+                    </Card>
+                  )}
+                  {/* The same card stack, in the same order, that the learner
+                      saw when the session ended — see SessionSummary. */}
+                  {detail && (
+                    <SessionSummary
+                      question={detail.question_en}
+                      transcript={detail.transcript}
+                      reflectionJa={detail.reflection_ja}
+                      naturalEnglish={detail.natural_english}
+                      naturalnessWhyEn={detail.naturalness_why_en}
+                      naturalnessFixEn={detail.naturalness_fix_en}
+                      phrases={detail.phrases}
+                    />
+                  )}
+                </div>
               )
             })}
           </div>
