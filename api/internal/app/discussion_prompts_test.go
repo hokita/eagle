@@ -96,6 +96,42 @@ func TestBuildSummaryPromptAsksForOneNaturalPassage(t *testing.T) {
 	}
 }
 
+// "The way a native speaker would say it" was not enough on its own: the
+// rewrites came back grammatical but written — "haven't been able to get to
+// it", "a famous piece of modern literature" — which is the register the
+// learner is already stuck in. The rewrite is the model the learner copies,
+// so the prompt has to name spoken register and show the shift concretely.
+func TestBuildSummaryPromptAsksForSpokenRegisterInTheRewrite(t *testing.T) {
+	got := buildSummaryPrompt(promptQuestion, msgs("I like dogs."), "犬が好き")
+	for _, want := range []string{
+		"say it out loud to a friend",
+		"as speech rather than as writing",
+		"softeners people actually say",
+		"Prefer the plainest wording that carries the idea",
+		"more literary or formal word",
+		"would a friend say it to you in ordinary conversation today",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("prompt missing %q:\n%s", want, got)
+		}
+	}
+	// Loosening the register must not become licence to embellish. The
+	// softeners themselves carry meaning — "kind of" hedges a stance the
+	// learner may have stated flatly, "for a while" asserts a timeframe they
+	// never gave — so permission to use them is conditioned on the learner's
+	// own words already carrying it, not left to collide with "keep their
+	// opinions exactly" a few lines up.
+	for _, want := range []string{
+		"only where the learner's own words already carry it",
+		"never on an opinion they stated flatly",
+		"never let one add a fact, a timeframe, or a degree of conviction the learner did not express",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("prompt missing %q:\n%s", want, got)
+		}
+	}
+}
+
 // The two phrase sources are ranked, not interchangeable. The point of the
 // mode is the gap — the idea the learner had but could not get into English
 // — so phrases start from the Japanese reflection, and chunks of the rewrite
