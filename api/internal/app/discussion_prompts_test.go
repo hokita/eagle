@@ -115,10 +115,20 @@ func TestBuildSummaryPromptAsksForSpokenRegisterInTheRewrite(t *testing.T) {
 			t.Fatalf("prompt missing %q:\n%s", want, got)
 		}
 	}
-	// Loosening the register must not become licence to embellish: the rewrite
-	// still says only what the learner said.
-	if !strings.Contains(got, "adding facts or opinions the learner never expressed is not") {
-		t.Fatalf("prompt must keep softeners separate from invented content:\n%s", got)
+	// Loosening the register must not become licence to embellish. The
+	// softeners themselves carry meaning — "kind of" hedges a stance the
+	// learner may have stated flatly, "for a while" asserts a timeframe they
+	// never gave — so permission to use them is conditioned on the learner's
+	// own words already carrying it, not left to collide with "keep their
+	// opinions exactly" a few lines up.
+	for _, want := range []string{
+		"only where the learner's own words already carry it",
+		"never on an opinion they stated flatly",
+		"never let one add a fact, a timeframe, or a degree of conviction the learner did not express",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("prompt missing %q:\n%s", want, got)
+		}
 	}
 }
 
