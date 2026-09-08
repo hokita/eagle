@@ -31,6 +31,11 @@ export default function DiscussionSession({ user }: Props) {
   const [phase, setPhase] = useState<Phase>('loading')
   const [question, setQuestion] = useState<DiscussionQuestion | null>(null)
   const [transcript, setTranscript] = useState<DiscussionMessage[]>([])
+  // Kept past the reflection phase because the summary shows it back: the
+  // rewrite works in the ideas the learner could only write in Japanese, so
+  // the Japanese has to be on screen for the rewrite to be checkable against
+  // it — the same reason the transcript is shown there.
+  const [reflection, setReflection] = useState('')
   const [result, setResult] = useState<DiscussionCompleteResponse | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -100,6 +105,7 @@ export default function DiscussionSession({ user }: Props) {
     try {
       const res = await api.discussionComplete(question.id, transcript, text)
       setResult(res)
+      setReflection(text)
       setPhase('summary')
     } catch {
       setError('Something went wrong. Please try again.')
@@ -111,6 +117,7 @@ export default function DiscussionSession({ user }: Props) {
   const restart = () => {
     setQuestion(null)
     setTranscript([])
+    setReflection('')
     setResult(null)
     loadQuestion()
   }
@@ -184,6 +191,7 @@ export default function DiscussionSession({ user }: Props) {
           <SummaryView
             question={question.question_en}
             transcript={transcript}
+            reflectionJa={reflection}
             naturalEnglish={result.natural_english}
             naturalnessWhyEn={result.naturalness_why_en}
             naturalnessFixEn={result.naturalness_fix_en}

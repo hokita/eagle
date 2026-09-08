@@ -72,6 +72,33 @@ describe('SessionHistory', () => {
     expect(screen.getByText(detail.naturalness_fix_en)).toBeInTheDocument()
   })
 
+  // A session read back later is the same session, so it is shown in the same
+  // shape the summary showed it in when it ended: the same titled cards, in
+  // the same order, with the lines that say what each one is for.
+  it('shows an opened session the way the summary screen shows it', async () => {
+    vi.mocked(api.listDiscussionSessions).mockResolvedValue({ sessions: [summary] })
+    vi.mocked(api.getDiscussionSession).mockResolvedValue(detail)
+    render(<SessionHistory user={user} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Who is responsible?' }))
+
+    const titles = await screen.findAllByRole('heading', { level: 3 })
+    expect(titles.map(t => t.textContent)).toEqual([
+      'Conversation',
+      'Reflection',
+      'Natural English',
+      'Why it sounded unnatural',
+      'Useful phrases',
+    ])
+    expect(
+      screen.getByText('Everything you said, the way a native speaker would say it.')
+    ).toBeInTheDocument()
+    expect(screen.getByText('How to fix it')).toBeInTheDocument()
+
+    // The card heading already asks the question; the conversation below it
+    // must not ask it a second time.
+    expect(screen.getAllByText('Who is responsible?')).toHaveLength(1)
+  })
+
   it('shows an error with retry when loading fails', async () => {
     vi.mocked(api.listDiscussionSessions).mockRejectedValueOnce(new Error('API error: 500'))
     render(<SessionHistory user={user} />)
