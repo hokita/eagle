@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	geminiExplainModel = "gemini-3.1-flash-lite"
+	geminiExplainModel = "gemini-3.8-flash"
 	explainTimeout     = 20 * time.Second
 
 	// maxExplainOutputTokens bounds the size of the explanation response
