@@ -46,7 +46,9 @@ func buildDiscussionReplyPrompt(q *DiscussionQuestion, transcript []DiscussionMe
 // buildSummaryPrompt produces the one analysis prompt a session runs, after
 // the conversation and the Japanese reflection are both in. It asks for
 // three things the learner reads back in English: a single natural rewrite
-// of everything they said, an explanation of why their own wording sounded
+// of everything they said — pitched at spoken register, since a rewrite that
+// is merely grammatical still reads like an essay and gives the learner the
+// wrong model to copy — an explanation of why their own wording sounded
 // unnatural and what to do about it, and a few reusable phrases drawn first
 // from the gap the reflection exposes — the ideas the learner had but could
 // not reach in English are the point of the mode, so wording they already
@@ -65,9 +67,19 @@ func buildSummaryPrompt(q *DiscussionQuestion, transcript []DiscussionMessage, r
 	b.WriteString("Produce:\n")
 	b.WriteString("1. natural_english: a single short paragraph that says everything the learner said ")
 	b.WriteString("across the whole conversation, including the ideas they could only write in Japanese, ")
-	b.WriteString("the way a native speaker would say it in casual conversation. Merge their separate ")
+	b.WriteString("the way a native speaker would say it out loud to a friend. Merge their separate ")
 	b.WriteString("answers into connected sentences, keep their meaning and their opinions exactly, and ")
 	b.WriteString("invent no new content. Keep it to at most 4 sentences.\n")
+	b.WriteString("Write it as speech rather than as writing: contractions, everyday words, and the ")
+	b.WriteString("connectors and softeners people actually say (\"so\", \"actually\", \"for a while\", ")
+	b.WriteString("\"kind of\"). Prefer the plainest wording that carries the idea — for example ")
+	b.WriteString("\"haven't had a chance to read it\" over \"haven't been able to get to it\", ")
+	b.WriteString("\"a famous modern classic\" over \"a famous piece of modern literature\". ")
+	b.WriteString("Never reach for a more literary or formal word than the one a friend would use, ")
+	b.WriteString("and never turn a plain verb into a noun phrase. Every sentence must pass this ")
+	b.WriteString("test: would a friend say it to you in ordinary conversation today? Connectors and ")
+	b.WriteString("softeners are wording, not content — adding them is fine, adding facts or ")
+	b.WriteString("opinions the learner never expressed is not.\n")
 	b.WriteString("2. naturalness_why_en: why the learner's English sounded unnatural to a native ear. ")
 	b.WriteString("Describe the patterns across their whole conversation — over-formal or textbook word ")
 	b.WriteString("choice, the same opener repeated every turn, phrasings carried over from Japanese ")
