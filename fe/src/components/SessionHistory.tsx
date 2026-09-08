@@ -115,44 +115,67 @@ export default function SessionHistory({ user }: Props) {
           // more list entries.
           <div className="space-y-6">
             {sessions.map(session => {
-              const detail = openId === session.id ? details[session.id] : undefined
+              const open = openId === session.id
+              const detail = open ? details[session.id] : undefined
+              const meta = (
+                <p className="text-xs text-muted-foreground">
+                  <span>{session.topic}</span>
+                  {' · '}
+                  <span>{new Date(session.created_at).toLocaleDateString()}</span>
+                </p>
+              )
               return (
                 <div key={session.id} className="space-y-3">
-                  <Card>
-                    <CardContent className="pt-6 space-y-3">
-                      <button
-                        type="button"
-                        onClick={() => toggle(session.id)}
-                        aria-label={session.question_en}
-                        className="w-full text-left"
-                      >
-                        <p className="font-semibold text-foreground">{session.question_en}</p>
-                        <p className="text-xs text-muted-foreground">
-                          <span>{session.topic}</span>
-                          {' · '}
-                          <span>{new Date(session.created_at).toLocaleDateString()}</span>
-                        </p>
-                      </button>
-                      {/* Inside the heading card, not below it: the failure
-                          belongs to the card the learner just opened, and the
-                          retry has to stay attached to it while other cards
-                          are open. */}
-                      {openId === session.id && detailErrors[session.id] && (
-                        <div className="space-y-2 border-t border-border pt-3 text-sm">
-                          <p className="text-foreground">Failed to load the session.</p>
-                          <Button onClick={() => fetchDetail(session.id)} className="w-full">
-                            Try Again
-                          </Button>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                  {/* The same card stack the learner saw when the session
-                      ended — see SessionSummary. The question is left to the
-                      heading card above rather than passed down, since it is
-                      already the line directly above the conversation. */}
+                  {/* This is the list entry and, most of the time, the only
+                      thing naming the session. It steps back to the topic and
+                      date exactly when the loaded session is on screen below
+                      it: the conversation card asks the question there, where
+                      the summary screen asks it, so an open session is that
+                      screen exactly rather than that screen with its question
+                      printed twice. While the detail is still loading or
+                      failed, nothing else names the session, so the question
+                      stays here. The label is the question either way, so the
+                      control reads the same to a screen reader in both
+                      states. */}
+                  {detail ? (
+                    <button
+                      type="button"
+                      onClick={() => toggle(session.id)}
+                      aria-label={session.question_en}
+                      className="w-full px-1 text-left"
+                    >
+                      {meta}
+                    </button>
+                  ) : (
+                    <Card>
+                      <CardContent className="pt-6">
+                        <button
+                          type="button"
+                          onClick={() => toggle(session.id)}
+                          aria-label={session.question_en}
+                          className="w-full text-left"
+                        >
+                          <p className="font-semibold text-foreground">{session.question_en}</p>
+                          {meta}
+                        </button>
+                      </CardContent>
+                    </Card>
+                  )}
+                  {open && detailErrors[session.id] && (
+                    <Card>
+                      <CardContent className="pt-6 space-y-2 text-sm">
+                        <p className="text-foreground">Failed to load the session.</p>
+                        <Button onClick={() => fetchDetail(session.id)} className="w-full">
+                          Try Again
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  )}
+                  {/* The same card stack, in the same order, that the learner
+                      saw when the session ended — see SessionSummary. */}
                   {detail && (
                     <SessionSummary
+                      question={detail.question_en}
                       transcript={detail.transcript}
                       reflectionJa={detail.reflection_ja}
                       naturalEnglish={detail.natural_english}

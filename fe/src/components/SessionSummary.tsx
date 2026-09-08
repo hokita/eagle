@@ -6,13 +6,12 @@ import Transcript from './Transcript'
 import type { DiscussionMessage, Phrase } from '@/lib/api'
 
 interface Props {
-  // Omitted where the screen already names the session above this stack —
-  // the history list gives each card the question as its heading, so
-  // repeating it one card lower reads as a duplicate rather than as the
-  // opening of the conversation. The summary has nothing above it and always
-  // passes it: the question never enters the transcript, so without it the
-  // first answer replies to nothing.
-  question?: string
+  // Always shown, on both screens: the question never enters the transcript —
+  // it is asked before the first turn — so without it the first answer
+  // replies to nothing. A screen that also names the session above this stack
+  // stops naming it once the stack is open, rather than printing the question
+  // twice; see SessionHistory.
+  question: string
   transcript: DiscussionMessage[]
   reflectionJa: string
   naturalEnglish: string
@@ -52,7 +51,7 @@ export default function SessionSummary({
           <CardTitle className="text-base">Conversation</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          {question && <p className="text-sm font-semibold text-muted-foreground">{question}</p>}
+          <p className="text-sm font-semibold text-muted-foreground">{question}</p>
           <Transcript messages={transcript} />
         </CardContent>
       </Card>

@@ -38,15 +38,6 @@ describe('SessionSummary', () => {
     expect(screen.getByText('What makes you say that?')).toBeInTheDocument()
   })
 
-  // The history list already names the session in its heading card; repeating
-  // the question one card below would read as a duplicate.
-  it('omits the question line for a screen that names the session itself', () => {
-    renderSummary({ question: undefined })
-    expect(screen.getByText('Conversation')).toBeInTheDocument()
-    expect(screen.queryByText('Who should take responsibility?')).not.toBeInTheDocument()
-    expect(screen.getByText('I think companies are responsible.')).toBeInTheDocument()
-  })
-
   // The rewrite claims to include the ideas that stayed in Japanese, which is
   // only checkable with the Japanese on the same screen.
   it('shows the Japanese reflection', () => {

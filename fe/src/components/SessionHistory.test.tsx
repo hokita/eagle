@@ -72,9 +72,10 @@ describe('SessionHistory', () => {
     expect(screen.getByText(detail.naturalness_fix_en)).toBeInTheDocument()
   })
 
-  // A session read back later is the same session, so it is shown in the same
-  // shape the summary showed it in when it ended: the same titled cards, in
-  // the same order, with the lines that say what each one is for.
+  // A session read back later is the same session, so it is shown exactly as
+  // the summary showed it when it ended: the same titled cards, in the same
+  // order, with the lines that say what each one is for, and the question
+  // above the conversation.
   it('shows an opened session the way the summary screen shows it', async () => {
     vi.mocked(api.listDiscussionSessions).mockResolvedValue({ sessions: [summary] })
     vi.mocked(api.getDiscussionSession).mockResolvedValue(detail)
@@ -94,9 +95,16 @@ describe('SessionHistory', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('How to fix it')).toBeInTheDocument()
 
-    // The card heading already asks the question; the conversation below it
-    // must not ask it a second time.
+    // The question is asked once, above the conversation, where the summary
+    // asks it — the list entry steps back to the topic and date rather than
+    // printing it a second time.
     expect(screen.getAllByText('Who is responsible?')).toHaveLength(1)
+    expect(screen.getByText('Conversation').closest('.rounded-lg')).toHaveTextContent(
+      'Who is responsible?'
+    )
+    // The entry itself still says which session this is.
+    expect(screen.getByText('environment')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Who is responsible?' })).toBeInTheDocument()
   })
 
   it('shows an error with retry when loading fails', async () => {
