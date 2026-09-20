@@ -123,8 +123,16 @@ function FollowUpThread({
   return (
     <div className="mt-3 space-y-2 border-t border-border pt-3">
       {followUps.map((turn, index) => (
-        <div key={index} className="space-y-1">
-          <p className="font-semibold text-foreground">{turn.question}</p>
+        <div key={index} className="space-y-2">
+          {/* The learner's own words get the bubble the discussion chat gives
+              them, so a question reads as theirs rather than as more of the
+              tutor's prose. The answer stays flowing text: it continues the
+              explanation above it, and boxing it would break that line. */}
+          <div className="text-right">
+            <span className="inline-block rounded-lg bg-indigo-600 px-3 py-2 text-left text-white">
+              {turn.question}
+            </span>
+          </div>
           <ModelMarkdown>{turn.answer}</ModelMarkdown>
         </div>
       ))}
