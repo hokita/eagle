@@ -15,6 +15,7 @@ func NewMux(srv *Server, verifier TokenVerifier, allowedEmails []string, fronten
 	mux.HandleFunc("/api/mistakes", auth(srv.getMistakes))
 	mux.HandleFunc("/api/mistakes/insight", auth(srv.getMistakesInsight))
 	mux.HandleFunc("/api/answer/explain", auth(srv.explainAnswer))
+	mux.HandleFunc("/api/answer/followup", auth(srv.followUpAnswer))
 	mux.HandleFunc("/api/sentence/report", auth(srv.reportSentence))
 	mux.HandleFunc("/api/discussion/question", auth(srv.getDiscussionQuestion))
 	mux.HandleFunc("/api/discussion/reply", auth(srv.discussionReply))

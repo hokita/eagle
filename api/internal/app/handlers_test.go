@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -100,11 +101,20 @@ type fakeExplainer struct {
 	explanation string
 	err         error
 	calledWith  []explainCall
+
+	followUpAnswer string
+	followUpErr    error
+	followUpCalls  []FollowUpInput
 }
 
 func (f *fakeExplainer) Explain(_ context.Context, japanese, correctAnswer, userAnswer, language string) (string, error) {
 	f.calledWith = append(f.calledWith, explainCall{japanese, correctAnswer, userAnswer, language})
 	return f.explanation, f.err
+}
+
+func (f *fakeExplainer) AnswerFollowUp(_ context.Context, in FollowUpInput) (string, error) {
+	f.followUpCalls = append(f.followUpCalls, in)
+	return f.followUpAnswer, f.followUpErr
 }
 
 type analyzeCall struct {
@@ -531,6 +541,216 @@ func TestExplainAnswerBodyTooLarge(t *testing.T) {
 		t.Fatalf("expected 400, got %d", rec.Code)
 	}
 	if len(explainer.calledWith) != 0 {
+		t.Fatal("explainer should not be called for an oversized request body")
+	}
+}
+
+// followUpBody builds a valid follow-up request body with the given fields
+// overridden, so each test states only what it is about.
+func followUpBody(t *testing.T, overrides map[string]any) *bytes.Reader {
+	t.Helper()
+	body := map[string]any{
+		"sentence_id": 1,
+		"user_answer": "I have no time.",
+		"language":    "en",
+		"explanation": "The reference uses do-support.",
+		"question":    "Why is \"no time\" less natural?",
+	}
+	for k, v := range overrides {
+		body[k] = v
+	}
+	raw, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	return bytes.NewReader(raw)
+}
+
+func postFollowUp(srv *Server, body *bytes.Reader) *httptest.ResponseRecorder {
+	req := authed(httptest.NewRequest(http.MethodPost, "/api/answer/followup", body), "u1")
+	rec := httptest.NewRecorder()
+	srv.followUpAnswer(rec, req)
+	return rec
+}
+
+func TestFollowUpAnswerOK(t *testing.T) {
+	explainer := &fakeExplainer{followUpAnswer: "Because English marks negation on the verb here."}
+	repo := &fakeRepo{sentenceJapanese: "時間がありません。", sentenceEnglish: "I don't have time."}
+	srv := NewServer(repo, explainer, &fakeAnalyzer{})
+
+	rec := postFollowUp(srv, followUpBody(t, map[string]any{
+		"history": []map[string]string{{"question": "Is my answer wrong?", "answer": "Not wrong, just less common."}},
+	}))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var resp FollowUpResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.Answer != explainer.followUpAnswer {
+		t.Fatalf("unexpected answer: %q", resp.Answer)
+	}
+	if len(explainer.followUpCalls) != 1 {
+		t.Fatalf("expected AnswerFollowUp called once, got %d", len(explainer.followUpCalls))
+	}
+	in := explainer.followUpCalls[0]
+	// The sentence and the reference answer come from the repository, never
+	// from the request — the same rule the explain endpoint follows.
+	if in.Japanese != "時間がありません。" || in.CorrectAnswer != "I don't have time." {
+		t.Fatalf("expected sentence loaded from the repository, got %+v", in)
+	}
+	if in.UserAnswer != "I have no time." || in.Language != "en" {
+		t.Fatalf("unexpected input: %+v", in)
+	}
+	if in.Explanation != "The reference uses do-support." || in.Question != `Why is "no time" less natural?` {
+		t.Fatalf("unexpected input: %+v", in)
+	}
+	if len(in.History) != 1 || in.History[0].Question != "Is my answer wrong?" {
+		t.Fatalf("expected the earlier turn passed through, got %+v", in.History)
+	}
+}
+
+func TestFollowUpAnswerRejectsClientSuppliedSentenceData(t *testing.T) {
+	explainer := &fakeExplainer{followUpAnswer: "answer"}
+	repo := &fakeRepo{sentenceJapanese: "本物の文", sentenceEnglish: "the real sentence"}
+	srv := NewServer(repo, explainer, &fakeAnalyzer{})
+
+	rec := postFollowUp(srv, followUpBody(t, map[string]any{"japanese": "injected", "correct_answer": "injected"}))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for unknown fields, got %d", rec.Code)
+	}
+	if len(explainer.followUpCalls) != 0 {
+		t.Fatal("explainer should not be called when the request is rejected")
+	}
+}
+
+func TestFollowUpAnswerInvalidRequests(t *testing.T) {
+	longQuestion := strings.Repeat("あ", maxFollowUpQuestionLength+1)
+	longAnswer := strings.Repeat("a", maxFollowUpAnswerLength+1)
+
+	tests := []struct {
+		name      string
+		overrides map[string]any
+	}{
+		{"blank question", map[string]any{"question": "   "}},
+		{"question too long", map[string]any{"question": longQuestion}},
+		{"blank explanation", map[string]any{"explanation": ""}},
+		{"explanation too long", map[string]any{"explanation": longAnswer}},
+		{"blank user answer", map[string]any{"user_answer": "  "}},
+		{"user answer too long", map[string]any{"user_answer": strings.Repeat("a", maxUserAnswerLength+1)}},
+		{"unknown language", map[string]any{"language": "fr"}},
+		{"missing language", map[string]any{"language": ""}},
+		{"blank history answer", map[string]any{"history": []map[string]string{{"question": "q", "answer": " "}}}},
+		{"blank history question", map[string]any{"history": []map[string]string{{"question": "", "answer": "a"}}}},
+		{"history answer too long", map[string]any{"history": []map[string]string{{"question": "q", "answer": longAnswer}}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			explainer := &fakeExplainer{}
+			repo := &fakeRepo{sentenceJapanese: "x", sentenceEnglish: "y"}
+			srv := NewServer(repo, explainer, &fakeAnalyzer{})
+
+			rec := postFollowUp(srv, followUpBody(t, tt.overrides))
+
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("expected 400, got %d", rec.Code)
+			}
+			if len(explainer.followUpCalls) != 0 {
+				t.Fatal("explainer should not be called for an invalid request")
+			}
+		})
+	}
+}
+
+// A long thread keeps working: the oldest turns fall out of the prompt
+// rather than failing the request the learner just made.
+func TestFollowUpAnswerKeepsOnlyTheMostRecentHistory(t *testing.T) {
+	explainer := &fakeExplainer{followUpAnswer: "answer"}
+	repo := &fakeRepo{sentenceJapanese: "x", sentenceEnglish: "y"}
+	srv := NewServer(repo, explainer, &fakeAnalyzer{})
+	history := make([]map[string]string, maxFollowUpHistory+2)
+	for i := range history {
+		history[i] = map[string]string{"question": fmt.Sprintf("q%d", i), "answer": fmt.Sprintf("a%d", i)}
+	}
+
+	rec := postFollowUp(srv, followUpBody(t, map[string]any{"history": history}))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	got := explainer.followUpCalls[0].History
+	if len(got) != maxFollowUpHistory {
+		t.Fatalf("expected %d turns, got %d", maxFollowUpHistory, len(got))
+	}
+	if got[0].Question != "q2" || got[len(got)-1].Question != fmt.Sprintf("q%d", len(history)-1) {
+		t.Fatalf("expected the most recent turns, got %+v", got)
+	}
+}
+
+func TestFollowUpAnswerSentenceNotFound(t *testing.T) {
+	explainer := &fakeExplainer{}
+	srv := NewServer(&fakeRepo{sentenceErr: ErrNotFound}, explainer, &fakeAnalyzer{})
+
+	rec := postFollowUp(srv, followUpBody(t, nil))
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rec.Code)
+	}
+	if len(explainer.followUpCalls) != 0 {
+		t.Fatal("explainer should not be called when sentence lookup fails")
+	}
+}
+
+func TestFollowUpAnswerExplainerError(t *testing.T) {
+	repo := &fakeRepo{sentenceJapanese: "x", sentenceEnglish: "y"}
+	srv := NewServer(repo, &fakeExplainer{followUpErr: errors.New("gemini down")}, &fakeAnalyzer{})
+
+	rec := postFollowUp(srv, followUpBody(t, nil))
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rec.Code)
+	}
+}
+
+// An empty answer would render as a blank turn in the thread, so it is
+// reported as the failure it is instead.
+func TestFollowUpAnswerEmptyAnswer(t *testing.T) {
+	repo := &fakeRepo{sentenceJapanese: "x", sentenceEnglish: "y"}
+	srv := NewServer(repo, &fakeExplainer{followUpAnswer: "   "}, &fakeAnalyzer{})
+
+	rec := postFollowUp(srv, followUpBody(t, nil))
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rec.Code)
+	}
+}
+
+func TestFollowUpAnswerMethodNotAllowed(t *testing.T) {
+	srv := NewServer(&fakeRepo{}, &fakeExplainer{}, &fakeAnalyzer{})
+	rec := httptest.NewRecorder()
+
+	srv.followUpAnswer(rec, authed(httptest.NewRequest(http.MethodGet, "/api/answer/followup", nil), "u1"))
+
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d", rec.Code)
+	}
+}
+
+func TestFollowUpAnswerBodyTooLarge(t *testing.T) {
+	explainer := &fakeExplainer{}
+	repo := &fakeRepo{sentenceJapanese: "x", sentenceEnglish: "y"}
+	srv := NewServer(repo, explainer, &fakeAnalyzer{})
+	huge := strings.Repeat("a", maxFollowUpRequestBytes+1)
+
+	rec := postFollowUp(srv, followUpBody(t, map[string]any{"explanation": huge}))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+	if len(explainer.followUpCalls) != 0 {
 		t.Fatal("explainer should not be called for an oversized request body")
 	}
 }

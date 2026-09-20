@@ -121,6 +121,39 @@ describe('api.explainAnswer', () => {
   })
 })
 
+describe('api.askFollowUp', () => {
+  it('sends POST /api/answer/followup with the explanation, the thread so far, and the question', async () => {
+    mockResponse({ answer: 'Because English negates the verb.' })
+    const history = [{ question: 'Was I wrong?', answer: 'Not wrong, just less common.' }]
+
+    const result = await api.askFollowUp(
+      1,
+      'I have no time.',
+      'en',
+      'The reference uses do-support.',
+      history,
+      'Why is that?'
+    )
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/answer/followup'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          sentence_id: 1,
+          user_answer: 'I have no time.',
+          language: 'en',
+          explanation: 'The reference uses do-support.',
+          history,
+          question: 'Why is that?',
+        }),
+        headers: expect.objectContaining({ Authorization: 'Bearer test-token' }),
+      })
+    )
+    expect(result.answer).toBe('Because English negates the verb.')
+  })
+})
+
 describe('api.listMistakes', () => {
   it('sends GET /api/mistakes with the Authorization header', async () => {
     mockResponse({

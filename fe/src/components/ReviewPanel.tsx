@@ -1,11 +1,12 @@
 'use client'
 
-import { Fragment, useMemo } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { Check, CheckCircle, X, XCircle } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import type { AnswerHistory } from '@/lib/api'
+import { Textarea } from '@/components/ui/textarea'
+import type { AnswerHistory, FollowUpTurn } from '@/lib/api'
 import { diffWords, type DiffWord } from '@/lib/diffWords'
 
 const explanationMarkdownComponents = {
@@ -33,7 +34,15 @@ interface ReviewPanelProps {
   explaining: boolean
   explainError: string | null
   onExplain: () => void
+  followUps: FollowUpTurn[]
+  asking: boolean
+  askError: string | null
+  onAsk: (question: string) => void
 }
+
+// The question is bounded here the same way the server bounds it, so an
+// over-long one is stopped at the keyboard rather than by a 400.
+const MAX_QUESTION_LENGTH = 500
 
 const LABEL = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 const PANEL = 'rounded-lg border border-border bg-muted p-3 text-sm'
@@ -76,6 +85,80 @@ function DiffSentence({ words, wordClassName }: { words: DiffWord[]; wordClassNa
   )
 }
 
+// Explanations and follow-up answers are both Markdown from the model, and
+// both are rendered with links and images stripped: nothing the model writes
+// should be able to put a clickable destination in front of the learner.
+function ModelMarkdown({ children }: { children: string }) {
+  return (
+    <ReactMarkdown components={explanationMarkdownComponents} disallowedElements={['a', 'img']}>
+      {children}
+    </ReactMarkdown>
+  )
+}
+
+// The learner's own follow-up thread: every question they asked about the
+// explanation, the answers, and the box for the next one. The draft lives
+// here rather than in Translator — it is nobody else's business until it is
+// asked — and is cleared only once an answer comes back, so a failed request
+// leaves the question in the box to retry.
+function FollowUpThread({
+  followUps,
+  asking,
+  askError,
+  onAsk,
+}: Pick<ReviewPanelProps, 'followUps' | 'asking' | 'askError' | 'onAsk'>) {
+  const [draft, setDraft] = useState('')
+  const [answered, setAnswered] = useState(followUps.length)
+  const question = draft.trim()
+
+  if (followUps.length !== answered) {
+    setAnswered(followUps.length)
+    setDraft('')
+  }
+
+  const ask = () => {
+    if (question && !asking) onAsk(question)
+  }
+
+  return (
+    <div className="mt-3 space-y-2 border-t border-border pt-3">
+      {followUps.map((turn, index) => (
+        <div key={index} className="space-y-1">
+          <p className="font-semibold text-foreground">{turn.question}</p>
+          <ModelMarkdown>{turn.answer}</ModelMarkdown>
+        </div>
+      ))}
+      {asking && <p className="text-muted-foreground">Answering...</p>}
+      {!asking && askError && <p className="text-destructive">{askError}</p>}
+      <form
+        className="space-y-2"
+        onSubmit={e => {
+          e.preventDefault()
+          ask()
+        }}
+      >
+        <Textarea
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          placeholder="Ask anything about this explanation..."
+          maxLength={MAX_QUESTION_LENGTH}
+          disabled={asking}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && e.ctrlKey) {
+              e.preventDefault()
+              ask()
+            }
+          }}
+          aria-label="Your question about this explanation"
+        />
+        <Button type="submit" variant="outline" size="sm" disabled={!question || asking}>
+          {asking ? 'Asking...' : 'Ask'}
+        </Button>
+      </form>
+    </div>
+  )
+}
+
 export default function ReviewPanel({
   feedback,
   userAnswer,
@@ -85,6 +168,10 @@ export default function ReviewPanel({
   explaining,
   explainError,
   onExplain,
+  followUps,
+  asking,
+  askError,
+  onAsk,
 }: ReviewPanelProps) {
   const correct = feedback === 'correct'
   const explainIdle = !explaining && !explainError && !explanation
@@ -156,14 +243,17 @@ export default function ReviewPanel({
                 </Button>
               </div>
             )}
+            {/* Questions only make sense once there is an explanation to ask
+                about, so the thread arrives with it. */}
             {!explaining && !explainError && explanation && (
               <div className="text-foreground">
-                <ReactMarkdown
-                  components={explanationMarkdownComponents}
-                  disallowedElements={['a', 'img']}
-                >
-                  {explanation}
-                </ReactMarkdown>
+                <ModelMarkdown>{explanation}</ModelMarkdown>
+                <FollowUpThread
+                  followUps={followUps}
+                  asking={asking}
+                  askError={askError}
+                  onAsk={onAsk}
+                />
               </div>
             )}
           </div>

@@ -76,6 +76,47 @@ func TestGeminiExplainerCapsMaxOutputTokens(t *testing.T) {
 	}
 }
 
+func TestGeminiExplainerAnswerFollowUpReturnsText(t *testing.T) {
+	fake := &fakeContentGenerator{
+		resp: &genai.GenerateContentResponse{
+			Candidates: []*genai.Candidate{
+				{Content: &genai.Content{Parts: []*genai.Part{{Text: "follow-up answer"}}}},
+			},
+		},
+	}
+	g := &GeminiExplainer{models: fake, model: "gemini-2.5-flash"}
+
+	got, err := g.AnswerFollowUp(context.Background(), FollowUpInput{
+		Japanese:      "japanese",
+		CorrectAnswer: "correct",
+		UserAnswer:    "user",
+		Explanation:   "explanation",
+		Question:      "why?",
+		Language:      "en",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "follow-up answer" {
+		t.Fatalf("unexpected answer: %q", got)
+	}
+	if fake.gotConfig == nil || fake.gotConfig.MaxOutputTokens != maxFollowUpOutputTokens {
+		t.Fatalf("expected MaxOutputTokens=%d, got %+v", maxFollowUpOutputTokens, fake.gotConfig)
+	}
+	if len(fake.gotContents) != 1 || len(fake.gotContents[0].Parts) != 1 || fake.gotContents[0].Parts[0].Text == "" {
+		t.Fatalf("unexpected contents: %+v", fake.gotContents)
+	}
+}
+
+func TestGeminiExplainerAnswerFollowUpPropagatesError(t *testing.T) {
+	fake := &fakeContentGenerator{err: errors.New("network error")}
+	g := &GeminiExplainer{models: fake, model: "gemini-2.5-flash"}
+
+	if _, err := g.AnswerFollowUp(context.Background(), FollowUpInput{Question: "why?"}); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func TestGeminiExplainerExplainPropagatesError(t *testing.T) {
 	fake := &fakeContentGenerator{err: errors.New("network error")}
 	g := &GeminiExplainer{models: fake, model: "gemini-2.5-flash"}
