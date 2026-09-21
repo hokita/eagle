@@ -26,6 +26,18 @@ their answer, or the explanation the question is about.
 - No general-purpose chat. The prompt keeps the model on this sentence and
   this explanation, and says what to do with an off-topic question.
 
+## What it looks like
+
+![The review panel with a follow-up thread: the learner's question in their
+own bubble, the answer continuing the explanation below
+it](../../images/explanation-follow-up.png)
+
+While an answer is on its way, the box is disabled and the button reads
+"Asking...":
+
+![The same panel with the question box disabled and the button reading
+Asking](../../images/explanation-follow-up-asking.png)
+
 ## Flow
 
 1. The learner answers incorrectly and presses **Explain** as today.
