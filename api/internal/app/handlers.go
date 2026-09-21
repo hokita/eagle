@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 const (
@@ -25,6 +26,30 @@ const (
 	// weakness analyzer, keeping prompt size and Gemini cost predictable as a
 	// learner's mistake history grows.
 	maxInsightMistakes = 50
+	// maxFollowUpRequestBytes bounds a /api/answer/followup body. It is larger
+	// than the explain cap because the request carries the whole thread back:
+	// the explanation, every earlier question and answer, and the new
+	// question. Sized from the multibyte worst case of the rune limits below —
+	// the explanation plus the maxFollowUpHistory turns a client sends, each
+	// answer at maxFollowUpAnswerLength, their questions, and the learner's
+	// translation, at up to 4 UTF-8 bytes per rune — so a thread whose every
+	// field passes its own validation is never rejected for the size of the
+	// body carrying it.
+	maxFollowUpRequestBytes = 192 * 1024
+	// maxFollowUpQuestionLength bounds one free-text question, in runes — the
+	// same unit the frontend textarea's maxLength approximates, so text the
+	// client accepts is never rejected server-side for its length.
+	maxFollowUpQuestionLength = 500
+	// maxFollowUpAnswerLength bounds the model's own text coming back from the
+	// client: the explanation being asked about and each earlier answer in the
+	// thread. Generously above what maxExplainOutputTokens can produce.
+	maxFollowUpAnswerLength = 4000
+	// maxFollowUpHistory caps how many earlier question/answer pairs are sent
+	// on to Gemini, bounding both prompt size and cost per question. Extra
+	// turns are dropped rather than rejected — a learner who keeps asking is
+	// using the feature, not abusing it, so the oldest questions fall out of
+	// the model's context while the thread they read stays whole.
+	maxFollowUpHistory = 5
 )
 
 type Server struct {
@@ -238,12 +263,8 @@ func (s *Server) explainAnswer(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, maxExplainRequestBytes)
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
 	var req ExplainRequest
-	if err := decoder.Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	if !decodeBody(w, r, &req, maxExplainRequestBytes) {
 		return
 	}
 	userAnswer := strings.TrimSpace(req.UserAnswer)
@@ -276,6 +297,106 @@ func (s *Server) explainAnswer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, ExplainResponse{Explanation: explanation})
+}
+
+// followUpAnswer answers one free-text question about an explanation the
+// learner was just shown. Nothing on the explain path is stored, so the
+// client sends the thread it has on screen back with each question; only the
+// Japanese sentence and the reference answer are loaded server-side by
+// sentence_id, exactly as explainAnswer loads them, so an authenticated
+// caller still cannot pass arbitrary text off as the sentence being studied.
+func (s *Server) followUpAnswer(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req FollowUpRequest
+	if !decodeBody(w, r, &req, maxFollowUpRequestBytes) {
+		return
+	}
+	userAnswer := strings.TrimSpace(req.UserAnswer)
+	if userAnswer == "" || len(userAnswer) > maxUserAnswerLength {
+		http.Error(w, "Invalid user_answer", http.StatusBadRequest)
+		return
+	}
+	if !validExplainLanguages[req.Language] {
+		http.Error(w, "Invalid language", http.StatusBadRequest)
+		return
+	}
+	if !nonBlankWithin(req.Explanation, maxFollowUpAnswerLength) {
+		http.Error(w, "Invalid explanation", http.StatusBadRequest)
+		return
+	}
+	question := strings.TrimSpace(req.Question)
+	if !nonBlankWithin(req.Question, maxFollowUpQuestionLength) {
+		http.Error(w, "Invalid question", http.StatusBadRequest)
+		return
+	}
+	for _, turn := range req.History {
+		if !nonBlankWithin(turn.Question, maxFollowUpQuestionLength) ||
+			!nonBlankWithin(turn.Answer, maxFollowUpAnswerLength) {
+			http.Error(w, "Invalid history", http.StatusBadRequest)
+			return
+		}
+	}
+	// The most recent turns are the ones the new question follows on from.
+	history := req.History
+	if len(history) > maxFollowUpHistory {
+		history = history[len(history)-maxFollowUpHistory:]
+	}
+	japanese, correctAnswer, err := s.repo.GetSentence(r.Context(), req.SentenceID)
+	if errors.Is(err, ErrNotFound) {
+		http.Error(w, "Sentence not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		log.Printf("get sentence error: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	answer, err := s.explainer.AnswerFollowUp(r.Context(), FollowUpInput{
+		Japanese:      japanese,
+		CorrectAnswer: correctAnswer,
+		UserAnswer:    userAnswer,
+		Explanation:   req.Explanation,
+		History:       history,
+		Question:      question,
+		Language:      req.Language,
+	})
+	if err != nil {
+		log.Printf("follow-up answer error: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	// An empty answer has nothing to render, so it is reported as the failure
+	// it is rather than shown as a blank turn in the thread.
+	if strings.TrimSpace(answer) == "" {
+		log.Printf("follow-up answer was empty for sentence %d", req.SentenceID)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, FollowUpResponse{Answer: answer})
+}
+
+// decodeBody bounds and strictly decodes a JSON request body, writing the 400
+// response itself and returning false when it cannot.
+func decodeBody(w http.ResponseWriter, r *http.Request, dst interface{}, maxBytes int64) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(dst); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return false
+	}
+	return true
+}
+
+// nonBlankWithin reports whether text is non-blank after trimming and within
+// limit. The limit is a rune count — the same unit the frontend textareas'
+// character-based maxLength approximates — so multibyte input the client
+// accepts is never rejected here for its length.
+func nonBlankWithin(text string, limit int) bool {
+	return strings.TrimSpace(text) != "" && utf8.RuneCountInString(text) <= limit
 }
 
 func livenessHandler(w http.ResponseWriter, r *http.Request) {

@@ -63,6 +63,29 @@ type ExplainResponse struct {
 	Explanation string `json:"explanation"`
 }
 
+// FollowUpTurn is one question the learner asked about an explanation and the
+// answer they got back. Threads are not persisted: the client sends the ones
+// it has on screen so the next answer can build on them.
+type FollowUpTurn struct {
+	Question string `json:"question"`
+	Answer   string `json:"answer"`
+}
+
+type FollowUpRequest struct {
+	SentenceID int    `json:"sentence_id"`
+	UserAnswer string `json:"user_answer"`
+	Language   string `json:"language"`
+	// Explanation is the explanation the question is about, echoed back from
+	// the client — the explain path stores nothing server-side.
+	Explanation string         `json:"explanation"`
+	History     []FollowUpTurn `json:"history"`
+	Question    string         `json:"question"`
+}
+
+type FollowUpResponse struct {
+	Answer string `json:"answer"`
+}
+
 // ErrNotFound is returned when a sentence document does not exist.
 var ErrNotFound = errors.New("sentence not found")
 

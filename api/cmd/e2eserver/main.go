@@ -24,6 +24,13 @@ func (stubExplainer) Explain(_ context.Context, _, _, _, _ string) (string, erro
 	return stubExplanation, nil
 }
 
+// The follow-up answer echoes the question so the e2e test can tell one turn
+// in the thread from the next; the prefix is asserted by
+// e2e/tests/incorrect-explain.spec.ts.
+func (stubExplainer) AnswerFollowUp(_ context.Context, in app.FollowUpInput) (string, error) {
+	return fmt.Sprintf("Stub answer to: %s", in.Question), nil
+}
+
 // stubInsight is returned by stubAnalyzer so e2e runs never call real Gemini.
 const stubInsight = "This is a stub weakness insight for e2e tests."
 

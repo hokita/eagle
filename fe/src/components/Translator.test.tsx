@@ -11,6 +11,7 @@ vi.mock('@/lib/api', () => ({
     getRandomSentence: vi.fn(),
     checkAnswer: vi.fn(),
     explainAnswer: vi.fn(),
+    askFollowUp: vi.fn(),
     reportSentence: vi.fn(),
   },
 }))
@@ -23,6 +24,7 @@ const mockApi = api as unknown as {
   getRandomSentence: ReturnType<typeof vi.fn>
   checkAnswer: ReturnType<typeof vi.fn>
   explainAnswer: ReturnType<typeof vi.fn>
+  askFollowUp: ReturnType<typeof vi.fn>
   reportSentence: ReturnType<typeof vi.fn>
 }
 
@@ -486,5 +488,178 @@ describe('review phase', () => {
     expect(await screen.findByLabelText('Your English translation')).toHaveValue('')
     expect(screen.queryByText('Not quite right. Try again!')).not.toBeInTheDocument()
     expect(screen.queryByRole('tab')).not.toBeInTheDocument()
+  })
+})
+
+describe('follow-up questions', () => {
+  const QUESTION_BOX = 'Your question about this explanation'
+
+  async function explain(explanation = 'Prefer do-support.') {
+    mockApi.checkAnswer.mockResolvedValue({
+      is_correct: false,
+      correct_answer: fakeSentence.english,
+      histories: [],
+    })
+    await renderAndLoad()
+    fireEvent.change(screen.getByLabelText('Your English translation'), {
+      target: { value: 'I have no time.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Check Translation' }))
+    await screen.findByText('Not quite right. Try again!')
+
+    mockApi.explainAnswer.mockResolvedValue({ explanation })
+    fireEvent.click(screen.getByRole('button', { name: 'Explain' }))
+    await screen.findByText(explanation)
+  }
+
+  async function ask(question: string) {
+    fireEvent.change(screen.getByLabelText(QUESTION_BOX), { target: { value: question } })
+    fireEvent.click(screen.getByRole('button', { name: 'Ask' }))
+  }
+
+  it('sends the question with the explanation it is about, and shows the answer', async () => {
+    await explain()
+    mockApi.askFollowUp.mockResolvedValue({ answer: 'Because English negates the verb.' })
+
+    await ask('Why is that?')
+
+    await waitFor(() =>
+      expect(mockApi.askFollowUp).toHaveBeenCalledWith(
+        1,
+        'I have no time.',
+        'en',
+        'Prefer do-support.',
+        [],
+        'Why is that?',
+      ),
+    )
+    expect(await screen.findByText('Because English negates the verb.')).toBeInTheDocument()
+  })
+
+  it('sends the thread so far with the next question', async () => {
+    await explain()
+    mockApi.askFollowUp.mockResolvedValue({ answer: 'First answer.' })
+    await ask('First question?')
+    await screen.findByText('First answer.')
+
+    mockApi.askFollowUp.mockResolvedValue({ answer: 'Second answer.' })
+    await ask('Second question?')
+
+    await waitFor(() =>
+      expect(mockApi.askFollowUp).toHaveBeenLastCalledWith(
+        1,
+        'I have no time.',
+        'en',
+        'Prefer do-support.',
+        [{ question: 'First question?', answer: 'First answer.' }],
+        'Second question?',
+      ),
+    )
+    expect(await screen.findByText('Second answer.')).toBeInTheDocument()
+    expect(screen.getByText('First answer.')).toBeInTheDocument()
+  })
+
+  it('sends only the most recent turns once the thread gets long', async () => {
+    await explain()
+    for (let i = 1; i <= 6; i++) {
+      mockApi.askFollowUp.mockResolvedValue({ answer: `Answer ${i}.` })
+      await ask(`Question ${i}?`)
+      await screen.findByText(`Answer ${i}.`)
+    }
+
+    mockApi.askFollowUp.mockResolvedValue({ answer: 'Answer 7.' })
+    await ask('Question 7?')
+
+    await waitFor(() => expect(mockApi.askFollowUp).toHaveBeenCalledTimes(7))
+    const sentHistory = mockApi.askFollowUp.mock.calls[6][4]
+    expect(sentHistory).toHaveLength(5)
+    expect(sentHistory[0]).toEqual({ question: 'Question 2?', answer: 'Answer 2.' })
+    // The whole thread still reads back on screen.
+    expect(await screen.findByText('Answer 1.')).toBeInTheDocument()
+  })
+
+  it('asks in the language the explanation was written in', async () => {
+    localStorage.setItem('eagle:explainLanguage', 'ja')
+    await explain('説明')
+    mockApi.askFollowUp.mockResolvedValue({ answer: '答え' })
+
+    await ask('なぜですか？')
+
+    await waitFor(() =>
+      expect(mockApi.askFollowUp).toHaveBeenCalledWith(1, 'I have no time.', 'ja', '説明', [], 'なぜですか？'),
+    )
+  })
+
+  it('shows an error when the answer fails, leaving the question askable again', async () => {
+    await explain()
+    mockApi.askFollowUp.mockRejectedValue(new Error('Follow-up failed'))
+
+    await ask('Why is that?')
+
+    expect(await screen.findByText('Follow-up failed')).toBeInTheDocument()
+
+    mockApi.askFollowUp.mockResolvedValue({ answer: 'Recovered.' })
+    fireEvent.click(screen.getByRole('button', { name: 'Ask' }))
+
+    expect(await screen.findByText('Recovered.')).toBeInTheDocument()
+  })
+
+  // The thread is about one explanation: re-explaining in the other language
+  // replaces it, so the questions asked about the old text go with it.
+  it('clears the thread when the explanation is re-fetched in the other language', async () => {
+    await explain()
+    mockApi.askFollowUp.mockResolvedValue({ answer: 'English answer.' })
+    await ask('Why?')
+    await screen.findByText('English answer.')
+
+    mockApi.explainAnswer.mockResolvedValue({ explanation: '日本語の説明' })
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    fireEvent.click(screen.getByRole('tab', { name: '日本語' }))
+
+    expect(await screen.findByText('日本語の説明')).toBeInTheDocument()
+    expect(screen.queryByText('English answer.')).not.toBeInTheDocument()
+    expect(screen.queryByText('Why?')).not.toBeInTheDocument()
+  })
+
+  it('never lands an answer from a superseded explanation under the new one', async () => {
+    await explain()
+    let resolveStale: (value: unknown) => void = () => {}
+    mockApi.askFollowUp.mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          resolveStale = resolve
+        }),
+    )
+    await ask('Why?')
+    await waitFor(() => expect(mockApi.askFollowUp).toHaveBeenCalledTimes(1))
+
+    mockApi.explainAnswer.mockResolvedValue({ explanation: '日本語の説明' })
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    fireEvent.click(screen.getByRole('tab', { name: '日本語' }))
+    await screen.findByText('日本語の説明')
+
+    await act(async () => {
+      resolveStale({ answer: 'Stale answer.' })
+      await Promise.resolve()
+    })
+
+    expect(screen.queryByText('Stale answer.')).not.toBeInTheDocument()
+  })
+
+  it('has nothing to ask about until the explanation is on screen', async () => {
+    mockApi.checkAnswer.mockResolvedValue({
+      is_correct: false,
+      correct_answer: fakeSentence.english,
+      histories: [],
+    })
+    await renderAndLoad()
+    fireEvent.change(screen.getByLabelText('Your English translation'), {
+      target: { value: 'I have no time.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Check Translation' }))
+    await screen.findByText('Not quite right. Try again!')
+
+    expect(screen.queryByLabelText(QUESTION_BOX)).not.toBeInTheDocument()
+    expect(mockApi.askFollowUp).not.toHaveBeenCalled()
   })
 })

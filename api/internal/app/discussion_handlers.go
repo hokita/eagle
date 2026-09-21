@@ -1,12 +1,10 @@
 package app
 
 import (
-	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
 	"strings"
-	"unicode/utf8"
 )
 
 // WithDiscussion attaches the discussion-practice dependencies. A chained
@@ -41,19 +39,6 @@ func (s *Server) getDiscussionQuestion(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, q)
 }
 
-// decodeDiscussionBody bounds and strictly decodes a discussion request
-// body. Returns false after writing the 400 response itself.
-func decodeDiscussionBody(w http.ResponseWriter, r *http.Request, dst interface{}, maxBytes int64) bool {
-	r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(dst); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return false
-	}
-	return true
-}
-
 // loadDiscussionQuestion fetches the question by id, writing the error
 // response itself when it fails (nil result means "already handled").
 func (s *Server) loadDiscussionQuestion(w http.ResponseWriter, r *http.Request, id int) *DiscussionQuestion {
@@ -76,7 +61,7 @@ func (s *Server) discussionReply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req DiscussionReplyRequest
-	if !decodeDiscussionBody(w, r, &req, maxDiscussionRequestBytes) {
+	if !decodeBody(w, r, &req, maxDiscussionRequestBytes) {
 		return
 	}
 	if err := validateTranscript(req.Transcript); err != nil {
@@ -105,15 +90,6 @@ func (s *Server) discussionReply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, DiscussionReplyResponse{Done: false, Message: reply.Message})
-}
-
-// discussionTrimmed reports whether text is non-blank after trimming and
-// within limit. The limit is a rune count — the same unit the frontend
-// textareas' character-based maxLength approximates — so multibyte input
-// the client accepts is never rejected here for its length.
-func discussionTrimmed(text string, limit int) bool {
-	t := strings.TrimSpace(text)
-	return t != "" && utf8.RuneCountInString(text) <= limit
 }
 
 // DiscussionReplyResponse is the wire shape of a reply turn. "done" is the
@@ -151,7 +127,7 @@ func (s *Server) discussionComplete(w http.ResponseWriter, r *http.Request) {
 	}
 	uid, _ := uidFromContext(r.Context())
 	var req DiscussionCompleteRequest
-	if !decodeDiscussionBody(w, r, &req, maxDiscussionRequestBytes) {
+	if !decodeBody(w, r, &req, maxDiscussionRequestBytes) {
 		return
 	}
 	if err := validateTranscript(req.Transcript); err != nil {
@@ -159,7 +135,7 @@ func (s *Server) discussionComplete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// The reflection cannot be skipped, so it is always present here.
-	if !discussionTrimmed(req.ReflectionJA, maxReflectionLength) {
+	if !nonBlankWithin(req.ReflectionJA, maxReflectionLength) {
 		http.Error(w, "Invalid reflection_ja", http.StatusBadRequest)
 		return
 	}

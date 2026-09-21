@@ -35,6 +35,18 @@ export interface ExplainResponse {
   explanation: string
 }
 
+// One question the learner asked about an explanation, and the answer they
+// got. The thread is not stored: it is sent back with the next question so
+// the answer can build on it.
+export interface FollowUpTurn {
+  question: string
+  answer: string
+}
+
+export interface FollowUpResponse {
+  answer: string
+}
+
 export interface MistakesInsightResponse {
   insight: string
 }
@@ -137,6 +149,26 @@ export const api = {
     request<ExplainResponse>('/api/answer/explain', {
       method: 'POST',
       body: JSON.stringify({ sentence_id: sentenceId, user_answer: userAnswer, language }),
+    }),
+
+  askFollowUp: (
+    sentenceId: number,
+    userAnswer: string,
+    language: 'en' | 'ja',
+    explanation: string,
+    history: FollowUpTurn[],
+    question: string
+  ) =>
+    request<FollowUpResponse>('/api/answer/followup', {
+      method: 'POST',
+      body: JSON.stringify({
+        sentence_id: sentenceId,
+        user_answer: userAnswer,
+        language,
+        explanation,
+        history,
+        question,
+      }),
     }),
 
   getDiscussionQuestion: () => request<DiscussionQuestion>('/api/discussion/question'),

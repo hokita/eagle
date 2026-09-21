@@ -17,6 +17,11 @@ const (
 	// nothing stops the model from ignoring that instruction — mirrors the
 	// same safeguard on the weakness-insight path (maxInsightOutputTokens).
 	maxExplainOutputTokens = 512
+
+	// maxFollowUpOutputTokens bounds a follow-up answer the same way, and for
+	// the same reason: buildFollowUpPrompt asks for 2-4 sentences, but nothing
+	// makes the model keep to it.
+	maxFollowUpOutputTokens = 512
 )
 
 // contentGenerator is the seam between GeminiExplainer and the genai SDK, so
@@ -44,13 +49,21 @@ func NewGeminiExplainer(ctx context.Context, apiKey string) (*GeminiExplainer, e
 }
 
 func (g *GeminiExplainer) Explain(ctx context.Context, japanese, correctAnswer, userAnswer, language string) (string, error) {
+	prompt := buildExplainPrompt(japanese, correctAnswer, userAnswer, language)
+	return g.generate(ctx, prompt, maxExplainOutputTokens)
+}
+
+func (g *GeminiExplainer) AnswerFollowUp(ctx context.Context, in FollowUpInput) (string, error) {
+	return g.generate(ctx, buildFollowUpPrompt(in), maxFollowUpOutputTokens)
+}
+
+func (g *GeminiExplainer) generate(ctx context.Context, prompt string, maxOutputTokens int32) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, explainTimeout)
 	defer cancel()
 
-	prompt := buildExplainPrompt(japanese, correctAnswer, userAnswer, language)
 	contents := []*genai.Content{{Parts: []*genai.Part{{Text: prompt}}}}
 
-	config := &genai.GenerateContentConfig{MaxOutputTokens: maxExplainOutputTokens}
+	config := &genai.GenerateContentConfig{MaxOutputTokens: maxOutputTokens}
 	resp, err := g.models.GenerateContent(ctx, g.model, contents, config)
 	if err != nil {
 		return "", fmt.Errorf("gemini generate content: %w", err)

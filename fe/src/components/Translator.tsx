@@ -10,7 +10,7 @@ import AppHeader from './AppHeader'
 import SettingsSheet from './SettingsSheet'
 import QuestionCard from './QuestionCard'
 import ReviewPanel from './ReviewPanel'
-import { api, type Sentence, type AnswerHistory } from '@/lib/api'
+import { api, type Sentence, type AnswerHistory, type FollowUpTurn } from '@/lib/api'
 import { speakJapanese } from '@/lib/speech'
 import {
   useSettings,
@@ -23,6 +23,10 @@ import {
 interface Props {
   user: User
 }
+
+// How many earlier turns of a follow-up thread ride along with a question —
+// the same number the server feeds to the model (maxFollowUpHistory).
+const MAX_FOLLOW_UP_HISTORY = 5
 
 export default function Translator({ user }: Props) {
   const { levels, language, setLevels, setLanguage } = useSettings()
@@ -41,10 +45,14 @@ export default function Translator({ user }: Props) {
   const [explanation, setExplanation] = useState<string | null>(null)
   const [explaining, setExplaining] = useState(false)
   const [explainError, setExplainError] = useState<string | null>(null)
+  const [followUps, setFollowUps] = useState<FollowUpTurn[]>([])
+  const [asking, setAsking] = useState(false)
+  const [askError, setAskError] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   const latestRequestId = useRef(0)
   const explainRequestId = useRef(0)
+  const askRequestId = useRef(0)
 
   const getRandomSentence = async (levelsOverride?: number[]) => {
     const requestId = ++latestRequestId.current
@@ -71,8 +79,20 @@ export default function Translator({ user }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // A thread belongs to the explanation it was asked about: whenever that
+  // explanation goes away — a new sentence, or a re-fetch in the other
+  // language — the questions asked about it go with it, and any answer still
+  // in flight is dropped rather than landing under a different explanation.
+  const resetFollowUps = () => {
+    askRequestId.current++
+    setFollowUps([])
+    setAsking(false)
+    setAskError(null)
+  }
+
   const resetQuestionState = () => {
     explainRequestId.current++
+    resetFollowUps()
     setUserTranslation('')
     setFeedback(null)
     setShowAnswer(false)
@@ -105,6 +125,7 @@ export default function Translator({ user }: Props) {
     setExplaining(true)
     setExplainError(null)
     setExplanation(null)
+    resetFollowUps()
     try {
       const result = await api.explainAnswer(currentSentence.id, userTranslation, lang)
       if (requestId !== explainRequestId.current) return
@@ -114,6 +135,32 @@ export default function Translator({ user }: Props) {
       setExplainError(err instanceof Error ? err.message : 'Failed to load explanation')
     } finally {
       if (requestId === explainRequestId.current) setExplaining(false)
+    }
+  }
+
+  const askFollowUp = async (question: string) => {
+    if (!currentSentence || !explanation) return
+    const requestId = ++askRequestId.current
+    setAsking(true)
+    setAskError(null)
+    try {
+      const result = await api.askFollowUp(
+        currentSentence.id,
+        userTranslation,
+        language,
+        explanation,
+        // The server only reads the most recent turns anyway, and a thread
+        // that grew for a while should not keep growing the request with it.
+        followUps.slice(-MAX_FOLLOW_UP_HISTORY),
+        question
+      )
+      if (requestId !== askRequestId.current) return
+      setFollowUps(prev => [...prev, { question, answer: result.answer }])
+    } catch (err) {
+      if (requestId !== askRequestId.current) return
+      setAskError(err instanceof Error ? err.message : 'Failed to answer the question')
+    } finally {
+      if (requestId === askRequestId.current) setAsking(false)
     }
   }
 
@@ -221,6 +268,10 @@ export default function Translator({ user }: Props) {
                     explaining={explaining}
                     explainError={explainError}
                     onExplain={() => explainAnswer(language)}
+                    followUps={followUps}
+                    asking={asking}
+                    askError={askError}
+                    onAsk={askFollowUp}
                   />
                 )
               )}

@@ -8,8 +8,8 @@ const histories = [
   { id: 2, incorrect_answer: 'I have not time.', created_at: '2026-01-02T00:00:00Z' },
 ]
 
-function renderPanel(overrides = {}) {
-  const props = {
+function panelProps(overrides = {}) {
+  return {
     feedback: 'incorrect' as const,
     userAnswer: 'I have no time.',
     correctAnswer: "I don't have time.",
@@ -18,10 +18,30 @@ function renderPanel(overrides = {}) {
     explaining: false,
     explainError: null,
     onExplain: vi.fn(),
+    followUps: [],
+    asking: false,
+    askError: null,
+    onAsk: vi.fn(),
     ...overrides,
   }
+}
+
+function renderPanel(overrides = {}) {
+  const props = panelProps(overrides)
   render(<ReviewPanel {...props} />)
   return props
+}
+
+// Some of the follow-up behaviour is about what survives a re-render — the
+// question box is cleared by an answer arriving, not by the click that asked
+// for it — so those tests drive the panel through new props.
+function renderPanelForRerender(overrides = {}) {
+  const props = panelProps(overrides)
+  const view = render(<ReviewPanel {...props} />)
+  return {
+    props,
+    rerender: (next = {}) => view.rerender(<ReviewPanel {...props} {...next} />),
+  }
 }
 
 describe('verdict', () => {
@@ -184,6 +204,114 @@ describe('explanation section', () => {
 
     const explanationText = screen.getByText(/Prefer do-support\./)
     const panel = explanationText.closest('.rounded-lg') as HTMLElement
+    expect(within(panel).queryByRole('link')).not.toBeInTheDocument()
+    expect(within(panel).queryByRole('img')).not.toBeInTheDocument()
+  })
+})
+
+describe('follow-up questions', () => {
+  const QUESTION_BOX = 'Your question about this explanation'
+
+  function askQuestion(text: string) {
+    fireEvent.change(screen.getByLabelText(QUESTION_BOX), { target: { value: text } })
+    fireEvent.click(screen.getByRole('button', { name: 'Ask' }))
+  }
+
+  it('offers the question box once the explanation is on screen', () => {
+    renderPanel({ explanation: 'Prefer do-support here.' })
+
+    expect(screen.getByLabelText(QUESTION_BOX)).toBeInTheDocument()
+  })
+
+  it('has nothing to ask about before the explanation arrives', () => {
+    renderPanel()
+
+    expect(screen.queryByLabelText(QUESTION_BOX)).not.toBeInTheDocument()
+  })
+
+  it('asks the typed question', () => {
+    const props = renderPanel({ explanation: 'Prefer do-support here.' })
+
+    askQuestion('  Why is that more natural?  ')
+
+    expect(props.onAsk).toHaveBeenCalledWith('Why is that more natural?')
+  })
+
+  it('asks on Ctrl+Enter', () => {
+    const props = renderPanel({ explanation: 'Prefer do-support here.' })
+    const box = screen.getByLabelText(QUESTION_BOX)
+
+    fireEvent.change(box, { target: { value: 'Why?' } })
+    fireEvent.keyDown(box, { key: 'Enter', ctrlKey: true })
+
+    expect(props.onAsk).toHaveBeenCalledWith('Why?')
+  })
+
+  it('keeps an empty question from being asked', () => {
+    const props = renderPanel({ explanation: 'Prefer do-support here.' })
+
+    fireEvent.change(screen.getByLabelText(QUESTION_BOX), { target: { value: '   ' } })
+
+    expect(screen.getByRole('button', { name: 'Ask' })).toBeDisabled()
+    expect(props.onAsk).not.toHaveBeenCalled()
+  })
+
+  it('shows every question asked and the answer to it', () => {
+    renderPanel({
+      explanation: 'Prefer do-support here.',
+      followUps: [
+        { question: 'Why?', answer: 'Because English **negates the verb**.' },
+        { question: 'Always?', answer: 'Not always.' },
+      ],
+    })
+
+    expect(screen.getByText('Why?')).toBeInTheDocument()
+    expect(screen.getByText('negates the verb').tagName).toBe('STRONG')
+    expect(screen.getByText('Always?')).toBeInTheDocument()
+    expect(screen.getByText('Not always.')).toBeInTheDocument()
+  })
+
+  it('shows a loading state while the answer is on its way', () => {
+    renderPanel({ explanation: 'Prefer do-support here.', asking: true })
+
+    expect(screen.getByText('Answering...')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Asking...' })).toBeDisabled()
+    expect(screen.getByLabelText(QUESTION_BOX)).toBeDisabled()
+  })
+
+  it('clears the box once the answer arrives, ready for the next question', () => {
+    const { rerender } = renderPanelForRerender({ explanation: 'Prefer do-support here.' })
+
+    fireEvent.change(screen.getByLabelText(QUESTION_BOX), { target: { value: 'Why?' } })
+    rerender({ followUps: [{ question: 'Why?', answer: 'Because.' }] })
+
+    expect(screen.getByLabelText(QUESTION_BOX)).toHaveValue('')
+  })
+
+  it('keeps the question in the box when the answer fails, so it can be asked again', () => {
+    const { rerender } = renderPanelForRerender({ explanation: 'Prefer do-support here.' })
+
+    fireEvent.change(screen.getByLabelText(QUESTION_BOX), { target: { value: 'Why?' } })
+    rerender({ askError: 'Failed to answer the question' })
+
+    expect(screen.getByText('Failed to answer the question')).toBeInTheDocument()
+    expect(screen.getByLabelText(QUESTION_BOX)).toHaveValue('Why?')
+    expect(screen.getByRole('button', { name: 'Ask' })).toBeEnabled()
+  })
+
+  it('does not render links or images from an answer, even when the LLM output contains them', () => {
+    renderPanel({
+      explanation: 'Prefer do-support here.',
+      followUps: [
+        {
+          question: 'Why?',
+          answer: 'Because. [click here](https://evil.example/phish) ![](https://evil.example/pixel.gif)',
+        },
+      ],
+    })
+
+    const answer = screen.getByText(/^Because\./)
+    const panel = answer.closest('.rounded-lg') as HTMLElement
     expect(within(panel).queryByRole('link')).not.toBeInTheDocument()
     expect(within(panel).queryByRole('img')).not.toBeInTheDocument()
   })
