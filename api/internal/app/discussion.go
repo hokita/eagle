@@ -64,14 +64,17 @@ type Phrase struct {
 	ExampleEN string `json:"example_en"`
 }
 
-// Summary is what a finished session gives back: one natural rewrite of
-// everything the learner said, an explanation of why their own wording
-// sounded unnatural and what to do about it, and a few phrases to keep.
-// NaturalEnglish and both halves of the explanation are required — a
-// learner whose English already sounded natural is told exactly that,
-// rather than shown a blank section. Phrases may legitimately be empty.
+// Summary is what a finished session gives back: each of the learner's turns
+// said the way a native speaker would say it, an explanation of why their
+// own wording sounded unnatural and what to do about it, and a few phrases
+// to keep. RefinedMessages holds exactly one entry per learner turn, in
+// transcript order — the coach enforces that, so a reader can zip it with
+// the transcript's user messages without checking. It and both halves of
+// the explanation are required — a learner whose English already sounded
+// natural is told exactly that, rather than shown a blank section. Phrases
+// may legitimately be empty.
 type Summary struct {
-	NaturalEnglish   string   `json:"natural_english"`
+	RefinedMessages  []string `json:"refined_messages"`
 	NaturalnessWhyEN string   `json:"naturalness_why_en"`
 	NaturalnessFixEN string   `json:"naturalness_fix_en"`
 	Phrases          []Phrase `json:"phrases"`
@@ -85,13 +88,17 @@ type CoachReply struct {
 }
 
 type DiscussionSession struct {
-	ID             string              `json:"id"`
-	QuestionID     int                 `json:"question_id"`
-	QuestionEN     string              `json:"question_en"`
-	Topic          string              `json:"topic"`
-	Transcript     []DiscussionMessage `json:"transcript"`
-	ReflectionJA   string              `json:"reflection_ja"`
-	NaturalEnglish string              `json:"natural_english"`
+	ID           string              `json:"id"`
+	QuestionID   int                 `json:"question_id"`
+	QuestionEN   string              `json:"question_en"`
+	Topic        string              `json:"topic"`
+	Transcript   []DiscussionMessage `json:"transcript"`
+	ReflectionJA string              `json:"reflection_ja"`
+	// One entry per learner turn in Transcript, in order. Sessions saved
+	// before per-turn refinement existed (they carried one merged rewrite
+	// instead) read back with an empty list, and the conversation renders
+	// without refinements rather than failing.
+	RefinedMessages []string `json:"refined_messages"`
 	// Sessions saved before the explanation existed read back with both
 	// fields empty; the summary screen hides the section rather than
 	// rendering an empty card.
@@ -161,6 +168,17 @@ func countAITurns(transcript []DiscussionMessage) int {
 	n := 0
 	for _, m := range transcript {
 		if m.Role == "ai" {
+			n++
+		}
+	}
+	return n
+}
+
+// countLearnerTurns is how many refined messages a summary must carry.
+func countLearnerTurns(transcript []DiscussionMessage) int {
+	n := 0
+	for _, m := range transcript {
+		if m.Role == "user" {
 			n++
 		}
 	}

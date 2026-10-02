@@ -77,7 +77,9 @@ export interface Phrase {
 
 export interface DiscussionCompleteResponse {
   session_id: string
-  natural_english: string
+  // One entry per user message in the transcript, in order: that message
+  // the way a native speaker would say it.
+  refined_messages: string[]
   naturalness_why_en: string
   naturalness_fix_en: string
   phrases: Phrase[]
@@ -97,7 +99,9 @@ export interface DiscussionSessionDetail {
   topic: string
   transcript: DiscussionMessage[]
   reflection_ja: string
-  natural_english: string
+  // One entry per user message in the transcript, in order. Empty on
+  // sessions saved before per-turn refinement existed.
+  refined_messages: string[]
   // Empty on sessions saved before the explanation existed.
   naturalness_why_en: string
   naturalness_fix_en: string

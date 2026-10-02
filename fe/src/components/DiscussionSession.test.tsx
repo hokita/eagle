@@ -26,7 +26,7 @@ const question = {
 
 const summary = {
   session_id: 's1',
-  natural_english: 'I think companies are responsible, because they pollute more than anyone else.',
+  refined_messages: ["I think it's on the companies."],
   naturalness_why_en: 'You opened every turn with "I think that".',
   naturalness_fix_en: 'Vary how you start a turn.',
   phrases: [
@@ -90,7 +90,11 @@ describe('DiscussionSession', () => {
       target: { value: '制度を変えるべき。' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Finish' }))
-    await waitFor(() => expect(screen.getByText(summary.natural_english)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(summary.refined_messages[0])).toBeInTheDocument())
+    // The refinement sits under the message it refines.
+    expect(screen.getByText(summary.refined_messages[0]).closest('.text-right')).toHaveTextContent(
+      'I think companies.'
+    )
     expect(screen.getByText('take responsibility for')).toBeInTheDocument()
     expect(screen.getByText(summary.naturalness_why_en)).toBeInTheDocument()
     expect(screen.getByText(summary.naturalness_fix_en)).toBeInTheDocument()
@@ -110,11 +114,11 @@ describe('DiscussionSession', () => {
     await waitFor(() => expect(screen.getByLabelText('Japanese reflection')).toBeInTheDocument())
     fireEvent.change(screen.getByLabelText('Japanese reflection'), { target: { value: 'あ' } })
     fireEvent.click(screen.getByRole('button', { name: 'Finish' }))
-    await waitFor(() => expect(screen.getByText(summary.natural_english)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(summary.refined_messages[0])).toBeInTheDocument())
 
     fireEvent.click(screen.getByRole('button', { name: 'Next question' }))
     await waitFor(() => expect(screen.getByLabelText('Your answer')).toBeInTheDocument())
-    expect(screen.queryByText(summary.natural_english)).not.toBeInTheDocument()
+    expect(screen.queryByText(summary.refined_messages[0])).not.toBeInTheDocument()
   })
 
   it('shows an error with retry when the reply call fails', async () => {
@@ -158,7 +162,7 @@ describe('DiscussionSession', () => {
 
     vi.mocked(api.discussionComplete).mockResolvedValueOnce(summary)
     fireEvent.click(screen.getByRole('button', { name: 'Finish' }))
-    await waitFor(() => expect(screen.getByText(summary.natural_english)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(summary.refined_messages[0])).toBeInTheDocument())
     expect(screen.queryByText('Something went wrong. Please try again.')).not.toBeInTheDocument()
   })
 

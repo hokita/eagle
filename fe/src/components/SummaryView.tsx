@@ -10,7 +10,7 @@ interface Props {
   question: string
   transcript: DiscussionMessage[]
   reflectionJa: string
-  naturalEnglish: string
+  refinedMessages: string[]
   naturalnessWhyEn: string
   naturalnessFixEn: string
   phrases: Phrase[]
@@ -23,7 +23,7 @@ export default function SummaryView({
   question,
   transcript,
   reflectionJa,
-  naturalEnglish,
+  refinedMessages,
   naturalnessWhyEn,
   naturalnessFixEn,
   phrases,
@@ -35,7 +35,7 @@ export default function SummaryView({
         question={question}
         transcript={transcript}
         reflectionJa={reflectionJa}
-        naturalEnglish={naturalEnglish}
+        refinedMessages={refinedMessages}
         naturalnessWhyEn={naturalnessWhyEn}
         naturalnessFixEn={naturalnessFixEn}
         phrases={phrases}

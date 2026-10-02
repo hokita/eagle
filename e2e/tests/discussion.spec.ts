@@ -8,8 +8,10 @@ const STUB_WHY =
   'Stub explanation: you opened every turn with "I think that", which reads as written English rather than speech.'
 const STUB_FIX =
   'Stub advice: drop "that" after "I think", and swap textbook words for everyday ones.'
-const STUB_SUMMARY =
-  'I think companies are responsible, and in the future they should make systemic changes.'
+// The stub coach refines every learner turn as "Stub refinement N: <turn>",
+// so each refinement names the message it belongs under.
+const STUB_REFINEMENT_1 = 'Stub refinement 1: I think companies.'
+const STUB_REFINEMENT_3 = 'Stub refinement 3: They can change their products.'
 
 test('completes a discussion session end to end', async ({ page }) => {
   await signInAndGetSentence(page)
@@ -35,9 +37,13 @@ test('completes a discussion session end to end', async ({ page }) => {
   await page.getByLabel('Japanese reflection').fill('制度そのものを変える必要があると思う。')
   await page.getByRole('button', { name: 'Finish' }).click()
 
-  // The summary is the last screen: the natural rewrite plus the phrases.
-  await expect(page.getByText('Natural English')).toBeVisible()
-  await expect(page.getByText(STUB_SUMMARY)).toBeVisible()
+  // The summary is the last screen: each of the learner's messages refined
+  // in place, the explanation, and the phrases. There is no merged
+  // "Natural English" passage any more.
+  await expect(page.getByText('Natural English')).toHaveCount(0)
+  await expect(page.getByText(STUB_REFINEMENT_1)).toBeVisible()
+  await expect(page.getByText(STUB_REFINEMENT_3)).toBeVisible()
+  await expect(page.getByText('More natural')).toHaveCount(3)
   await expect(page.getByText('Why it sounded unnatural')).toBeVisible()
   await expect(page.getByText(STUB_WHY)).toBeVisible()
   await expect(page.getByText('How to fix it')).toBeVisible()
@@ -50,7 +56,8 @@ test('completes a discussion session end to end', async ({ page }) => {
   await page.getByRole('link', { name: 'View history' }).click()
   await expect(page.getByRole('heading', { name: 'Discussion History' })).toBeVisible()
   await page.getByRole('button', { name: QUESTION }).click()
-  await expect(page.getByText(STUB_SUMMARY)).toBeVisible()
+  await expect(page.getByText(STUB_REFINEMENT_1)).toBeVisible()
+  await expect(page.getByText(STUB_REFINEMENT_3)).toBeVisible()
   await expect(page.getByText(STUB_WHY)).toBeVisible()
 })
 
@@ -67,11 +74,11 @@ test('starting a new question resets the session', async ({ page }) => {
 
   await page.getByLabel('Japanese reflection').fill('制度そのものを変える必要があると思う。')
   await page.getByRole('button', { name: 'Finish' }).click()
-  await expect(page.getByText(STUB_SUMMARY)).toBeVisible()
+  await expect(page.getByText(STUB_REFINEMENT_1)).toBeVisible()
 
   await page.getByRole('button', { name: 'Next question' }).click()
   await expect(page.getByLabel('Your answer')).toBeVisible()
-  await expect(page.getByText(STUB_SUMMARY)).toHaveCount(0)
+  await expect(page.getByText(STUB_REFINEMENT_1)).toHaveCount(0)
 })
 
 test('no step of the session can be skipped', async ({ page }) => {

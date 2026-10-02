@@ -30,7 +30,7 @@ var coachReplySchema = &genai.Schema{
 var summarySchema = &genai.Schema{
 	Type: genai.TypeObject,
 	Properties: map[string]*genai.Schema{
-		"natural_english":    {Type: genai.TypeString},
+		"refined_messages":   {Type: genai.TypeArray, Items: &genai.Schema{Type: genai.TypeString}},
 		"naturalness_why_en": {Type: genai.TypeString},
 		"naturalness_fix_en": {Type: genai.TypeString},
 		"phrases": {Type: genai.TypeArray, Items: &genai.Schema{
@@ -43,7 +43,7 @@ var summarySchema = &genai.Schema{
 			Required: []string{"phrase", "meaning_en", "example_en"},
 		}},
 	},
-	Required: []string{"natural_english", "naturalness_why_en", "naturalness_fix_en", "phrases"},
+	Required: []string{"refined_messages", "naturalness_why_en", "naturalness_fix_en", "phrases"},
 }
 
 // GeminiCoach implements DiscussionCoach using the Gemini API, reusing the
@@ -107,10 +107,20 @@ func (g *GeminiCoach) Summarize(ctx context.Context, q *DiscussionQuestion, tran
 	if err := json.Unmarshal([]byte(text), &summary); err != nil {
 		return nil, fmt.Errorf("parse summary: %w", err)
 	}
-	// The rewrite is the screen — without it there is nothing to show, and
-	// the session has no other step left to fall back on.
-	if strings.TrimSpace(summary.NaturalEnglish) == "" {
-		return nil, fmt.Errorf("summary produced an empty rewrite")
+	// The refinements are read zipped against the transcript's learner
+	// turns, so the list has to line up with them exactly: one too few and
+	// the last turn silently goes unrefined, one too many and every turn
+	// after the slip shows someone else's sentence. Either is the model
+	// failing to follow the prompt, which numbers the turns for it, and the
+	// session has no other step left to fall back on — so it is an error,
+	// and the client offers to try the summary again.
+	if want, got := countLearnerTurns(transcript), len(summary.RefinedMessages); got != want {
+		return nil, fmt.Errorf("summary refined %d messages for %d learner turns", got, want)
+	}
+	for i, m := range summary.RefinedMessages {
+		if strings.TrimSpace(m) == "" {
+			return nil, fmt.Errorf("summary produced an empty refinement for learner turn %d", i+1)
+		}
 	}
 	// Both halves of the explanation are required for the same reason: the
 	// prompt has an answer even for a learner who sounded natural, so a

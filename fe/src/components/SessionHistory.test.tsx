@@ -32,7 +32,7 @@ const detail = {
     { role: 'ai' as const, text: 'Why?' },
   ],
   reflection_ja: '制度を変えるべき。',
-  natural_english: 'I think companies are responsible, and they should change the system.',
+  refined_messages: ["I think it's on the companies."],
   naturalness_why_en: 'You opened every turn with "I think that".',
   naturalness_fix_en: 'Vary how you start a turn.',
   phrases: [
@@ -64,8 +64,9 @@ describe('SessionHistory', () => {
     vi.mocked(api.getDiscussionSession).mockResolvedValue(detail)
     render(<SessionHistory user={user} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Who is responsible?' }))
-    await waitFor(() => expect(screen.getByText(detail.natural_english)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(detail.refined_messages[0])).toBeInTheDocument())
     expect(api.getDiscussionSession).toHaveBeenCalledWith('s1')
+    expect(screen.getByText('I think companies.')).toBeInTheDocument()
     expect(screen.getByText('制度を変えるべき。')).toBeInTheDocument()
     expect(screen.getByText('take responsibility for')).toBeInTheDocument()
     expect(screen.getByText(detail.naturalness_why_en)).toBeInTheDocument()
@@ -86,13 +87,13 @@ describe('SessionHistory', () => {
     expect(titles.map(t => t.textContent)).toEqual([
       'Conversation',
       'Reflection',
-      'Natural English',
       'Why it sounded unnatural',
       'Useful phrases',
     ])
     expect(
-      screen.getByText('Everything you said, the way a native speaker would say it.')
+      screen.getByText('Under each of your messages: how a native speaker would say it.')
     ).toBeInTheDocument()
+    expect(screen.getByText('More natural')).toBeInTheDocument()
     expect(screen.getByText('How to fix it')).toBeInTheDocument()
 
     // The question is asked once, above the conversation, where the summary
@@ -117,12 +118,13 @@ describe('SessionHistory', () => {
   })
 
   // Sessions saved before the summary replaced the study/retry flow carry
-  // neither field; the card must still open rather than crash on them.
+  // none of these fields, and those saved before per-turn refinement carry
+  // no refinements; the card must still open rather than crash on them.
   it('renders a legacy session that has no summary', async () => {
     vi.mocked(api.listDiscussionSessions).mockResolvedValue({ sessions: [summary] })
     vi.mocked(api.getDiscussionSession).mockResolvedValue({
       ...detail,
-      natural_english: '',
+      refined_messages: [],
       naturalness_why_en: '',
       naturalness_fix_en: '',
       phrases: [],
@@ -130,7 +132,7 @@ describe('SessionHistory', () => {
     render(<SessionHistory user={user} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Who is responsible?' }))
     expect(await screen.findByText('I think companies.')).toBeInTheDocument()
-    expect(screen.queryByText('Natural English')).not.toBeInTheDocument()
+    expect(screen.queryByText('More natural')).not.toBeInTheDocument()
     expect(screen.queryByText('Useful phrases')).not.toBeInTheDocument()
     expect(screen.queryByText('Why it sounded unnatural')).not.toBeInTheDocument()
   })
@@ -157,12 +159,12 @@ describe('SessionHistory', () => {
 
     vi.mocked(api.getDiscussionSession).mockResolvedValue(detail)
     fireEvent.click(screen.getByRole('button', { name: 'Try Again' }))
-    expect(await screen.findByText(detail.natural_english)).toBeInTheDocument()
+    expect(await screen.findByText(detail.refined_messages[0])).toBeInTheDocument()
   })
 
   it('a stale detail failure never surfaces in another session card', async () => {
     const summary2 = { ...summary, id: 's2', question_en: 'Second question?' }
-    const detail2 = { ...detail, id: 's2', question_en: 'Second question?', natural_english: 'Second summary!' }
+    const detail2 = { ...detail, id: 's2', question_en: 'Second question?', refined_messages: ['Second summary!'] }
     vi.mocked(api.listDiscussionSessions).mockResolvedValue({ sessions: [summary, summary2] })
     let rejectFirst: (err: Error) => void = () => {}
     vi.mocked(api.getDiscussionSession).mockImplementation(id =>
@@ -231,7 +233,7 @@ describe('SessionHistory', () => {
     fireEvent.click(card)
     fireEvent.click(card)
     fireEvent.click(card)
-    await waitFor(() => expect(screen.getByText(detail.natural_english)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(detail.refined_messages[0])).toBeInTheDocument())
 
     // The stale first request's late failure must not add an error next to
     // the successfully rendered detail.
@@ -239,6 +241,6 @@ describe('SessionHistory', () => {
       rejectFirst(new Error('API error: 500'))
     })
     expect(screen.queryByText('Failed to load the session.')).not.toBeInTheDocument()
-    expect(screen.getByText(detail.natural_english)).toBeInTheDocument()
+    expect(screen.getByText(detail.refined_messages[0])).toBeInTheDocument()
   })
 })

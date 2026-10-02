@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import PhraseList from './PhraseList'
-import Transcript from './Transcript'
+import Transcript, { visibleRefinements } from './Transcript'
 import type { DiscussionMessage, Phrase } from '@/lib/api'
 
 interface Props {
@@ -14,7 +14,9 @@ interface Props {
   question: string
   transcript: DiscussionMessage[]
   reflectionJa: string
-  naturalEnglish: string
+  // One per user message in the transcript, in order; empty on sessions
+  // saved before per-turn refinement existed.
+  refinedMessages: string[]
   naturalnessWhyEn: string
   naturalnessFixEn: string
   phrases: Phrase[]
@@ -31,19 +33,28 @@ interface Props {
 //
 // Section order is the session's own order: what the learner produced (the
 // conversation, then the ideas they could only reach in Japanese), then what
-// the coach makes of it (the rewrite, why it sounded unnatural, what to
-// reuse). The rewrite deliberately sits below both, since it claims to say
-// all of that the way a native speaker would, and that claim is only
-// checkable against the learner's own words directly above it.
+// the coach makes of it (why it sounded unnatural, what to reuse). The
+// coach's refinement of each turn is not a section of its own: it sits
+// inside the conversation, directly under the message it refines, because a
+// refinement is only readable against the exact words it refines — a
+// separate list of them would make the learner match sentences up by eye.
 export default function SessionSummary({
   question,
   transcript,
   reflectionJa,
-  naturalEnglish,
+  refinedMessages,
   naturalnessWhyEn,
   naturalnessFixEn,
   phrases,
 }: Props) {
+  // The line introducing the refinements is only shown when at least one
+  // will appear under a message. A legacy session has none, and a learner
+  // whose every turn already sounded natural gets each back unchanged, which
+  // Transcript does not repeat — a hint pointing at nothing reads like a load
+  // that failed.
+  const showsRefinements = visibleRefinements(transcript, refinedMessages).some(
+    r => r !== undefined
+  )
   return (
     <div className="space-y-3">
       <Card>
@@ -52,7 +63,12 @@ export default function SessionSummary({
         </CardHeader>
         <CardContent className="space-y-2">
           <p className="text-sm font-semibold text-muted-foreground">{question}</p>
-          <Transcript messages={transcript} />
+          {showsRefinements && (
+            <p className="text-sm text-muted-foreground">
+              Under each of your messages: how a native speaker would say it.
+            </p>
+          )}
+          <Transcript messages={transcript} refinements={refinedMessages} />
         </CardContent>
       </Card>
 
@@ -74,21 +90,7 @@ export default function SessionSummary({
           Sessions recorded before the summary replaced the study/retry flow
           read back with these fields empty, and an empty titled card looks
           like a failed load rather than a session that predates the feature.
-          A live session always fills the first three. */}
-      {naturalEnglish && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Natural English</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Everything you said, the way a native speaker would say it.
-            </p>
-            <p className="mt-2 text-foreground">{naturalEnglish}</p>
-          </CardContent>
-        </Card>
-      )}
-
+          A live session always fills the explanation. */}
       {(naturalnessWhyEn || naturalnessFixEn) && (
         <Card>
           <CardHeader className="pb-2">
