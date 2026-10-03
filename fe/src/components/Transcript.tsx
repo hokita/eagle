@@ -10,25 +10,6 @@ interface Props {
   refinements?: string[]
 }
 
-// visibleRefinements lines `refinements` up with `messages`: the entry at
-// index i is the refinement shown under messages[i], or undefined when there
-// is none to show. A refinement identical to its message is dropped — the
-// coach returns a turn unchanged when it already sounded natural, and
-// repeating it would read as a correction that changed nothing. Exported so
-// a caller can tell whether anything will show before it introduces it.
-export function visibleRefinements(
-  messages: DiscussionMessage[],
-  refinements: string[] | undefined
-): (string | undefined)[] {
-  let userIndex = 0
-  return messages.map(message => {
-    if (message.role !== 'user') return undefined
-    const refined = refinements?.[userIndex++]
-    if (refined === undefined || refined.trim() === message.text.trim()) return undefined
-    return refined
-  })
-}
-
 // The one read-only rendering of a discussion conversation, shared by the live
 // chat, the post-session summary, and the history detail panel.
 //
@@ -43,33 +24,50 @@ export function visibleRefinements(
 // so transcript[0] is the learner's first answer. Each caller supplies the
 // question from where it already holds it — the chat and the summary above
 // this list, history as its card heading.
+//
+// Every learner message that has a refinement gets something under it. The
+// coach returns a turn unchanged when it already sounded natural; that turn
+// is marked "Already natural" rather than left bare, because next to
+// neighbours that each got a rewrite a bare message reads as one the coach
+// skipped, not one it approved.
 export default function Transcript({ messages, refinements }: Props) {
-  const refined = visibleRefinements(messages, refinements)
+  let userIndex = 0
   return (
     <div className="space-y-2">
-      {messages.map((message, i) => (
-        <div key={i} className={message.role === 'user' ? 'text-right' : 'text-left'}>
-          <span
-            className={
-              message.role === 'user'
-                ? 'inline-block rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white'
-                : 'inline-block rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground'
-            }
-          >
-            {message.text}
-          </span>
-          {refined[i] !== undefined && (
-            <div className="mt-1">
-              <span className="inline-block rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-left text-sm text-indigo-900">
-                <span className="block text-xs font-semibold uppercase tracking-wide text-indigo-500">
-                  More natural
+      {messages.map((message, i) => {
+        const refined = message.role === 'user' ? refinements?.[userIndex++] : undefined
+        const unchanged = refined !== undefined && refined.trim() === message.text.trim()
+        return (
+          <div key={i} className={message.role === 'user' ? 'text-right' : 'text-left'}>
+            <span
+              className={
+                message.role === 'user'
+                  ? 'inline-block rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white'
+                  : 'inline-block rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground'
+              }
+            >
+              {message.text}
+            </span>
+            {refined !== undefined && !unchanged && (
+              <div className="mt-1">
+                <span className="inline-block rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-left text-sm text-indigo-900">
+                  <span className="block text-xs font-semibold uppercase tracking-wide text-indigo-500">
+                    More natural
+                  </span>
+                  {refined}
                 </span>
-                {refined[i]}
-              </span>
-            </div>
-          )}
-        </div>
-      ))}
+              </div>
+            )}
+            {unchanged && (
+              <div className="mt-1">
+                <span className="inline-block rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                  Already natural
+                </span>
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

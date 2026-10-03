@@ -65,27 +65,20 @@ describe('SessionSummary', () => {
     expect(screen.getAllByText('More natural')).toHaveLength(2)
   })
 
-  // The coach returns a turn unchanged when it already sounded natural;
-  // repeating it would read as a correction that changed nothing.
-  it('does not repeat a message whose refinement is unchanged', () => {
+  // The coach returns a turn unchanged when it already sounded natural.
+  // Repeating it would read as a correction that changed nothing, but leaving
+  // it bare next to neighbours that got rewrites reads as a turn the coach
+  // skipped — so it is marked approved instead.
+  it('marks a message whose refinement is unchanged as already natural', () => {
     renderSummary({
       refinedMessages: ['I think companies are responsible.', 'Because they have the biggest impact.'],
     })
     expect(screen.getAllByText('I think companies are responsible.')).toHaveLength(1)
     expect(screen.getAllByText('More natural')).toHaveLength(1)
     expect(screen.getByText('Because they have the biggest impact.')).toBeInTheDocument()
-  })
-
-  // When every turn already sounded natural nothing shows under any message,
-  // so the line introducing the refinements would point at nothing.
-  it('drops the refinement hint when every refinement is unchanged', () => {
-    renderSummary({
-      refinedMessages: ['I think companies are responsible.', 'Because they make the most impact.'],
-    })
-    expect(screen.queryByText('More natural')).not.toBeInTheDocument()
-    expect(
-      screen.queryByText('Under each of your messages: how a native speaker would say it.')
-    ).not.toBeInTheDocument()
+    const badge = screen.getByText('Already natural')
+    expect(badge.closest('.text-right')).toHaveTextContent('I think companies are responsible.')
+    expect(badge.closest('.text-right')).not.toHaveTextContent('Because they have the biggest impact.')
   })
 
   it('explains why the English sounded unnatural and how to fix it', () => {

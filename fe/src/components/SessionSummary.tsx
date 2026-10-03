@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import PhraseList from './PhraseList'
-import Transcript, { visibleRefinements } from './Transcript'
+import Transcript from './Transcript'
 import type { DiscussionMessage, Phrase } from '@/lib/api'
 
 interface Props {
@@ -47,14 +47,6 @@ export default function SessionSummary({
   naturalnessFixEn,
   phrases,
 }: Props) {
-  // The line introducing the refinements is only shown when at least one
-  // will appear under a message. A legacy session has none, and a learner
-  // whose every turn already sounded natural gets each back unchanged, which
-  // Transcript does not repeat — a hint pointing at nothing reads like a load
-  // that failed.
-  const showsRefinements = visibleRefinements(transcript, refinedMessages).some(
-    r => r !== undefined
-  )
   return (
     <div className="space-y-3">
       <Card>
@@ -63,7 +55,10 @@ export default function SessionSummary({
         </CardHeader>
         <CardContent className="space-y-2">
           <p className="text-sm font-semibold text-muted-foreground">{question}</p>
-          {showsRefinements && (
+          {/* Hidden for legacy sessions, which carry no refinements — a
+              line introducing something that never appears reads like a
+              load that failed. */}
+          {refinedMessages.length > 0 && (
             <p className="text-sm text-muted-foreground">
               Under each of your messages: how a native speaker would say it.
             </p>
