@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"google.golang.org/genai"
 )
@@ -118,6 +119,54 @@ func TestSummaryOutputBudgetScalesWithLearnerText(t *testing.T) {
 	withLongAITurn := summaryOutputBudget(msgs("I like dogs.", strings.Repeat("x", 500)))
 	if withLongAITurn != short {
 		t.Fatalf("coach turns must not count: got %d, want %d", withLongAITurn, short)
+	}
+}
+
+// A budget the deadline cannot spend is no fix: the deadline grows with the
+// budget, at a generation rate well below the model's so the allowance is
+// generous, and stays under Cloud Run's 300-second default request timeout
+// so the server's own deadline is the one the client hears about.
+func TestSummaryTimeoutScalesWithTheOutputBudget(t *testing.T) {
+	small := summaryTimeout(summaryOutputBudget(msgs("I like dogs.")))
+	if small < discussionTimeout {
+		t.Fatalf("summary deadline %v is below the base discussion deadline %v", small, discussionTimeout)
+	}
+	// A realistic long session: three learner turns of a few hundred runes.
+	turn := strings.Repeat("あ", 400)
+	medium := summaryTimeout(summaryOutputBudget(msgs(turn, "why?", turn, "and?", turn)))
+	if medium <= small {
+		t.Fatalf("deadline must grow with the transcript: %v for a long session vs %v for a short one", medium, small)
+	}
+	if want := discussionTimeout + time.Duration(summaryOutputBudget(msgs(turn, "why?", turn, "and?", turn)))*time.Second/summaryTokensPerSecond; medium != want {
+		t.Fatalf("deadline %v, want %v", medium, want)
+	}
+	largest := summaryTimeout(geminiMaxOutputTokens)
+	if largest != maxSummaryTimeout {
+		t.Fatalf("deadline for the largest budget must be capped at %v, got %v", maxSummaryTimeout, largest)
+	}
+	if maxSummaryTimeout >= 300*time.Second {
+		t.Fatalf("summary deadline cap %v must stay under Cloud Run's 300s default request timeout", maxSummaryTimeout)
+	}
+}
+
+// The derived deadline has to reach the model call, not just be computed.
+func TestGeminiCoachSummarizeAppliesTheDerivedDeadline(t *testing.T) {
+	fake := &fakeContentGenerator{resp: textResp(`{"refined_messages":["ok"],"naturalness_why_en":"w","naturalness_fix_en":"f","phrases":[]}`)}
+	g := &GeminiCoach{models: fake, model: "gemini-test"}
+	transcript := msgs(strings.Repeat("a", 1500))
+	before := time.Now()
+	if _, err := g.Summarize(context.Background(), promptQuestion, transcript, "x"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := summaryTimeout(summaryOutputBudget(transcript))
+	if want <= discussionTimeout {
+		t.Fatalf("test transcript must need more than the base deadline, got %v", want)
+	}
+	// Measured from before the call, so the distance can only overshoot by
+	// the call's own duration; the lower margin absorbs a slow test host.
+	got := fake.gotDeadline.Sub(before)
+	if fake.gotDeadline.IsZero() || got > want+time.Second || got < want-5*time.Second {
+		t.Fatalf("model call deadline was %v away, want about %v", got, want)
 	}
 }
 

@@ -36,6 +36,21 @@ const (
 	// geminiMaxOutputTokens is the model's own output ceiling, which the
 	// derived budget must stay under.
 	geminiMaxOutputTokens = 65536
+
+	// The summary's deadline scales with its output budget for the same
+	// reason the budget scales with the transcript: a fixed 30 seconds fits
+	// a typical session's few hundred tokens of refinements but not the
+	// tens of thousands the largest valid transcript may need, and a
+	// deadline that cannot be met fails every retry of a valid completion.
+	//
+	// summaryTokensPerSecond is a deliberately low generation rate — the
+	// model streams several times faster — so the allowance per token is
+	// generous. maxSummaryTimeout keeps the longest deadline under Cloud
+	// Run's 300-second default request timeout, which would otherwise cut
+	// the request off first with nothing to tell the client; the extreme
+	// end of the input space is bounded there rather than served.
+	summaryTokensPerSecond = 50
+	maxSummaryTimeout      = 240 * time.Second
 )
 
 // summaryOutputBudget is the MaxOutputTokens for a summary of transcript:
@@ -55,6 +70,17 @@ func summaryOutputBudget(transcript []DiscussionMessage) int32 {
 		budget = geminiMaxOutputTokens
 	}
 	return int32(budget)
+}
+
+// summaryTimeout is the deadline for a summary call allowed budget output
+// tokens: the base discussion deadline plus time to generate the budget at
+// summaryTokensPerSecond, capped at maxSummaryTimeout.
+func summaryTimeout(budget int32) time.Duration {
+	timeout := discussionTimeout + time.Duration(budget)*time.Second/summaryTokensPerSecond
+	if timeout > maxSummaryTimeout {
+		timeout = maxSummaryTimeout
+	}
+	return timeout
 }
 
 var coachReplySchema = &genai.Schema{
@@ -102,8 +128,8 @@ func NewGeminiCoach(ctx context.Context, apiKey string) (*GeminiCoach, error) {
 	return &GeminiCoach{models: client.Models, model: geminiExplainModel}, nil
 }
 
-func (g *GeminiCoach) generate(ctx context.Context, prompt string, config *genai.GenerateContentConfig) (string, error) {
-	ctx, cancel := context.WithTimeout(ctx, discussionTimeout)
+func (g *GeminiCoach) generate(ctx context.Context, timeout time.Duration, prompt string, config *genai.GenerateContentConfig) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	contents := []*genai.Content{{Parts: []*genai.Part{{Text: prompt}}}}
 	resp, err := g.models.GenerateContent(ctx, g.model, contents, config)
@@ -114,7 +140,7 @@ func (g *GeminiCoach) generate(ctx context.Context, prompt string, config *genai
 }
 
 func (g *GeminiCoach) Reply(ctx context.Context, q *DiscussionQuestion, transcript []DiscussionMessage) (*CoachReply, error) {
-	text, err := g.generate(ctx, buildDiscussionReplyPrompt(q, transcript), &genai.GenerateContentConfig{
+	text, err := g.generate(ctx, discussionTimeout, buildDiscussionReplyPrompt(q, transcript), &genai.GenerateContentConfig{
 		MaxOutputTokens:  maxCoachReplyOutputTokens,
 		ResponseMIMEType: "application/json",
 		ResponseSchema:   coachReplySchema,
@@ -133,8 +159,9 @@ func (g *GeminiCoach) Reply(ctx context.Context, q *DiscussionQuestion, transcri
 }
 
 func (g *GeminiCoach) Summarize(ctx context.Context, q *DiscussionQuestion, transcript []DiscussionMessage, reflectionJA string) (*Summary, error) {
-	text, err := g.generate(ctx, buildSummaryPrompt(q, transcript, reflectionJA), &genai.GenerateContentConfig{
-		MaxOutputTokens:  summaryOutputBudget(transcript),
+	budget := summaryOutputBudget(transcript)
+	text, err := g.generate(ctx, summaryTimeout(budget), buildSummaryPrompt(q, transcript, reflectionJA), &genai.GenerateContentConfig{
+		MaxOutputTokens:  budget,
 		ResponseMIMEType: "application/json",
 		ResponseSchema:   summarySchema,
 	})
