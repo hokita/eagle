@@ -15,8 +15,16 @@ const (
 
 	// Output bounds per call — the input side is bounded by transcript
 	// validation; these keep the response side predictable too.
-	maxCoachReplyOutputTokens   = 256
-	maxCoachSummaryOutputTokens = 2048
+	maxCoachReplyOutputTokens = 256
+	// The summary echoes roughly all of the learner's own text back as
+	// refinements, so its budget is sized from the largest transcript that
+	// validation accepts: maxTranscriptMessages / 2 learner turns of
+	// maxDiscussionTurnLength runes, 12,000 characters, is about 4,000
+	// tokens of English even at a dense 3 characters per token, before the
+	// explanation and phrases. 8,192 leaves that comfortable headroom; a
+	// tighter cap would truncate the JSON of a long but valid session and
+	// fail every retry of its completion.
+	maxCoachSummaryOutputTokens = 8192
 )
 
 var coachReplySchema = &genai.Schema{

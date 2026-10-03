@@ -137,6 +137,23 @@ describe('SessionHistory', () => {
     expect(screen.queryByText('Why it sounded unnatural')).not.toBeInTheDocument()
   })
 
+  // The frontend and the API deploy independently, so a frontend that ships
+  // first can read a session from an API that does not send the field at
+  // all — not even as an empty list.
+  it('renders a session from an API that does not send refined_messages', async () => {
+    vi.mocked(api.listDiscussionSessions).mockResolvedValue({ sessions: [summary] })
+    const withoutRefinements = Object.fromEntries(
+      Object.entries(detail).filter(([key]) => key !== 'refined_messages')
+    ) as typeof detail
+    expect(withoutRefinements).not.toHaveProperty('refined_messages')
+    vi.mocked(api.getDiscussionSession).mockResolvedValue(withoutRefinements)
+    render(<SessionHistory user={user} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Who is responsible?' }))
+    expect(await screen.findByText('I think companies.')).toBeInTheDocument()
+    expect(screen.getByText(detail.naturalness_why_en)).toBeInTheDocument()
+    expect(screen.queryByText('More natural')).not.toBeInTheDocument()
+  })
+
   // A phrase without its gloss and example is a label, not something you can
   // learn from later — history has to teach the same way the summary does.
   it('shows each phrase with its meaning and example', async () => {

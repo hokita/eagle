@@ -105,6 +105,26 @@ describe('DiscussionSession', () => {
     )
   })
 
+  // The frontend and the API deploy independently, so a frontend that ships
+  // first can complete a session against an API that does not send
+  // refined_messages at all. The summary must still render.
+  it('shows the summary when the API sends no refined_messages', async () => {
+    vi.mocked(api.discussionReply).mockResolvedValue({ done: true, message: '' })
+    const withoutRefinements = Object.fromEntries(
+      Object.entries(summary).filter(([key]) => key !== 'refined_messages')
+    ) as typeof summary
+    expect(withoutRefinements).not.toHaveProperty('refined_messages')
+    vi.mocked(api.discussionComplete).mockResolvedValue(withoutRefinements)
+    await startSession()
+    await answerOnce('I think companies.')
+    await waitFor(() => expect(screen.getByLabelText('Japanese reflection')).toBeInTheDocument())
+    fireEvent.change(screen.getByLabelText('Japanese reflection'), { target: { value: 'あ' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Finish' }))
+    await waitFor(() => expect(screen.getByText(summary.naturalness_why_en)).toBeInTheDocument())
+    expect(screen.getByText('I think companies.')).toBeInTheDocument()
+    expect(screen.queryByText('More natural')).not.toBeInTheDocument()
+  })
+
   // The summary is terminal: the only way on is a fresh question.
   it('starts a new question from the summary', async () => {
     vi.mocked(api.discussionReply).mockResolvedValue({ done: true, message: '' })

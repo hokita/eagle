@@ -192,7 +192,7 @@ export default function DiscussionSession({ user }: Props) {
             question={question.question_en}
             transcript={transcript}
             reflectionJa={reflection}
-            refinedMessages={result.refined_messages}
+            refinedMessages={result.refined_messages ?? []}
             naturalnessWhyEn={result.naturalness_why_en}
             naturalnessFixEn={result.naturalness_fix_en}
             phrases={result.phrases}

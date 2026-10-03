@@ -80,6 +80,25 @@ func TestGeminiCoachSummarizeParsesAndValidates(t *testing.T) {
 	if fake.gotConfig.ResponseSchema == nil {
 		t.Fatal("expected a response schema")
 	}
+	if fake.gotConfig.MaxOutputTokens != maxCoachSummaryOutputTokens {
+		t.Fatalf("expected MaxOutputTokens=%d, got %d", maxCoachSummaryOutputTokens, fake.gotConfig.MaxOutputTokens)
+	}
+}
+
+// The refinements echo the learner's text back, so the output budget must
+// hold the largest transcript validation lets in — otherwise a long but
+// valid session is truncated mid-JSON and its completion fails on every
+// retry. Pinned against the input caps so a change to either side resizes
+// the other. 3 characters per token is a dense estimate for English; the
+// remainder covers the explanation, the phrases, and JSON overhead.
+func TestSummaryOutputBudgetCoversTheLargestValidTranscript(t *testing.T) {
+	learnerTurns := (maxTranscriptMessages + 1) / 2
+	learnerChars := learnerTurns * maxDiscussionTurnLength
+	refinementTokens := learnerChars / 3
+	if maxCoachSummaryOutputTokens < refinementTokens+1024 {
+		t.Fatalf("summary output budget %d is too small for %d characters of refinements (~%d tokens) plus the rest of the summary",
+			maxCoachSummaryOutputTokens, learnerChars, refinementTokens)
+	}
 }
 
 func TestGeminiCoachSummarizeRejectsMalformedJSON(t *testing.T) {
