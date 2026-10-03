@@ -74,24 +74,47 @@ func TestBuildSummaryPromptIncludesConversationAndReflection(t *testing.T) {
 	}
 }
 
-// The rewrite is one passage covering the whole conversation, not a
-// per-sentence correction list: the learner's turns are merged with the
-// ideas from their Japanese reflection into something they could have said.
-func TestBuildSummaryPromptAsksForOneNaturalPassage(t *testing.T) {
-	got := buildSummaryPrompt(promptQuestion, msgs("I like dogs."), "犬が好き")
+// Each learner turn is refined on its own, in order, so the learner can hold
+// their sentence next to the natural one. The prompt states the count the
+// response must match, because Summarize zips the list against the learner
+// turns and rejects any other length — a merged passage, the shape this
+// section used to take, would fail that check as well as the learner.
+func TestBuildSummaryPromptAsksForOneRefinementPerLearnerTurn(t *testing.T) {
+	got := buildSummaryPrompt(promptQuestion, msgs("I like dogs.", "What kind?", "I like shiba-dog."), "犬が好き")
 	for _, want := range []string{
-		"natural_english",
-		"single short paragraph",
-		"everything the learner said",
-		"including the ideas they could only write in Japanese",
+		"refined_messages",
+		"for each of the learner's turns, in order",
+		"Refine each turn on its own",
+		"Never merge turns",
+		"The conversation has 2 learner turns, so refined_messages must contain exactly 2 strings",
+		"If a turn already sounds natural, return it unchanged",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("prompt missing %q:\n%s", want, got)
 		}
 	}
-	for _, forbidden := range []string{"corrections", "original", "note_ja"} {
+	for _, forbidden := range []string{"natural_english", "single short paragraph", "corrections", "note_ja"} {
 		if strings.Contains(got, forbidden) {
-			t.Fatalf("prompt must not ask for per-sentence corrections (%q):\n%s", forbidden, got)
+			t.Fatalf("prompt must not ask for a merged passage or a correction list (%q):\n%s", forbidden, got)
+		}
+	}
+}
+
+// The reflection's ideas used to be folded into the merged rewrite. A
+// per-turn refinement has nowhere honest to put them — they were not in any
+// turn — so the prompt sends them to the phrase list instead and keeps each
+// refinement to what the learner actually said in that turn.
+func TestBuildSummaryPromptKeepsRefinementsToWhatEachTurnSaid(t *testing.T) {
+	got := buildSummaryPrompt(promptQuestion, msgs("I like dogs."), "犬が好き")
+	for _, want := range []string{
+		"keep its meaning and the learner's opinions exactly",
+		"invent no new content",
+		"about as long as the learner's own turn",
+		"never move an idea from one turn into another",
+		"The ideas they could only write in Japanese belong in phrases, not here",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("prompt missing %q:\n%s", want, got)
 		}
 	}
 }
@@ -99,9 +122,10 @@ func TestBuildSummaryPromptAsksForOneNaturalPassage(t *testing.T) {
 // "The way a native speaker would say it" was not enough on its own: the
 // rewrites came back grammatical but written — "haven't been able to get to
 // it", "a famous piece of modern literature" — which is the register the
-// learner is already stuck in. The rewrite is the model the learner copies,
-// so the prompt has to name spoken register and show the shift concretely.
-func TestBuildSummaryPromptAsksForSpokenRegisterInTheRewrite(t *testing.T) {
+// learner is already stuck in. The refinements are the model the learner
+// copies, so the prompt has to name spoken register and show the shift
+// concretely.
+func TestBuildSummaryPromptAsksForSpokenRegisterInTheRefinements(t *testing.T) {
 	got := buildSummaryPrompt(promptQuestion, msgs("I like dogs."), "犬が好き")
 	for _, want := range []string{
 		"say it out loud to a friend",

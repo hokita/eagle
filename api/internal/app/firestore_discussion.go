@@ -35,16 +35,19 @@ type phraseDoc struct {
 }
 
 type discussionSessionDoc struct {
-	QuestionID       int                    `firestore:"question_id"`
-	QuestionEN       string                 `firestore:"question_en"`
-	Topic            string                 `firestore:"topic"`
-	Transcript       []discussionMessageDoc `firestore:"transcript"`
-	ReflectionJA     string                 `firestore:"reflection_ja"`
-	NaturalEnglish   string                 `firestore:"natural_english"`
-	NaturalnessWhyEN string                 `firestore:"naturalness_why_en"`
-	NaturalnessFixEN string                 `firestore:"naturalness_fix_en"`
-	Phrases          []phraseDoc            `firestore:"phrases"`
-	CreatedAt        time.Time              `firestore:"created_at"`
+	QuestionID   int                    `firestore:"question_id"`
+	QuestionEN   string                 `firestore:"question_en"`
+	Topic        string                 `firestore:"topic"`
+	Transcript   []discussionMessageDoc `firestore:"transcript"`
+	ReflectionJA string                 `firestore:"reflection_ja"`
+	// Documents written before per-turn refinement carry a natural_english
+	// string instead; DataTo ignores fields the struct does not name, so
+	// they still read back, with no refinements.
+	RefinedMessages  []string    `firestore:"refined_messages"`
+	NaturalnessWhyEN string      `firestore:"naturalness_why_en"`
+	NaturalnessFixEN string      `firestore:"naturalness_fix_en"`
+	Phrases          []phraseDoc `firestore:"phrases"`
+	CreatedAt        time.Time   `firestore:"created_at"`
 }
 
 func (r *firestoreRepo) userDiscussionSessions(uid string) *firestore.CollectionRef {
@@ -113,7 +116,7 @@ func sessionToDoc(s *DiscussionSession, createdAt time.Time) *discussionSessionD
 	return &discussionSessionDoc{
 		QuestionID: s.QuestionID, QuestionEN: s.QuestionEN, Topic: s.Topic,
 		Transcript: transcript, ReflectionJA: s.ReflectionJA,
-		NaturalEnglish:   s.NaturalEnglish,
+		RefinedMessages:  s.RefinedMessages,
 		NaturalnessWhyEN: s.NaturalnessWhyEN,
 		NaturalnessFixEN: s.NaturalnessFixEN,
 		Phrases:          phrases,
@@ -127,16 +130,21 @@ func sessionFromDoc(id string, sd *discussionSessionDoc) *DiscussionSession {
 		transcript[i] = DiscussionMessage{Role: m.Role, Text: m.Text}
 	}
 	// Sessions written before the summary replaced the study/retry flow have
-	// no phrases field at all; an empty list keeps the detail view rendering
-	// rather than serializing null.
+	// no phrases field at all, and those written before per-turn refinement
+	// have no refined_messages; an empty list keeps the detail view
+	// rendering rather than serializing null.
 	phrases := make([]Phrase, len(sd.Phrases))
 	for i, p := range sd.Phrases {
 		phrases[i] = Phrase{Phrase: p.Phrase, MeaningEN: p.MeaningEN, ExampleEN: p.ExampleEN}
 	}
+	refined := sd.RefinedMessages
+	if refined == nil {
+		refined = []string{}
+	}
 	return &DiscussionSession{
 		ID: id, QuestionID: sd.QuestionID, QuestionEN: sd.QuestionEN, Topic: sd.Topic,
 		Transcript: transcript, ReflectionJA: sd.ReflectionJA,
-		NaturalEnglish:   sd.NaturalEnglish,
+		RefinedMessages:  refined,
 		NaturalnessWhyEN: sd.NaturalnessWhyEN,
 		NaturalnessFixEN: sd.NaturalnessFixEN,
 		Phrases:          phrases,

@@ -111,7 +111,7 @@ type DiscussionCompleteRequest struct {
 
 type DiscussionCompleteResponse struct {
 	SessionID        string   `json:"session_id"`
-	NaturalEnglish   string   `json:"natural_english"`
+	RefinedMessages  []string `json:"refined_messages"`
 	NaturalnessWhyEN string   `json:"naturalness_why_en"`
 	NaturalnessFixEN string   `json:"naturalness_fix_en"`
 	Phrases          []Phrase `json:"phrases"`
@@ -155,7 +155,7 @@ func (s *Server) discussionComplete(w http.ResponseWriter, r *http.Request) {
 		Topic:            q.Topic,
 		Transcript:       req.Transcript,
 		ReflectionJA:     req.ReflectionJA,
-		NaturalEnglish:   summary.NaturalEnglish,
+		RefinedMessages:  summary.RefinedMessages,
 		NaturalnessWhyEN: summary.NaturalnessWhyEN,
 		NaturalnessFixEN: summary.NaturalnessFixEN,
 		Phrases:          summary.Phrases,
@@ -168,7 +168,7 @@ func (s *Server) discussionComplete(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, DiscussionCompleteResponse{
 		SessionID:        sessionID,
-		NaturalEnglish:   summary.NaturalEnglish,
+		RefinedMessages:  summary.RefinedMessages,
 		NaturalnessWhyEN: summary.NaturalnessWhyEN,
 		NaturalnessFixEN: summary.NaturalnessFixEN,
 		Phrases:          summary.Phrases,

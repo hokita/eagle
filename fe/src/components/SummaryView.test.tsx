@@ -13,8 +13,7 @@ const phrases: Phrase[] = [
 
 function renderView(overrides = {}) {
   const props = {
-    naturalEnglish:
-      'I like dogs, especially Shiba Inu. I have a cat now, but I want a dog in the future.',
+    refinedMessages: ["I think it's on the companies.", 'Because they have the biggest impact.'],
     naturalnessWhyEn: 'You opened every turn with "I think that", which reads as written English.',
     naturalnessFixEn: 'Drop "that" after "I think", and vary how you start a turn.',
     phrases,
@@ -44,12 +43,9 @@ describe('SummaryView', () => {
     expect(screen.getByText('What makes you say that?')).toBeInTheDocument()
     expect(screen.getByText('Because they make the most impact.')).toBeInTheDocument()
     expect(screen.getByText('制度そのものを変えるべきだと思う。')).toBeInTheDocument()
-    expect(screen.getByText('Natural English')).toBeInTheDocument()
-    expect(
-      screen.getByText(
-        'I like dogs, especially Shiba Inu. I have a cat now, but I want a dog in the future.'
-      )
-    ).toBeInTheDocument()
+    expect(screen.getByText("I think it's on the companies.")).toBeInTheDocument()
+    expect(screen.getByText('Because they have the biggest impact.')).toBeInTheDocument()
+    expect(screen.queryByText('Natural English')).not.toBeInTheDocument()
     expect(screen.getByText('Why it sounded unnatural')).toBeInTheDocument()
     expect(screen.getByText('How to fix it')).toBeInTheDocument()
     expect(screen.getByText('Useful phrases')).toBeInTheDocument()

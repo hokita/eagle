@@ -178,7 +178,7 @@ export default function SessionHistory({ user }: Props) {
                       question={detail.question_en}
                       transcript={detail.transcript}
                       reflectionJa={detail.reflection_ja}
-                      naturalEnglish={detail.natural_english}
+                      refinedMessages={detail.refined_messages ?? []}
                       naturalnessWhyEn={detail.naturalness_why_en}
                       naturalnessFixEn={detail.naturalness_fix_en}
                       phrases={detail.phrases}

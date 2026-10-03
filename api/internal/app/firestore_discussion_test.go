@@ -33,7 +33,7 @@ func sampleSession() *DiscussionSession {
 			{Role: "user", Text: "Because they pollute more."},
 		},
 		ReflectionJA:     "制度を変える必要がある。",
-		NaturalEnglish:   "I think companies are responsible, because they pollute more than anyone else.",
+		RefinedMessages:  []string{"I think it's on the companies.", "They pollute way more than anyone else."},
 		NaturalnessWhyEN: "You repeated \"I think\" at the start of every turn.",
 		NaturalnessFixEN: "Vary your opener — try \"For me,\" or just state it.",
 		Phrases: []Phrase{
@@ -103,7 +103,8 @@ func TestFirestoreSaveAndGetSession(t *testing.T) {
 	}
 	if got.ID != id || got.QuestionID != 1 || len(got.Transcript) != 3 ||
 		got.ReflectionJA != "制度を変える必要がある。" ||
-		!strings.Contains(got.NaturalEnglish, "pollute more") ||
+		len(got.RefinedMessages) != 2 ||
+		!strings.Contains(got.RefinedMessages[1], "pollute way more") ||
 		!strings.Contains(got.NaturalnessWhyEN, "every turn") ||
 		!strings.Contains(got.NaturalnessFixEN, "Vary your opener") ||
 		len(got.Phrases) != 1 ||

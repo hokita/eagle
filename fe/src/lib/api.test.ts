@@ -242,7 +242,7 @@ describe('api.discussionReply', () => {
 
 describe('api.discussionComplete', () => {
   it('sends POST /api/discussion/complete with the transcript and reflection', async () => {
-    mockResponse({ session_id: 's1', natural_english: 'I think companies are responsible.', phrases: [] })
+    mockResponse({ session_id: 's1', refined_messages: ["I think it's on the companies."], phrases: [] })
     const transcript = [{ role: 'user' as const, text: 'I think companies.' }]
     const result = await api.discussionComplete(16, transcript, '制度を変えるべき。')
     expect(mockFetch).toHaveBeenCalledWith(
@@ -253,7 +253,7 @@ describe('api.discussionComplete', () => {
       })
     )
     expect(result.session_id).toBe('s1')
-    expect(result.natural_english).toBe('I think companies are responsible.')
+    expect(result.refined_messages).toEqual(["I think it's on the companies."])
   })
 })
 
@@ -269,7 +269,7 @@ describe('api.listDiscussionSessions / getDiscussionSession', () => {
   })
 
   it('sends GET /api/discussion/sessions/{id}', async () => {
-    mockResponse({ id: 's1', question_en: 'Q', natural_english: 'better', phrases: [] })
+    mockResponse({ id: 's1', question_en: 'Q', refined_messages: ['better'], phrases: [] })
     const result = await api.getDiscussionSession('s1')
     expect(mockFetch).toHaveBeenCalledWith(
       expect.stringContaining('/api/discussion/sessions/s1'),

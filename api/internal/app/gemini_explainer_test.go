@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"google.golang.org/genai"
 )
@@ -17,9 +18,13 @@ type fakeContentGenerator struct {
 	gotModel    string
 	gotContents []*genai.Content
 	gotConfig   *genai.GenerateContentConfig
+	// The deadline on the context the call was made with, zero if none —
+	// how far away a caller's timeout was when it reached the model.
+	gotDeadline time.Time
 }
 
-func (f *fakeContentGenerator) GenerateContent(_ context.Context, model string, contents []*genai.Content, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
+func (f *fakeContentGenerator) GenerateContent(ctx context.Context, model string, contents []*genai.Content, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
+	f.gotDeadline, _ = ctx.Deadline()
 	f.gotModel = model
 	f.gotContents = contents
 	f.gotConfig = config

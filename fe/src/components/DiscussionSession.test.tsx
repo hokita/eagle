@@ -26,7 +26,7 @@ const question = {
 
 const summary = {
   session_id: 's1',
-  natural_english: 'I think companies are responsible, because they pollute more than anyone else.',
+  refined_messages: ["I think it's on the companies."],
   naturalness_why_en: 'You opened every turn with "I think that".',
   naturalness_fix_en: 'Vary how you start a turn.',
   phrases: [
@@ -90,7 +90,11 @@ describe('DiscussionSession', () => {
       target: { value: '制度を変えるべき。' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Finish' }))
-    await waitFor(() => expect(screen.getByText(summary.natural_english)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(summary.refined_messages[0])).toBeInTheDocument())
+    // The refinement sits under the message it refines.
+    expect(screen.getByText(summary.refined_messages[0]).closest('.text-right')).toHaveTextContent(
+      'I think companies.'
+    )
     expect(screen.getByText('take responsibility for')).toBeInTheDocument()
     expect(screen.getByText(summary.naturalness_why_en)).toBeInTheDocument()
     expect(screen.getByText(summary.naturalness_fix_en)).toBeInTheDocument()
@@ -99,6 +103,26 @@ describe('DiscussionSession', () => {
       [{ role: 'user', text: 'I think companies.' }],
       '制度を変えるべき。'
     )
+  })
+
+  // The frontend and the API deploy independently, so a frontend that ships
+  // first can complete a session against an API that does not send
+  // refined_messages at all. The summary must still render.
+  it('shows the summary when the API sends no refined_messages', async () => {
+    vi.mocked(api.discussionReply).mockResolvedValue({ done: true, message: '' })
+    const withoutRefinements = Object.fromEntries(
+      Object.entries(summary).filter(([key]) => key !== 'refined_messages')
+    ) as typeof summary
+    expect(withoutRefinements).not.toHaveProperty('refined_messages')
+    vi.mocked(api.discussionComplete).mockResolvedValue(withoutRefinements)
+    await startSession()
+    await answerOnce('I think companies.')
+    await waitFor(() => expect(screen.getByLabelText('Japanese reflection')).toBeInTheDocument())
+    fireEvent.change(screen.getByLabelText('Japanese reflection'), { target: { value: 'あ' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Finish' }))
+    await waitFor(() => expect(screen.getByText(summary.naturalness_why_en)).toBeInTheDocument())
+    expect(screen.getByText('I think companies.')).toBeInTheDocument()
+    expect(screen.queryByText('More natural')).not.toBeInTheDocument()
   })
 
   // The summary is terminal: the only way on is a fresh question.
@@ -110,11 +134,11 @@ describe('DiscussionSession', () => {
     await waitFor(() => expect(screen.getByLabelText('Japanese reflection')).toBeInTheDocument())
     fireEvent.change(screen.getByLabelText('Japanese reflection'), { target: { value: 'あ' } })
     fireEvent.click(screen.getByRole('button', { name: 'Finish' }))
-    await waitFor(() => expect(screen.getByText(summary.natural_english)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(summary.refined_messages[0])).toBeInTheDocument())
 
     fireEvent.click(screen.getByRole('button', { name: 'Next question' }))
     await waitFor(() => expect(screen.getByLabelText('Your answer')).toBeInTheDocument())
-    expect(screen.queryByText(summary.natural_english)).not.toBeInTheDocument()
+    expect(screen.queryByText(summary.refined_messages[0])).not.toBeInTheDocument()
   })
 
   it('shows an error with retry when the reply call fails', async () => {
@@ -158,7 +182,7 @@ describe('DiscussionSession', () => {
 
     vi.mocked(api.discussionComplete).mockResolvedValueOnce(summary)
     fireEvent.click(screen.getByRole('button', { name: 'Finish' }))
-    await waitFor(() => expect(screen.getByText(summary.natural_english)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(summary.refined_messages[0])).toBeInTheDocument())
     expect(screen.queryByText('Something went wrong. Please try again.')).not.toBeInTheDocument()
   })
 

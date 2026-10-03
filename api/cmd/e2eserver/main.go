@@ -56,9 +56,18 @@ func (stubCoach) Reply(_ context.Context, _ *app.DiscussionQuestion, transcript 
 	return &app.CoachReply{Message: fmt.Sprintf("Stub follow-up %d: can you tell me more?", aiTurns+1)}, nil
 }
 
-func (stubCoach) Summarize(_ context.Context, _ *app.DiscussionQuestion, _ []app.DiscussionMessage, _ string) (*app.Summary, error) {
+// Summarize refines every learner turn with a numbered stub so the e2e test
+// can check each one sits under its own message — the real coach must return
+// exactly one refinement per learner turn, and the stub honors that too.
+func (stubCoach) Summarize(_ context.Context, _ *app.DiscussionQuestion, transcript []app.DiscussionMessage, _ string) (*app.Summary, error) {
+	var refined []string
+	for _, m := range transcript {
+		if m.Role == "user" {
+			refined = append(refined, fmt.Sprintf("Stub refinement %d: %s", len(refined)+1, m.Text))
+		}
+	}
 	return &app.Summary{
-		NaturalEnglish:   "I think companies are responsible, and in the future they should make systemic changes.",
+		RefinedMessages:  refined,
 		NaturalnessWhyEN: "Stub explanation: you opened every turn with \"I think that\", which reads as written English rather than speech.",
 		NaturalnessFixEN: "Stub advice: drop \"that\" after \"I think\", and swap textbook words for everyday ones.",
 		Phrases: []app.Phrase{

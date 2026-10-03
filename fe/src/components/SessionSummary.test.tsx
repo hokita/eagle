@@ -17,9 +17,10 @@ function renderSummary(overrides = {}) {
     transcript: [
       { role: 'user' as const, text: 'I think companies are responsible.' },
       { role: 'ai' as const, text: 'What makes you say that?' },
+      { role: 'user' as const, text: 'Because they make the most impact.' },
     ],
     reflectionJa: '制度そのものを変えるべきだと思う。',
-    naturalEnglish: 'I think companies are responsible, and the system should change.',
+    refinedMessages: ["I think it's on the companies.", 'Because they have the biggest impact.'],
     naturalnessWhyEn: 'You opened every turn with "I think that".',
     naturalnessFixEn: 'Vary how you start a turn.',
     phrases,
@@ -38,23 +39,46 @@ describe('SessionSummary', () => {
     expect(screen.getByText('What makes you say that?')).toBeInTheDocument()
   })
 
-  // The rewrite claims to include the ideas that stayed in Japanese, which is
-  // only checkable with the Japanese on the same screen.
+  // The phrases start from the ideas that stayed in Japanese, which is only
+  // checkable with the Japanese on the same screen.
   it('shows the Japanese reflection', () => {
     renderSummary()
     expect(screen.getByText('Reflection')).toBeInTheDocument()
     expect(screen.getByText('制度そのものを変えるべきだと思う。')).toBeInTheDocument()
   })
 
-  it('shows the natural English rewrite with what it is', () => {
+  // Each refinement is only readable against the exact words it refines, so
+  // it sits directly under its own message inside the conversation — not in
+  // a section of its own, and not as one merged passage.
+  it('shows each of your messages refined, directly under it', () => {
     renderSummary()
-    expect(screen.getByText('Natural English')).toBeInTheDocument()
     expect(
-      screen.getByText('Everything you said, the way a native speaker would say it.')
+      screen.getByText('Under each of your messages: how a native speaker would say it.')
     ).toBeInTheDocument()
-    expect(
-      screen.getByText('I think companies are responsible, and the system should change.')
-    ).toBeInTheDocument()
+    expect(screen.queryByText('Natural English')).not.toBeInTheDocument()
+
+    const first = screen.getByText("I think it's on the companies.")
+    const second = screen.getByText('Because they have the biggest impact.')
+    expect(first.closest('.text-right')).toHaveTextContent('I think companies are responsible.')
+    expect(second.closest('.text-right')).toHaveTextContent('Because they make the most impact.')
+    expect(first.closest('.text-right')).not.toHaveTextContent('What makes you say that?')
+    expect(screen.getAllByText('More natural')).toHaveLength(2)
+  })
+
+  // The coach returns a turn unchanged when it already sounded natural.
+  // Repeating it would read as a correction that changed nothing, but leaving
+  // it bare next to neighbours that got rewrites reads as a turn the coach
+  // skipped — so it is marked approved instead.
+  it('marks a message whose refinement is unchanged as already natural', () => {
+    renderSummary({
+      refinedMessages: ['I think companies are responsible.', 'Because they have the biggest impact.'],
+    })
+    expect(screen.getAllByText('I think companies are responsible.')).toHaveLength(1)
+    expect(screen.getAllByText('More natural')).toHaveLength(1)
+    expect(screen.getByText('Because they have the biggest impact.')).toBeInTheDocument()
+    const badge = screen.getByText('Already natural')
+    expect(badge.closest('.text-right')).toHaveTextContent('I think companies are responsible.')
+    expect(badge.closest('.text-right')).not.toHaveTextContent('Because they have the biggest impact.')
   })
 
   it('explains why the English sounded unnatural and how to fix it', () => {
@@ -79,13 +103,16 @@ describe('SessionSummary', () => {
   it('hides every card a session has nothing for, keeping the conversation', () => {
     renderSummary({
       reflectionJa: '',
-      naturalEnglish: '',
+      refinedMessages: [],
       naturalnessWhyEn: '',
       naturalnessFixEn: '',
       phrases: [],
     })
     expect(screen.queryByText('Reflection')).not.toBeInTheDocument()
-    expect(screen.queryByText('Natural English')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Under each of your messages: how a native speaker would say it.')
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText('More natural')).not.toBeInTheDocument()
     expect(screen.queryByText('Why it sounded unnatural')).not.toBeInTheDocument()
     expect(screen.queryByText('How to fix it')).not.toBeInTheDocument()
     expect(screen.queryByText('Useful phrases')).not.toBeInTheDocument()

@@ -77,7 +77,12 @@ export interface Phrase {
 
 export interface DiscussionCompleteResponse {
   session_id: string
-  natural_english: string
+  // One entry per user message in the transcript, in order: that message
+  // the way a native speaker would say it. Optional because the frontend
+  // and the API deploy independently: a frontend that ships first talks to
+  // an API that does not send this field yet, and must render rather than
+  // crash. Consumers default it to [].
+  refined_messages?: string[]
   naturalness_why_en: string
   naturalness_fix_en: string
   phrases: Phrase[]
@@ -97,7 +102,10 @@ export interface DiscussionSessionDetail {
   topic: string
   transcript: DiscussionMessage[]
   reflection_ja: string
-  natural_english: string
+  // One entry per user message in the transcript, in order. Empty on
+  // sessions saved before per-turn refinement existed; absent from an API
+  // deployed before the field existed (see DiscussionCompleteResponse).
+  refined_messages?: string[]
   // Empty on sessions saved before the explanation existed.
   naturalness_why_en: string
   naturalness_fix_en: string

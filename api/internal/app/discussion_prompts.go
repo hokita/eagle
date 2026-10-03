@@ -45,17 +45,20 @@ func buildDiscussionReplyPrompt(q *DiscussionQuestion, transcript []DiscussionMe
 
 // buildSummaryPrompt produces the one analysis prompt a session runs, after
 // the conversation and the Japanese reflection are both in. It asks for
-// three things the learner reads back in English: a single natural rewrite
-// of everything they said — pitched at spoken register, since a rewrite that
-// is merely grammatical still reads like an essay and gives the learner the
-// wrong model to copy — an explanation of why their own wording sounded
-// unnatural and what to do about it, and a few reusable phrases drawn first
-// from the gap the reflection exposes — the ideas the learner had but could
-// not reach in English are the point of the mode, so wording they already
-// managed only fills what the gap leaves over. The
-// explanation is deliberately pitched at the pattern level rather than as a
-// per-sentence list — the rewrite already shows the shape they should have
-// used, so what is left to add is the habit behind the difference.
+// three things the learner reads back in English: each of their turns said
+// the way a native speaker would say it — one refinement per turn rather
+// than one merged passage, so the learner can hold their own sentence next
+// to the natural one and see exactly what changed — pitched at spoken
+// register, since a rewrite that is merely grammatical still reads like an
+// essay and gives the learner the wrong model to copy; an explanation of
+// why their own wording sounded unnatural and what to do about it; and a few
+// reusable phrases drawn first from the gap the reflection exposes — the
+// ideas the learner had but could not reach in English are the point of the
+// mode, so wording they already managed only fills what the gap leaves over.
+// The explanation is deliberately pitched at the pattern level rather than
+// as a per-sentence list — the refinements already show the shape they
+// should have used, so what is left to add is the habit behind the
+// difference.
 func buildSummaryPrompt(q *DiscussionQuestion, transcript []DiscussionMessage, reflectionJA string) string {
 	var b strings.Builder
 	b.WriteString("You are an English tutor. A Japanese learner discussed a question in English, ")
@@ -65,12 +68,17 @@ func buildSummaryPrompt(q *DiscussionQuestion, transcript []DiscussionMessage, r
 	b.WriteString(renderTranscript(transcript))
 	fmt.Fprintf(&b, "\nWhat the learner also wanted to say (in Japanese):\n%s\n\n", reflectionJA)
 	b.WriteString("Produce:\n")
-	b.WriteString("1. natural_english: a single short paragraph that says everything the learner said ")
-	b.WriteString("across the whole conversation, including the ideas they could only write in Japanese, ")
-	b.WriteString("the way a native speaker would say it out loud to a friend. Merge their separate ")
-	b.WriteString("answers into connected sentences, keep their meaning and their opinions exactly, and ")
-	b.WriteString("invent no new content. Keep it to at most 4 sentences.\n")
-	b.WriteString("Write it as speech rather than as writing: contractions, everyday words, and the ")
+	b.WriteString("1. refined_messages: for each of the learner's turns, in order, that same turn ")
+	b.WriteString("the way a native speaker would say it out loud to a friend. Refine each turn on its ")
+	b.WriteString("own: keep its meaning and the learner's opinions exactly, invent no new content, ")
+	b.WriteString("and keep it about as long as the learner's own turn — this is their sentence said ")
+	b.WriteString("better, not an expansion of it. Never merge turns, and never move an idea from one ")
+	b.WriteString("turn into another. The ideas they could only write in Japanese belong in phrases, ")
+	b.WriteString("not here. If a turn already sounds natural, return it unchanged.\n")
+	fmt.Fprintf(&b, "The conversation has %d learner turns, so refined_messages must contain exactly %d ",
+		countLearnerTurns(transcript), countLearnerTurns(transcript))
+	b.WriteString("strings, one per learner turn, in the order the turns appear above.\n")
+	b.WriteString("Write each one as speech rather than as writing: contractions, everyday words, and the ")
 	b.WriteString("connectors and softeners people actually say (\"so\", \"actually\", \"for a while\", ")
 	b.WriteString("\"kind of\"). Prefer the plainest wording that carries the idea — for example ")
 	b.WriteString("\"haven't had a chance to read it\" over \"haven't been able to get to it\", ")
@@ -98,7 +106,7 @@ func buildSummaryPrompt(q *DiscussionQuestion, transcript []DiscussionMessage, r
 	b.WriteString("could not say: pick the ideas that stayed in the Japanese text which would help ")
 	b.WriteString("them most, up to the four-phrase cap, and for each give the phrase a native ")
 	b.WriteString("speaker would use to say it. Only once those are covered may you add ")
-	b.WriteString("reusable chunks from natural_english that replace clumsy wording the learner ")
+	b.WriteString("reusable chunks from refined_messages that replace clumsy wording the learner ")
 	b.WriteString("actually used. If neither source offers four phrases worth remembering, return ")
 	b.WriteString("fewer — never pad the list. Every phrase must pass this test: ")
 	b.WriteString("would a friend say it to you in ordinary conversation today? Prefer the plainest ")

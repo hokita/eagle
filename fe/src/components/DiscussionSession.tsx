@@ -32,9 +32,9 @@ export default function DiscussionSession({ user }: Props) {
   const [question, setQuestion] = useState<DiscussionQuestion | null>(null)
   const [transcript, setTranscript] = useState<DiscussionMessage[]>([])
   // Kept past the reflection phase because the summary shows it back: the
-  // rewrite works in the ideas the learner could only write in Japanese, so
-  // the Japanese has to be on screen for the rewrite to be checkable against
-  // it — the same reason the transcript is shown there.
+  // phrases start from the ideas the learner could only write in Japanese,
+  // so the Japanese has to be on screen for them to be checkable against it
+  // — the same reason the transcript is shown there.
   const [reflection, setReflection] = useState('')
   const [result, setResult] = useState<DiscussionCompleteResponse | null>(null)
   const [busy, setBusy] = useState(false)
@@ -192,7 +192,7 @@ export default function DiscussionSession({ user }: Props) {
             question={question.question_en}
             transcript={transcript}
             reflectionJa={reflection}
-            naturalEnglish={result.natural_english}
+            refinedMessages={result.refined_messages ?? []}
             naturalnessWhyEn={result.naturalness_why_en}
             naturalnessFixEn={result.naturalness_fix_en}
             phrases={result.phrases}
