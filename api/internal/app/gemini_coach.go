@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"google.golang.org/genai"
 )
@@ -16,16 +17,45 @@ const (
 	// Output bounds per call — the input side is bounded by transcript
 	// validation; these keep the response side predictable too.
 	maxCoachReplyOutputTokens = 256
+
 	// The summary echoes roughly all of the learner's own text back as
-	// refinements, so its budget is sized from the largest transcript that
-	// validation accepts: maxTranscriptMessages / 2 learner turns of
-	// maxDiscussionTurnLength runes, 12,000 characters, is about 4,000
-	// tokens of English even at a dense 3 characters per token, before the
-	// explanation and phrases. 8,192 leaves that comfortable headroom; a
-	// tighter cap would truncate the JSON of a long but valid session and
-	// fail every retry of its completion.
-	maxCoachSummaryOutputTokens = 8192
+	// refinements, so its output budget is derived from the transcript it
+	// is given (see summaryOutputBudget) rather than fixed: a cap sized for
+	// a typical session truncates the JSON of a long but valid one, and its
+	// completion then fails on every retry.
+	//
+	// summaryBaseOutputTokens covers everything that does not scale with
+	// the transcript — the explanation, up to four phrases, JSON structure.
+	summaryBaseOutputTokens = 1024
+	// summaryTokensPerLearnerRune is the worst case for one rune of learner
+	// text echoed back. Validation bounds turns in runes and accepts any
+	// Unicode, so English's ~0.3 tokens per character is no bound; a rune
+	// outside the tokenizer's vocabulary falls back to one token per UTF-8
+	// byte, at most 4.
+	summaryTokensPerLearnerRune = 4
+	// geminiMaxOutputTokens is the model's own output ceiling, which the
+	// derived budget must stay under.
+	geminiMaxOutputTokens = 65536
 )
+
+// summaryOutputBudget is the MaxOutputTokens for a summary of transcript:
+// the worst-case token count of echoing every learner turn, plus a fixed
+// allowance for the rest. The largest transcript validation accepts
+// (maxTranscriptMessages/2 turns of maxDiscussionTurnLength runes) stays
+// under geminiMaxOutputTokens, so the clamp is a guard, not the usual path.
+func summaryOutputBudget(transcript []DiscussionMessage) int32 {
+	runes := 0
+	for _, m := range transcript {
+		if m.Role == "user" {
+			runes += utf8.RuneCountInString(m.Text)
+		}
+	}
+	budget := summaryBaseOutputTokens + summaryTokensPerLearnerRune*runes
+	if budget > geminiMaxOutputTokens {
+		budget = geminiMaxOutputTokens
+	}
+	return int32(budget)
+}
 
 var coachReplySchema = &genai.Schema{
 	Type: genai.TypeObject,
@@ -104,7 +134,7 @@ func (g *GeminiCoach) Reply(ctx context.Context, q *DiscussionQuestion, transcri
 
 func (g *GeminiCoach) Summarize(ctx context.Context, q *DiscussionQuestion, transcript []DiscussionMessage, reflectionJA string) (*Summary, error) {
 	text, err := g.generate(ctx, buildSummaryPrompt(q, transcript, reflectionJA), &genai.GenerateContentConfig{
-		MaxOutputTokens:  maxCoachSummaryOutputTokens,
+		MaxOutputTokens:  summaryOutputBudget(transcript),
 		ResponseMIMEType: "application/json",
 		ResponseSchema:   summarySchema,
 	})

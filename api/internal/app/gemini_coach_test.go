@@ -80,24 +80,44 @@ func TestGeminiCoachSummarizeParsesAndValidates(t *testing.T) {
 	if fake.gotConfig.ResponseSchema == nil {
 		t.Fatal("expected a response schema")
 	}
-	if fake.gotConfig.MaxOutputTokens != maxCoachSummaryOutputTokens {
-		t.Fatalf("expected MaxOutputTokens=%d, got %d", maxCoachSummaryOutputTokens, fake.gotConfig.MaxOutputTokens)
+	if want := summaryOutputBudget(msgs("I like dogs.", "What kind?", "I like shiba-dog.")); fake.gotConfig.MaxOutputTokens != want {
+		t.Fatalf("expected MaxOutputTokens=%d, got %d", want, fake.gotConfig.MaxOutputTokens)
 	}
 }
 
-// The refinements echo the learner's text back, so the output budget must
-// hold the largest transcript validation lets in — otherwise a long but
-// valid session is truncated mid-JSON and its completion fails on every
-// retry. Pinned against the input caps so a change to either side resizes
-// the other. 3 characters per token is a dense estimate for English; the
-// remainder covers the explanation, the phrases, and JSON overhead.
-func TestSummaryOutputBudgetCoversTheLargestValidTranscript(t *testing.T) {
-	learnerTurns := (maxTranscriptMessages + 1) / 2
-	learnerChars := learnerTurns * maxDiscussionTurnLength
-	refinementTokens := learnerChars / 3
-	if maxCoachSummaryOutputTokens < refinementTokens+1024 {
-		t.Fatalf("summary output budget %d is too small for %d characters of refinements (~%d tokens) plus the rest of the summary",
-			maxCoachSummaryOutputTokens, learnerChars, refinementTokens)
+// The refinements echo the learner's text back, so the output budget has
+// to grow with the transcript — otherwise a long but valid session is
+// truncated mid-JSON and its completion fails on every retry. Validation
+// bounds turns in runes and accepts any Unicode, so the budget assumes the
+// tokenizer's byte-fallback worst case of 4 tokens per rune, counts only
+// the learner's turns (the coach's are not echoed), and must still fit the
+// model's own output ceiling for the largest transcript validation lets in.
+func TestSummaryOutputBudgetScalesWithLearnerText(t *testing.T) {
+	short := summaryOutputBudget(msgs("I like dogs."))
+	if short < int32(summaryBaseOutputTokens+summaryTokensPerLearnerRune*len("I like dogs.")) {
+		t.Fatalf("budget %d does not cover a short turn at the worst case", short)
+	}
+
+	// Multibyte throughout, so bytes far exceed runes: the budget must be
+	// a function of runes, as the input cap is.
+	ja := strings.Repeat("あ", maxDiscussionTurnLength)
+	texts := make([]string, maxTranscriptMessages)
+	for i := range texts {
+		texts[i] = ja
+	}
+	largest := summaryOutputBudget(msgs(texts...))
+	learnerRunes := ((maxTranscriptMessages + 1) / 2) * maxDiscussionTurnLength
+	if largest < int32(summaryBaseOutputTokens+summaryTokensPerLearnerRune*learnerRunes) {
+		t.Fatalf("budget %d is below the worst case for %d learner runes", largest, learnerRunes)
+	}
+	if largest > geminiMaxOutputTokens {
+		t.Fatalf("budget %d exceeds the model's output ceiling %d", largest, geminiMaxOutputTokens)
+	}
+
+	// The coach's own turns are not echoed and must not inflate the budget.
+	withLongAITurn := summaryOutputBudget(msgs("I like dogs.", strings.Repeat("x", 500)))
+	if withLongAITurn != short {
+		t.Fatalf("coach turns must not count: got %d, want %d", withLongAITurn, short)
 	}
 }
 
