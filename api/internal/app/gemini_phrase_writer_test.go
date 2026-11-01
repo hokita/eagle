@@ -1,0 +1,50 @@
+package app
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"google.golang.org/genai"
+)
+
+func textResponse(text string) *genai.GenerateContentResponse {
+	return &genai.GenerateContentResponse{
+		Candidates: []*genai.Candidate{{Content: &genai.Content{Parts: []*genai.Part{{Text: text}}}}},
+	}
+}
+
+func TestGeminiPhraseWriterParsesJSON(t *testing.T) {
+	fake := &fakeContentGenerator{resp: textResponse(`{"meaning":"as little as possible","examples":["Keep it to a minimum."]}`)}
+	g := &GeminiPhraseWriter{models: fake, model: "test-model"}
+
+	got, err := g.Write(context.Background(), PhraseSource{Phrase: "to a minimum"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Meaning != "as little as possible" || len(got.Examples) != 1 {
+		t.Fatalf("unexpected content: %+v", got)
+	}
+	if fake.gotModel != "test-model" || fake.gotConfig.ResponseMIMEType != "application/json" ||
+		fake.gotConfig.ResponseSchema != phraseContentSchema || fake.gotConfig.MaxOutputTokens != maxPhraseWriterOutputTokens {
+		t.Fatalf("unexpected call: model=%q config=%+v", fake.gotModel, fake.gotConfig)
+	}
+	if fake.gotDeadline.IsZero() {
+		t.Fatal("expected the call to carry a deadline")
+	}
+}
+
+func TestGeminiPhraseWriterErrors(t *testing.T) {
+	cases := map[string]*fakeContentGenerator{
+		"api error": {err: errors.New("boom")},
+		"bad json":  {resp: textResponse("not json")},
+	}
+	for name, fake := range cases {
+		t.Run(name, func(t *testing.T) {
+			g := &GeminiPhraseWriter{models: fake, model: "m"}
+			if _, err := g.Write(context.Background(), PhraseSource{Phrase: "x"}); err == nil {
+				t.Fatal("expected an error")
+			}
+		})
+	}
+}

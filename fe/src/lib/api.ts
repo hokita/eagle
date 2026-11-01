@@ -75,6 +75,18 @@ export interface Phrase {
   example_en: string
 }
 
+// A phrase the learner saved while answering a sentence, with the meaning
+// and English example sentences the AI wrote for it. meaning is empty and
+// examples is [] when the AI could not write them at save time; rewritePhrase
+// asks again.
+export interface SavedPhrase {
+  id: string
+  phrase: string
+  meaning: string
+  examples: string[]
+  created_at: string
+}
+
 export interface DiscussionCompleteResponse {
   session_id: string
   // One entry per user message in the transcript, in order: that message
@@ -147,6 +159,21 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ sentence_id: sentenceId }),
     }),
+
+  savePhrase: (sentenceId: number, phrase: string) =>
+    request<SavedPhrase>('/api/phrases', {
+      method: 'POST',
+      body: JSON.stringify({ sentence_id: sentenceId, phrase }),
+    }),
+
+  listPhrases: () => request<{ phrases: SavedPhrase[] }>('/api/phrases'),
+
+  deletePhrase: (id: string) =>
+    request<void>(`/api/phrases/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  // Has the AI write the phrase's meaning and examples again.
+  rewritePhrase: (id: string) =>
+    request<SavedPhrase>(`/api/phrases/${encodeURIComponent(id)}/examples`, { method: 'POST' }),
 
   listMistakes: () => request<{ mistakes: Mistake[] }>('/api/mistakes'),
 

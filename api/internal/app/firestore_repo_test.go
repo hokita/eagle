@@ -580,3 +580,71 @@ func TestFirestoreListMistakesSkipsDeletedSentence(t *testing.T) {
 		t.Fatalf("expected deleted sentence to be skipped, got %+v", mistakes)
 	}
 }
+
+func TestFirestorePhrases(t *testing.T) {
+	client := newEmulatorClient(t)
+	repo := NewFirestoreRepo(client)
+	ctx := context.Background()
+	base := time.Date(2026, 11, 1, 9, 0, 0, 0, time.UTC)
+
+	repo.now = func() time.Time { return base }
+	first, err := repo.SavePhrase(ctx, "u1", SavedPhrase{
+		Phrase: "in the worst case", Examples: []string{}, SentenceID: 3, Japanese: "最悪の場合", English: "At worst.",
+	})
+	if err != nil {
+		t.Fatalf("save first: %v", err)
+	}
+	repo.now = func() time.Time { return base.Add(time.Minute) }
+	second, err := repo.SavePhrase(ctx, "u1", SavedPhrase{
+		Phrase: "to a minimum", Meaning: "as little as possible", Examples: []string{"Keep it to a minimum."},
+	})
+	if err != nil {
+		t.Fatalf("save second: %v", err)
+	}
+	if _, err := repo.SavePhrase(ctx, "u2", SavedPhrase{Phrase: "someone else's"}); err != nil {
+		t.Fatalf("save other user: %v", err)
+	}
+
+	list, err := repo.ListPhrases(ctx, "u1", 10)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(list) != 2 || list[0].ID != second.ID || list[1].ID != first.ID {
+		t.Fatalf("expected u1's two phrases newest first, got %+v", list)
+	}
+	if list[1].English != "At worst." || list[1].Examples == nil || list[0].CreatedAt != base.Add(time.Minute).Format(time.RFC3339Nano) {
+		t.Fatalf("unexpected stored fields: %+v", list)
+	}
+
+	if err := repo.UpdatePhraseContent(ctx, "u1", first.ID, PhraseContent{Meaning: "if the worst happens", Examples: []string{"In the worst case, we walk."}}); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	got, err := repo.GetPhrase(ctx, "u1", first.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.Meaning != "if the worst happens" || len(got.Examples) != 1 || got.Japanese != "最悪の場合" {
+		t.Fatalf("unexpected after update: %+v", got)
+	}
+
+	// Another user's phrase is out of reach by id.
+	if _, err := repo.GetPhrase(ctx, "u2", first.ID); err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound for another user's phrase, got %v", err)
+	}
+	if err := repo.DeletePhrase(ctx, "u2", first.ID); err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound deleting another user's phrase, got %v", err)
+	}
+	if err := repo.UpdatePhraseContent(ctx, "u1", "missing", PhraseContent{}); err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound updating a missing phrase, got %v", err)
+	}
+
+	if err := repo.DeletePhrase(ctx, "u1", first.ID); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if err := repo.DeletePhrase(ctx, "u1", first.ID); err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound deleting twice, got %v", err)
+	}
+	if list, _ := repo.ListPhrases(ctx, "u1", 10); len(list) != 1 {
+		t.Fatalf("expected one phrase left, got %d", len(list))
+	}
+}

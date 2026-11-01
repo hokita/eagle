@@ -77,6 +77,22 @@ func (stubCoach) Summarize(_ context.Context, _ *app.DiscussionQuestion, transcr
 	}, nil
 }
 
+// stubPhraseWriter avoids real Gemini calls in e2e tests. The meaning and
+// examples are asserted by e2e/tests/phrases.spec.ts; each example contains
+// the phrase so it passes the server's check.
+type stubPhraseWriter struct{}
+
+func (stubPhraseWriter) Write(_ context.Context, src app.PhraseSource) (*app.PhraseContent, error) {
+	return &app.PhraseContent{
+		Meaning: fmt.Sprintf("Stub meaning of %s", src.Phrase),
+		Examples: []string{
+			fmt.Sprintf("Stub example 1 with %s.", src.Phrase),
+			fmt.Sprintf("Stub example 2 with %s.", src.Phrase),
+			fmt.Sprintf("Stub example 3 with %s.", src.Phrase),
+		},
+	}, nil
+}
+
 func main() {
 	ctx := context.Background()
 
@@ -102,7 +118,9 @@ func main() {
 	}
 
 	repo := app.NewFirestoreRepo(client)
-	srv := app.NewServer(repo, stubExplainer{}, stubAnalyzer{}).WithDiscussion(repo, stubCoach{})
+	srv := app.NewServer(repo, stubExplainer{}, stubAnalyzer{}).
+		WithDiscussion(repo, stubCoach{}).
+		WithPhrases(repo, stubPhraseWriter{})
 
 	frontendURL := os.Getenv("FRONTEND_URL")
 	mux := app.NewMux(srv, verifier, allowedEmails, frontendURL)
