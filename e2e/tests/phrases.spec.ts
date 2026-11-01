@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import { signInAndGetSentence } from './helpers'
 
 // The meaning and examples come from stubPhraseWriter in
@@ -33,8 +33,10 @@ test('a phrase saved after checking an answer shows on the Phrases page with its
   await page.getByRole('button', { name: 'New examples' }).click()
   await expect(examples.getByRole('listitem')).toHaveCount(3)
 
-  // Survives a reload: it is stored, not just held on screen.
-  await page.reload()
+  // Leaving and coming back reloads the list from the server, so the phrase
+  // is stored, not just held on screen. (A full page reload can't be used:
+  // the e2e static server answers every sub-page with the home page.)
+  await reopenPhrases(page)
   await expect(page.getByRole('heading', { name: phrase })).toBeVisible()
 
   await page.getByRole('button', { name: `Delete ${phrase}` }).click()
@@ -42,6 +44,13 @@ test('a phrase saved after checking an answer shows on the Phrases page with its
   await page.getByRole('button', { name: 'Delete', exact: true }).click()
   await expect(page.getByText('No phrases yet')).toBeVisible()
 
-  await page.reload()
+  await reopenPhrases(page)
   await expect(page.getByText('No phrases yet')).toBeVisible()
 })
+
+async function reopenPhrases(page: Page) {
+  await page.getByRole('link', { name: 'Eagle' }).click()
+  await expect(page.getByLabel('Your English translation')).toBeVisible()
+  await page.getByRole('link', { name: 'Phrases' }).click()
+  await expect(page).toHaveURL(/\/phrases/)
+}
