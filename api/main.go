@@ -55,8 +55,15 @@ func main() {
 		log.Fatalf("failed to create Gemini coach: %v", err)
 	}
 
+	phraseWriter, err := app.NewGeminiPhraseWriter(ctx, geminiAPIKey)
+	if err != nil {
+		log.Fatalf("failed to create Gemini phrase writer: %v", err)
+	}
+
 	repo := app.NewFirestoreRepo(client)
-	srv := app.NewServer(repo, explainer, analyzer).WithDiscussion(repo, coach)
+	srv := app.NewServer(repo, explainer, analyzer).
+		WithDiscussion(repo, coach).
+		WithPhrases(repo, phraseWriter)
 
 	frontendURL := os.Getenv("FRONTEND_URL")
 	mux := app.NewMux(srv, verifier, allowedEmails, frontendURL)

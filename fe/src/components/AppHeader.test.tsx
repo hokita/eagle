@@ -55,4 +55,16 @@ describe('AppHeader', () => {
 
     expect(screen.queryByRole('link', { name: 'Discussion' })).not.toBeInTheDocument()
   })
+
+  it('shows the phrases link by default', () => {
+    render(<AppHeader user={fakeUser} onOpenSettings={vi.fn()} />)
+
+    expect(screen.getByRole('link', { name: 'Phrases' })).toHaveAttribute('href', '/phrases')
+  })
+
+  it('hides the phrases link when showPhrasesLink is false', () => {
+    render(<AppHeader user={fakeUser} onOpenSettings={vi.fn()} showPhrasesLink={false} />)
+
+    expect(screen.queryByRole('link', { name: 'Phrases' })).not.toBeInTheDocument()
+  })
 })

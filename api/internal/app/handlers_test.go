@@ -33,8 +33,6 @@ type fakeRepo struct {
 	reported         []int
 	mistakes         []MistakeSentence
 	mistakesErr      error
-	savedPhrases     []savedPhraseCall
-	savePhraseErr    error
 
 	listMistakesCalls           int
 	listMistakesForInsightCalls int
@@ -90,21 +88,6 @@ func (f *fakeRepo) RecordAnswer(_ context.Context, uid string, id int, correct b
 func (f *fakeRepo) Report(_ context.Context, id int) error {
 	f.reported = append(f.reported, id)
 	return nil
-}
-
-type savedPhraseCall struct {
-	uid    string
-	phrase SavedPhrase
-}
-
-func (f *fakeRepo) SavePhrase(_ context.Context, uid string, p SavedPhrase) (*SavedPhrase, error) {
-	f.savedPhrases = append(f.savedPhrases, savedPhraseCall{uid, p})
-	if f.savePhraseErr != nil {
-		return nil, f.savePhraseErr
-	}
-	p.ID = "phrase-1"
-	p.CreatedAt = "2026-11-01T00:00:00Z"
-	return &p, nil
 }
 
 type explainCall struct {

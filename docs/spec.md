@@ -46,6 +46,9 @@ This app helps users improve their English skills by providing a platform for la
 | POST   | /api/answer/check    | Check user's English translation |
 | POST   | /api/sentence/report | Report a sentence                |
 | POST   | /api/phrases         | Save a phrase from a sentence    |
+| GET    | /api/phrases         | List saved phrases               |
+| DELETE | /api/phrases/{id}    | Delete a saved phrase            |
+| POST   | /api/phrases/{id}/examples | Rewrite meaning and examples |
 
 ---
 
@@ -160,23 +163,26 @@ _No response body_
 
 **POST** `/api/phrases`
 
-Saves a useful phrase the learner picked up from a sentence they just checked.
+Saves a phrase the learner picked up while answering a sentence. The AI
+(Gemini) writes a short English meaning and 3 English example sentences that
+use the phrase; examples that do not contain the phrase are dropped. If the AI
+fails, the phrase is still saved with an empty `meaning` and `examples`.
+
 Stored in Firestore at `users/{uid}/saved_phrases/{id}`. The sentence's
-Japanese and English are loaded server-side by `sentence_id` and copied in.
+Japanese and English are loaded server-side by `sentence_id` and stored too, so
+the AI can tell which sense of the phrase was meant; they are never returned.
 
 **Request:**
 
-| Field       | Type    | Description                                  |
-| ----------- | ------- | -------------------------------------------- |
-| sentence_id | INTEGER | Sentence the phrase came from                |
-| phrase      | TEXT    | The phrase (required, up to 200 characters)  |
-| note        | TEXT    | Learner's own note (optional, up to 500)     |
+| Field       | Type    | Description                                 |
+| ----------- | ------- | ------------------------------------------- |
+| sentence_id | INTEGER | Sentence the learner was answering          |
+| phrase      | TEXT    | The phrase (required, up to 200 characters) |
 
 ```json
 {
     "sentence_id": 1,
-    "phrase": "don't have time",
-    "note": "時間がない"
+    "phrase": "to a minimum"
 }
 ```
 
@@ -185,11 +191,35 @@ Japanese and English are loaded server-side by `sentence_id` and copied in.
 ```json
 {
     "id": "aB3dE5",
-    "sentence_id": 1,
-    "phrase": "don't have time",
-    "note": "時間がない",
-    "japanese": "時間がありません。",
-    "english": "I don't have time.",
+    "phrase": "to a minimum",
+    "meaning": "as little or as few as possible",
+    "examples": [
+        "Let's keep the meeting to a minimum today.",
+        "I try to keep my spending to a minimum before payday.",
+        "Pack light and keep your luggage to a minimum."
+    ],
     "created_at": "2026-11-01T09:00:00Z"
 }
 ```
+
+### List Saved Phrases
+
+**GET** `/api/phrases`
+
+Returns the learner's phrases, newest first (up to 500), as
+`{"phrases": [ ...same shape as above... ]}`.
+
+### Delete a Saved Phrase
+
+**DELETE** `/api/phrases/{id}`
+
+`204 No Content`, or `404` if the learner has no phrase with that id.
+
+### Rewrite a Phrase's Meaning and Examples
+
+**POST** `/api/phrases/{id}/examples`
+
+Has the AI write the meaning and examples again and stores them. Backs both
+"New examples" and retrying a phrase saved without a meaning. Returns the
+updated phrase, `404` for an unknown id, or `500` if the AI fails (the stored
+phrase is left unchanged).

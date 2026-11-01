@@ -59,6 +59,9 @@ type Server struct {
 
 	discussions DiscussionRepository
 	coach       DiscussionCoach
+
+	phrases      PhraseRepository
+	phraseWriter PhraseWriter
 }
 
 func NewServer(repo SentenceRepository, explainer Explainer, analyzer WeaknessAnalyzer) *Server {

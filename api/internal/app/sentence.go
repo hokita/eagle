@@ -115,7 +115,4 @@ type SentenceRepository interface {
 	ListMistakesForInsight(ctx context.Context, uid string) ([]MistakeSentence, error)
 	RecordAnswer(ctx context.Context, uid string, id int, correct bool, answer string) error
 	Report(ctx context.Context, id int) error
-	// SavePhrase stores a phrase the user picked up from a sentence and
-	// returns it with its assigned ID and creation time filled in.
-	SavePhrase(ctx context.Context, uid string, phrase SavedPhrase) (*SavedPhrase, error)
 }

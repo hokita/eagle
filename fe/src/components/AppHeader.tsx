@@ -10,6 +10,7 @@ interface AppHeaderProps {
   user: User
   onOpenSettings: () => void
   showMistakesLink?: boolean
+  showPhrasesLink?: boolean
   showDiscussionLink?: boolean
 }
 
@@ -17,6 +18,7 @@ export default function AppHeader({
   user,
   onOpenSettings,
   showMistakesLink = true,
+  showPhrasesLink = true,
   showDiscussionLink = true,
 }: AppHeaderProps) {
   return (
@@ -33,6 +35,14 @@ export default function AppHeader({
             className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
           >
             Mistakes
+          </Link>
+        )}
+        {showPhrasesLink && (
+          <Link
+            href="/phrases"
+            className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          >
+            Phrases
           </Link>
         )}
         {showDiscussionLink && (

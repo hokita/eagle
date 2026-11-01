@@ -507,11 +507,9 @@ describe('saving a phrase', () => {
     })
     mockApi.savePhrase.mockResolvedValue({
       id: 'p1',
-      sentence_id: fakeSentence.id,
       phrase: "don't have time",
-      note: '',
-      japanese: fakeSentence.japanese,
-      english: fakeSentence.english,
+      meaning: 'too busy to do something',
+      examples: ["Sorry, I don't have time today."],
       created_at: '2026-11-01T00:00:00Z',
     })
     await renderAndLoad()
@@ -524,7 +522,7 @@ describe('saving a phrase', () => {
     fireEvent.change(screen.getByLabelText('Phrase'), { target: { value: "don't have time" } })
     fireEvent.click(screen.getByRole('button', { name: 'Save Phrase' }))
 
-    expect(mockApi.savePhrase).toHaveBeenCalledWith(fakeSentence.id, "don't have time", '')
+    expect(mockApi.savePhrase).toHaveBeenCalledWith(fakeSentence.id, "don't have time")
     expect(await screen.findByRole('list', { name: 'Saved phrases' })).toHaveTextContent(
       "don't have time",
     )

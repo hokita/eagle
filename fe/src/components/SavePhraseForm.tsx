@@ -6,26 +6,23 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { api, type SavedPhrase } from '@/lib/api'
 
 interface Props {
   sentenceId: number
 }
 
-// The same limits the server enforces, so an over-long entry is stopped at
+// The same limit the server enforces, so an over-long entry is stopped at
 // the keyboard rather than by a 400.
 const MAX_PHRASE_LENGTH = 200
-const MAX_NOTE_LENGTH = 500
 
-// Shown once an answer has been checked: the learner jots down a useful
-// phrase from the sentence, and an optional note on what it means or when to
-// use it. Several phrases can be saved from one sentence; each one saved is
-// listed under the form so the learner can see it went through. The form is
-// unmounted when the next sentence loads, so nothing carries over.
+// Shown once an answer has been checked: the learner types a useful phrase
+// from the sentence and saves it, and the AI writes its meaning and examples
+// on the way. Several phrases can be saved from one sentence; each one saved
+// is listed under the form with its meaning. The form is unmounted when the
+// next sentence loads, so nothing carries over.
 export default function SavePhraseForm({ sentenceId }: Props) {
   const [phrase, setPhrase] = useState('')
-  const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState<SavedPhrase[]>([])
@@ -37,10 +34,9 @@ export default function SavePhraseForm({ sentenceId }: Props) {
     setSaving(true)
     setError(null)
     try {
-      const result = await api.savePhrase(sentenceId, trimmed, note.trim())
+      const result = await api.savePhrase(sentenceId, trimmed)
       setSaved(prev => [...prev, result])
       setPhrase('')
-      setNote('')
     } catch (err) {
       // The draft stays in the form so the learner can retry.
       setError(err instanceof Error ? err.message : 'Failed to save phrase')
@@ -67,28 +63,13 @@ export default function SavePhraseForm({ sentenceId }: Props) {
             id="save-phrase"
             value={phrase}
             onChange={e => setPhrase(e.target.value)}
-            placeholder="e.g. don't have time"
+            placeholder="e.g. to a minimum"
             maxLength={MAX_PHRASE_LENGTH}
             disabled={saving}
           />
-          <Label htmlFor="save-phrase-note">Note (optional)</Label>
-          <Textarea
-            id="save-phrase-note"
-            value={note}
-            onChange={e => setNote(e.target.value)}
-            placeholder="What it means, or when to use it"
-            maxLength={MAX_NOTE_LENGTH}
-            disabled={saving}
-            onKeyDown={e => {
-              if (e.key === 'Enter' && e.ctrlKey) {
-                e.preventDefault()
-                save()
-              }
-            }}
-          />
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button type="submit" variant="outline" size="sm" disabled={!trimmed || saving}>
-            {saving ? 'Saving...' : 'Save Phrase'}
+            {saving ? 'Saving… writing meaning' : 'Save Phrase'}
           </Button>
         </form>
 
@@ -100,7 +81,10 @@ export default function SavePhraseForm({ sentenceId }: Props) {
                   <Bookmark className="h-3.5 w-3.5" aria-hidden="true" />
                   {item.phrase}
                 </p>
-                {item.note && <p className="text-muted-foreground">{item.note}</p>}
+                <p className="text-muted-foreground">
+                  {item.meaning ||
+                    'Saved. The meaning could not be written just now; you can try again on the Phrases page.'}
+                </p>
               </li>
             ))}
           </ul>
