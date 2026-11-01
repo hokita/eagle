@@ -45,6 +45,7 @@ This app helps users improve their English skills by providing a platform for la
 | GET    | /api/sentence/random | Get a random Japanese sentence   |
 | POST   | /api/answer/check    | Check user's English translation |
 | POST   | /api/sentence/report | Report a sentence                |
+| POST   | /api/phrases         | Save a phrase from a sentence    |
 
 ---
 
@@ -154,3 +155,41 @@ _No request body_
 
 **Response:**
 _No response body_
+
+### Save a Phrase
+
+**POST** `/api/phrases`
+
+Saves a useful phrase the learner picked up from a sentence they just checked.
+Stored in Firestore at `users/{uid}/saved_phrases/{id}`. The sentence's
+Japanese and English are loaded server-side by `sentence_id` and copied in.
+
+**Request:**
+
+| Field       | Type    | Description                                  |
+| ----------- | ------- | -------------------------------------------- |
+| sentence_id | INTEGER | Sentence the phrase came from                |
+| phrase      | TEXT    | The phrase (required, up to 200 characters)  |
+| note        | TEXT    | Learner's own note (optional, up to 500)     |
+
+```json
+{
+    "sentence_id": 1,
+    "phrase": "don't have time",
+    "note": "時間がない"
+}
+```
+
+**Response:** `201 Created`
+
+```json
+{
+    "id": "aB3dE5",
+    "sentence_id": 1,
+    "phrase": "don't have time",
+    "note": "時間がない",
+    "japanese": "時間がありません。",
+    "english": "I don't have time.",
+    "created_at": "2026-11-01T09:00:00Z"
+}
+```

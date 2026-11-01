@@ -75,6 +75,18 @@ export interface Phrase {
   example_en: string
 }
 
+// A phrase the learner saved from a sentence they answered. The sentence's
+// Japanese and English are copied in by the server when it is saved.
+export interface SavedPhrase {
+  id: string
+  sentence_id: number
+  phrase: string
+  note: string
+  japanese: string
+  english: string
+  created_at: string
+}
+
 export interface DiscussionCompleteResponse {
   session_id: string
   // One entry per user message in the transcript, in order: that message
@@ -146,6 +158,12 @@ export const api = {
     request<void>('/api/sentence/report', {
       method: 'POST',
       body: JSON.stringify({ sentence_id: sentenceId }),
+    }),
+
+  savePhrase: (sentenceId: number, phrase: string, note: string) =>
+    request<SavedPhrase>('/api/phrases', {
+      method: 'POST',
+      body: JSON.stringify({ sentence_id: sentenceId, phrase, note }),
     }),
 
   listMistakes: () => request<{ mistakes: Mistake[] }>('/api/mistakes'),

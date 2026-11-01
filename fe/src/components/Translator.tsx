@@ -10,6 +10,7 @@ import AppHeader from './AppHeader'
 import SettingsSheet from './SettingsSheet'
 import QuestionCard from './QuestionCard'
 import ReviewPanel from './ReviewPanel'
+import SavePhraseForm from './SavePhraseForm'
 import { api, type Sentence, type AnswerHistory, type FollowUpTurn } from '@/lib/api'
 import { speakJapanese } from '@/lib/speech'
 import {
@@ -259,20 +260,23 @@ export default function Translator({ user }: Props) {
                 </Card>
               ) : (
                 feedback && (
-                  <ReviewPanel
-                    feedback={feedback}
-                    userAnswer={userTranslation}
-                    correctAnswer={currentSentence.english}
-                    histories={histories}
-                    explanation={explanation}
-                    explaining={explaining}
-                    explainError={explainError}
-                    onExplain={() => explainAnswer(language)}
-                    followUps={followUps}
-                    asking={asking}
-                    askError={askError}
-                    onAsk={askFollowUp}
-                  />
+                  <>
+                    <ReviewPanel
+                      feedback={feedback}
+                      userAnswer={userTranslation}
+                      correctAnswer={currentSentence.english}
+                      histories={histories}
+                      explanation={explanation}
+                      explaining={explaining}
+                      explainError={explainError}
+                      onExplain={() => explainAnswer(language)}
+                      followUps={followUps}
+                      asking={asking}
+                      askError={askError}
+                      onAsk={askFollowUp}
+                    />
+                    <SavePhraseForm sentenceId={currentSentence.id} />
+                  </>
                 )
               )}
             </div>

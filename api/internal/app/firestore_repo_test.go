@@ -580,3 +580,34 @@ func TestFirestoreListMistakesSkipsDeletedSentence(t *testing.T) {
 		t.Fatalf("expected deleted sentence to be skipped, got %+v", mistakes)
 	}
 }
+
+func TestFirestoreSavePhrase(t *testing.T) {
+	client := newEmulatorClient(t)
+	repo := NewFirestoreRepo(client)
+	at := time.Date(2026, 11, 1, 9, 0, 0, 0, time.UTC)
+	repo.now = func() time.Time { return at }
+	ctx := context.Background()
+
+	saved, err := repo.SavePhrase(ctx, "u1", SavedPhrase{
+		SentenceID: 3, Phrase: "have time", Note: "時間がある", Japanese: "時間がある。", English: "I have time.",
+	})
+	if err != nil {
+		t.Fatalf("save phrase: %v", err)
+	}
+	if saved.ID == "" || saved.CreatedAt != at.Format(time.RFC3339Nano) {
+		t.Fatalf("unexpected saved phrase: %+v", saved)
+	}
+
+	ds, err := client.Collection("users").Doc("u1").Collection("saved_phrases").Doc(saved.ID).Get(ctx)
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	var doc savedPhraseDoc
+	if err := ds.DataTo(&doc); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if doc.SentenceID != 3 || doc.Phrase != "have time" || doc.Note != "時間がある" ||
+		doc.English != "I have time." || !doc.CreatedAt.Equal(at) {
+		t.Fatalf("unexpected stored doc: %+v", doc)
+	}
+}

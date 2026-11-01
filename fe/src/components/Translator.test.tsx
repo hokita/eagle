@@ -13,6 +13,7 @@ vi.mock('@/lib/api', () => ({
     explainAnswer: vi.fn(),
     askFollowUp: vi.fn(),
     reportSentence: vi.fn(),
+    savePhrase: vi.fn(),
   },
 }))
 
@@ -26,6 +27,7 @@ const mockApi = api as unknown as {
   explainAnswer: ReturnType<typeof vi.fn>
   askFollowUp: ReturnType<typeof vi.fn>
   reportSentence: ReturnType<typeof vi.fn>
+  savePhrase: ReturnType<typeof vi.fn>
 }
 
 const fakeUser = { uid: 'u1', displayName: 'Jane' } as User
@@ -491,6 +493,49 @@ describe('review phase', () => {
   })
 })
 
+describe('saving a phrase', () => {
+  it('has no phrase form before the answer is checked', async () => {
+    await renderAndLoad()
+    expect(screen.queryByRole('button', { name: 'Save Phrase' })).not.toBeInTheDocument()
+  })
+
+  it('offers the phrase form once the answer is checked, saving against the sentence', async () => {
+    mockApi.checkAnswer.mockResolvedValue({
+      is_correct: true,
+      correct_answer: fakeSentence.english,
+      histories: [],
+    })
+    mockApi.savePhrase.mockResolvedValue({
+      id: 'p1',
+      sentence_id: fakeSentence.id,
+      phrase: "don't have time",
+      note: '',
+      japanese: fakeSentence.japanese,
+      english: fakeSentence.english,
+      created_at: '2026-11-01T00:00:00Z',
+    })
+    await renderAndLoad()
+    fireEvent.change(screen.getByLabelText('Your English translation'), {
+      target: { value: fakeSentence.english },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Check Translation' }))
+    await screen.findByText('Correct! Well done!')
+
+    fireEvent.change(screen.getByLabelText('Phrase'), { target: { value: "don't have time" } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Phrase' }))
+
+    expect(mockApi.savePhrase).toHaveBeenCalledWith(fakeSentence.id, "don't have time", '')
+    expect(await screen.findByRole('list', { name: 'Saved phrases' })).toHaveTextContent(
+      "don't have time",
+    )
+
+    // The next sentence starts with an empty form.
+    fireEvent.click(screen.getByRole('button', { name: 'Next Sentence' }))
+    await screen.findByLabelText('Your English translation')
+    expect(screen.queryByRole('list', { name: 'Saved phrases' })).not.toBeInTheDocument()
+  })
+})
+
 describe('follow-up questions', () => {
   const QUESTION_BOX = 'Your question about this explanation'
 
@@ -586,7 +631,14 @@ describe('follow-up questions', () => {
     await ask('なぜですか？')
 
     await waitFor(() =>
-      expect(mockApi.askFollowUp).toHaveBeenCalledWith(1, 'I have no time.', 'ja', '説明', [], 'なぜですか？'),
+      expect(mockApi.askFollowUp).toHaveBeenCalledWith(
+        1,
+        'I have no time.',
+        'ja',
+        '説明',
+        [],
+        'なぜですか？',
+      ),
     )
   })
 

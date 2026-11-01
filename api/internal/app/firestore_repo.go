@@ -316,6 +316,35 @@ func (r *firestoreRepo) RecordAnswer(ctx context.Context, uid string, id int, co
 	return err
 }
 
+type savedPhraseDoc struct {
+	SentenceID int       `firestore:"sentence_id"`
+	Phrase     string    `firestore:"phrase"`
+	Note       string    `firestore:"note"`
+	Japanese   string    `firestore:"japanese"`
+	English    string    `firestore:"english"`
+	CreatedAt  time.Time `firestore:"created_at"`
+}
+
+// SavePhrase stores the phrase under users/{uid}/saved_phrases, alongside the
+// user's other per-user data.
+func (r *firestoreRepo) SavePhrase(ctx context.Context, uid string, p SavedPhrase) (*SavedPhrase, error) {
+	now := r.now().UTC()
+	ref := r.client.Collection("users").Doc(uid).Collection("saved_phrases").NewDoc()
+	if _, err := ref.Set(ctx, savedPhraseDoc{
+		SentenceID: p.SentenceID,
+		Phrase:     p.Phrase,
+		Note:       p.Note,
+		Japanese:   p.Japanese,
+		English:    p.English,
+		CreatedAt:  now,
+	}); err != nil {
+		return nil, err
+	}
+	p.ID = ref.ID
+	p.CreatedAt = now.Format(time.RFC3339Nano)
+	return &p, nil
+}
+
 func (r *firestoreRepo) Report(ctx context.Context, id int) error {
 	_, err := r.client.Collection("sentences").Doc(strconv.Itoa(id)).
 		Update(ctx, []firestore.Update{{Path: "is_reported", Value: true}})
