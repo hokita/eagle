@@ -125,7 +125,7 @@ func NewGeminiCoach(ctx context.Context, apiKey string) (*GeminiCoach, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create genai client: %w", err)
 	}
-	return &GeminiCoach{models: client.Models, model: geminiExplainModel}, nil
+	return &GeminiCoach{models: client.Models, model: geminiModel}, nil
 }
 
 func (g *GeminiCoach) generate(ctx context.Context, timeout time.Duration, prompt string, config *genai.GenerateContentConfig) (string, error) {

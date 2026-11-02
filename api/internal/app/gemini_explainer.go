@@ -9,8 +9,13 @@ import (
 )
 
 const (
-	geminiExplainModel = "gemini-3.1-flash-lite"
-	explainTimeout     = 20 * time.Second
+	// geminiModel is the model every AI feature uses: explanations,
+	// follow-ups, the weakness insight, the discussion coach and saved
+	// phrases. They all write short tutoring text under a deadline, which
+	// suits a Flash model; a flagship reasoning model would be slower and
+	// cost more without making a short definition or reply better.
+	geminiModel    = "gemini-3.8-flash"
+	explainTimeout = 20 * time.Second
 
 	// maxExplainOutputTokens bounds the size of the explanation response
 	// itself. buildExplainPrompt asks for a concise 2-4 sentence answer, but
@@ -45,7 +50,7 @@ func NewGeminiExplainer(ctx context.Context, apiKey string) (*GeminiExplainer, e
 	if err != nil {
 		return nil, fmt.Errorf("create genai client: %w", err)
 	}
-	return &GeminiExplainer{models: client.Models, model: geminiExplainModel}, nil
+	return &GeminiExplainer{models: client.Models, model: geminiModel}, nil
 }
 
 func (g *GeminiExplainer) Explain(ctx context.Context, japanese, correctAnswer, userAnswer, language string) (string, error) {

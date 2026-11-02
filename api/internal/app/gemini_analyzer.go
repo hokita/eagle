@@ -30,7 +30,7 @@ func NewGeminiWeaknessAnalyzer(ctx context.Context, apiKey string) (*GeminiWeakn
 	if err != nil {
 		return nil, fmt.Errorf("create genai client: %w", err)
 	}
-	return &GeminiWeaknessAnalyzer{models: client.Models, model: geminiExplainModel}, nil
+	return &GeminiWeaknessAnalyzer{models: client.Models, model: geminiModel}, nil
 }
 
 func (g *GeminiWeaknessAnalyzer) Analyze(ctx context.Context, mistakes []MistakeSentence, language string) (string, error) {

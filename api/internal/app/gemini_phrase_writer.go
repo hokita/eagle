@@ -31,7 +31,7 @@ var phraseContentSchema = &genai.Schema{
 }
 
 // GeminiPhraseWriter implements PhraseWriter using the Gemini API, with the
-// same model as the explanations.
+// same model as the other AI features (geminiModel).
 type GeminiPhraseWriter struct {
 	models contentGenerator
 	model  string
@@ -45,7 +45,7 @@ func NewGeminiPhraseWriter(ctx context.Context, apiKey string) (*GeminiPhraseWri
 	if err != nil {
 		return nil, fmt.Errorf("create genai client: %w", err)
 	}
-	return &GeminiPhraseWriter{models: client.Models, model: geminiExplainModel}, nil
+	return &GeminiPhraseWriter{models: client.Models, model: geminiModel}, nil
 }
 
 func (g *GeminiPhraseWriter) Write(ctx context.Context, src PhraseSource) (*PhraseContent, error) {
