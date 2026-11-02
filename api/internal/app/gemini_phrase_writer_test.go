@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"google.golang.org/genai"
@@ -29,8 +30,25 @@ func TestGeminiPhraseWriterParsesJSON(t *testing.T) {
 		fake.gotConfig.ResponseSchema != phraseContentSchema || fake.gotConfig.MaxOutputTokens != maxPhraseWriterOutputTokens {
 		t.Fatalf("unexpected call: model=%q config=%+v", fake.gotModel, fake.gotConfig)
 	}
+	if fake.gotConfig.ThinkingConfig == nil || fake.gotConfig.ThinkingConfig.ThinkingLevel != genai.ThinkingLevelMinimal {
+		t.Fatalf("expected minimal thinking, got %+v", fake.gotConfig.ThinkingConfig)
+	}
 	if fake.gotDeadline.IsZero() {
 		t.Fatal("expected the call to carry a deadline")
+	}
+}
+
+func TestGeminiPhraseWriterReportsFinishReason(t *testing.T) {
+	fake := &fakeContentGenerator{resp: &genai.GenerateContentResponse{
+		Candidates: []*genai.Candidate{{
+			Content:      &genai.Content{Parts: []*genai.Part{{Text: `{"meaning":"to sho`}}},
+			FinishReason: genai.FinishReasonMaxTokens,
+		}},
+	}}
+	g := &GeminiPhraseWriter{models: fake, model: "m"}
+	_, err := g.Write(context.Background(), PhraseSource{Phrase: "x"})
+	if err == nil || !strings.Contains(err.Error(), "MAX_TOKENS") {
+		t.Fatalf("expected the error to name the finish reason, got %v", err)
 	}
 }
 
