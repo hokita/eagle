@@ -79,6 +79,16 @@ func TestGeminiExplainerCapsMaxOutputTokens(t *testing.T) {
 	if fake.gotConfig.MaxOutputTokens != maxExplainOutputTokens {
 		t.Fatalf("expected MaxOutputTokens=%d, got %d", maxExplainOutputTokens, fake.gotConfig.MaxOutputTokens)
 	}
+	assertLowThinking(t, fake.gotConfig)
+}
+
+// assertLowThinking checks a call asked for low thinking: the model's default
+// spends output tokens the caps are not sized for.
+func assertLowThinking(t *testing.T, config *genai.GenerateContentConfig) {
+	t.Helper()
+	if config == nil || config.ThinkingConfig == nil || config.ThinkingConfig.ThinkingLevel != genai.ThinkingLevelLow {
+		t.Fatalf("expected low thinking, got %+v", config)
+	}
 }
 
 func TestGeminiExplainerAnswerFollowUpReturnsText(t *testing.T) {
@@ -108,6 +118,7 @@ func TestGeminiExplainerAnswerFollowUpReturnsText(t *testing.T) {
 	if fake.gotConfig == nil || fake.gotConfig.MaxOutputTokens != maxFollowUpOutputTokens {
 		t.Fatalf("expected MaxOutputTokens=%d, got %+v", maxFollowUpOutputTokens, fake.gotConfig)
 	}
+	assertLowThinking(t, fake.gotConfig)
 	if len(fake.gotContents) != 1 || len(fake.gotContents[0].Parts) != 1 || fake.gotContents[0].Parts[0].Text == "" {
 		t.Fatalf("unexpected contents: %+v", fake.gotContents)
 	}

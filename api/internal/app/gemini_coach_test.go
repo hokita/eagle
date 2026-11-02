@@ -39,6 +39,7 @@ func TestGeminiCoachReplyParsesJSON(t *testing.T) {
 	if fake.gotConfig.MaxOutputTokens != maxCoachReplyOutputTokens {
 		t.Fatalf("expected MaxOutputTokens=%d, got %d", maxCoachReplyOutputTokens, fake.gotConfig.MaxOutputTokens)
 	}
+	assertLowThinking(t, fake.gotConfig)
 }
 
 func TestGeminiCoachReplyRejectsMalformedJSON(t *testing.T) {
@@ -84,6 +85,7 @@ func TestGeminiCoachSummarizeParsesAndValidates(t *testing.T) {
 	if want := summaryOutputBudget(msgs("I like dogs.", "What kind?", "I like shiba-dog.")); fake.gotConfig.MaxOutputTokens != want {
 		t.Fatalf("expected MaxOutputTokens=%d, got %d", want, fake.gotConfig.MaxOutputTokens)
 	}
+	assertLowThinking(t, fake.gotConfig)
 }
 
 // The refinements echo the learner's text back, so the output budget has

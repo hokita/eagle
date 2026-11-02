@@ -15,8 +15,9 @@ const (
 	discussionTimeout = 30 * time.Second
 
 	// Output bounds per call — the input side is bounded by transcript
-	// validation; these keep the response side predictable too.
-	maxCoachReplyOutputTokens = 256
+	// validation; these keep the response side predictable too. Each also
+	// leaves room for thinking (thinkingAllowanceTokens).
+	maxCoachReplyOutputTokens = 256 + thinkingAllowanceTokens
 
 	// The summary echoes roughly all of the learner's own text back as
 	// refinements, so its output budget is derived from the transcript it
@@ -25,8 +26,9 @@ const (
 	// completion then fails on every retry.
 	//
 	// summaryBaseOutputTokens covers everything that does not scale with
-	// the transcript — the explanation, up to four phrases, JSON structure.
-	summaryBaseOutputTokens = 1024
+	// the transcript — the explanation, up to four phrases, JSON structure,
+	// and the model's thinking.
+	summaryBaseOutputTokens = 1024 + thinkingAllowanceTokens
 	// summaryTokensPerLearnerRune is the worst case for one rune of learner
 	// text echoed back. Validation bounds turns in runes and accepts any
 	// Unicode, so English's ~0.3 tokens per character is no bound; a rune
@@ -144,6 +146,7 @@ func (g *GeminiCoach) Reply(ctx context.Context, q *DiscussionQuestion, transcri
 		MaxOutputTokens:  maxCoachReplyOutputTokens,
 		ResponseMIMEType: "application/json",
 		ResponseSchema:   coachReplySchema,
+		ThinkingConfig:   lowThinking(),
 	})
 	if err != nil {
 		return nil, err
@@ -164,6 +167,7 @@ func (g *GeminiCoach) Summarize(ctx context.Context, q *DiscussionQuestion, tran
 		MaxOutputTokens:  budget,
 		ResponseMIMEType: "application/json",
 		ResponseSchema:   summarySchema,
+		ThinkingConfig:   lowThinking(),
 	})
 	if err != nil {
 		return nil, err
