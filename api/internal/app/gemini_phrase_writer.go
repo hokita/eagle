@@ -14,11 +14,12 @@ const (
 	// phrase waits on it: past this, the phrase is saved without a meaning.
 	phraseWriterTimeout = 15 * time.Second
 	// maxPhraseWriterOutputTokens bounds the reply: a one-line meaning and
-	// three short sentences fit comfortably. On Gemini 3 models the model's
-	// thinking counts against this cap too, so the call also keeps thinking
-	// to a minimum (see Write): left at its default, thinking can use up the
-	// whole budget and leave the JSON cut off or empty, failing every try.
-	maxPhraseWriterOutputTokens = 1024
+	// three short sentences fit in a few hundred tokens. The model's thinking
+	// counts against this cap too, so the call also keeps thinking low (see
+	// Write) and the cap leaves room for it: left at its default, thinking
+	// can use up the whole budget and leave the JSON cut off or empty,
+	// failing every try.
+	maxPhraseWriterOutputTokens = 2048
 )
 
 var phraseContentSchema = &genai.Schema{
@@ -56,9 +57,10 @@ func (g *GeminiPhraseWriter) Write(ctx context.Context, src PhraseSource) (*Phra
 		MaxOutputTokens:  maxPhraseWriterOutputTokens,
 		ResponseMIMEType: "application/json",
 		ResponseSchema:   phraseContentSchema,
-		// A definition and three short sentences need no reasoning, and
+		// A definition and three short sentences need little reasoning, and
 		// thinking tokens share maxPhraseWriterOutputTokens with the reply.
-		ThinkingConfig: &genai.ThinkingConfig{ThinkingLevel: genai.ThinkingLevelMinimal},
+		// Low, not minimal: gemini-3.8-flash rejects minimal with an error.
+		ThinkingConfig: &genai.ThinkingConfig{ThinkingLevel: genai.ThinkingLevelLow},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("gemini generate content: %w", err)

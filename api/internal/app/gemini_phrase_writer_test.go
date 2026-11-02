@@ -30,8 +30,8 @@ func TestGeminiPhraseWriterParsesJSON(t *testing.T) {
 		fake.gotConfig.ResponseSchema != phraseContentSchema || fake.gotConfig.MaxOutputTokens != maxPhraseWriterOutputTokens {
 		t.Fatalf("unexpected call: model=%q config=%+v", fake.gotModel, fake.gotConfig)
 	}
-	if fake.gotConfig.ThinkingConfig == nil || fake.gotConfig.ThinkingConfig.ThinkingLevel != genai.ThinkingLevelMinimal {
-		t.Fatalf("expected minimal thinking, got %+v", fake.gotConfig.ThinkingConfig)
+	if fake.gotConfig.ThinkingConfig == nil || fake.gotConfig.ThinkingConfig.ThinkingLevel != genai.ThinkingLevelLow {
+		t.Fatalf("expected low thinking, got %+v", fake.gotConfig.ThinkingConfig)
 	}
 	if fake.gotDeadline.IsZero() {
 		t.Fatal("expected the call to carry a deadline")
