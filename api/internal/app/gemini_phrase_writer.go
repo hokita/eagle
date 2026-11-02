@@ -14,8 +14,9 @@ const (
 	// phrase waits on it: past this, the phrase is saved without a meaning.
 	phraseWriterTimeout = 15 * time.Second
 	// maxPhraseWriterOutputTokens bounds the reply: a one-line meaning and
-	// three short sentences fit comfortably.
-	maxPhraseWriterOutputTokens = 512
+	// three short sentences fit in a few hundred tokens, plus room for
+	// thinking (thinkingAllowanceTokens).
+	maxPhraseWriterOutputTokens = 1024 + thinkingAllowanceTokens
 )
 
 var phraseContentSchema = &genai.Schema{
@@ -28,7 +29,7 @@ var phraseContentSchema = &genai.Schema{
 }
 
 // GeminiPhraseWriter implements PhraseWriter using the Gemini API, with the
-// same model as the explanations.
+// same model as the other AI features (geminiModel).
 type GeminiPhraseWriter struct {
 	models contentGenerator
 	model  string
@@ -42,7 +43,7 @@ func NewGeminiPhraseWriter(ctx context.Context, apiKey string) (*GeminiPhraseWri
 	if err != nil {
 		return nil, fmt.Errorf("create genai client: %w", err)
 	}
-	return &GeminiPhraseWriter{models: client.Models, model: geminiExplainModel}, nil
+	return &GeminiPhraseWriter{models: client.Models, model: geminiModel}, nil
 }
 
 func (g *GeminiPhraseWriter) Write(ctx context.Context, src PhraseSource) (*PhraseContent, error) {
@@ -53,13 +54,25 @@ func (g *GeminiPhraseWriter) Write(ctx context.Context, src PhraseSource) (*Phra
 		MaxOutputTokens:  maxPhraseWriterOutputTokens,
 		ResponseMIMEType: "application/json",
 		ResponseSchema:   phraseContentSchema,
+		ThinkingConfig:   lowThinking(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("gemini generate content: %w", err)
 	}
 	var content PhraseContent
 	if err := json.Unmarshal([]byte(resp.Text()), &content); err != nil {
-		return nil, fmt.Errorf("parse phrase content: %w", err)
+		// The finish reason tells a cut-off reply (MAX_TOKENS) apart from a
+		// blocked or malformed one, which the logged error otherwise hides.
+		return nil, fmt.Errorf("parse phrase content (finish reason %q): %w", finishReason(resp), err)
 	}
 	return &content, nil
+}
+
+// finishReason is why the model stopped writing its first candidate, or ""
+// when the response has none.
+func finishReason(resp *genai.GenerateContentResponse) genai.FinishReason {
+	if resp == nil || len(resp.Candidates) == 0 || resp.Candidates[0] == nil {
+		return ""
+	}
+	return resp.Candidates[0].FinishReason
 }
