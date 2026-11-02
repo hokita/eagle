@@ -24,12 +24,12 @@ export default function UserMenu({ user }: Props) {
   }, [])
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className="relative shrink-0">
       <img
         src={user.photoURL ?? undefined}
         alt={user.displayName ?? 'user'}
         onClick={() => setOpen((prev) => !prev)}
-        className="w-8 h-8 rounded-full cursor-pointer"
+        className="w-8 h-8 shrink-0 rounded-full object-cover cursor-pointer"
       />
       {open && (
         <div
