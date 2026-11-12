@@ -56,6 +56,7 @@ func TestGeminiWeaknessAnalyzerCapsMaxOutputTokens(t *testing.T) {
 	if fake.gotConfig.MaxOutputTokens != maxInsightOutputTokens {
 		t.Fatalf("expected MaxOutputTokens=%d, got %d", maxInsightOutputTokens, fake.gotConfig.MaxOutputTokens)
 	}
+	assertLowThinking(t, fake.gotConfig)
 }
 
 func TestGeminiWeaknessAnalyzerPropagatesError(t *testing.T) {

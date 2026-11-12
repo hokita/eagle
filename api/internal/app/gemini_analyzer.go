@@ -7,12 +7,13 @@ import (
 	"google.golang.org/genai"
 )
 
-// maxInsightOutputTokens bounds the size of the weakness-insight response
-// itself. buildWeaknessPrompt asks for a short summary plus a few bullet
-// points, but nothing stops the model from ignoring that instruction — the
-// input side is tightly bounded (maxPromptChars, maxWrongAnswersPerSentence,
-// maxInsightMistakes) and the output side should be too.
-const maxInsightOutputTokens = 1024
+// maxInsightOutputTokens bounds the size of the weakness-insight response,
+// plus room for thinking (thinkingAllowanceTokens). buildWeaknessPrompt asks
+// for a short summary plus a few bullet points, but nothing stops the model
+// from ignoring that instruction — the input side is tightly bounded
+// (maxPromptChars, maxWrongAnswersPerSentence, maxInsightMistakes) and the
+// output side should be too.
+const maxInsightOutputTokens = 1024 + thinkingAllowanceTokens
 
 // GeminiWeaknessAnalyzer implements WeaknessAnalyzer using the Gemini API,
 // reusing the same client configuration, model, and timeout as
@@ -30,7 +31,7 @@ func NewGeminiWeaknessAnalyzer(ctx context.Context, apiKey string) (*GeminiWeakn
 	if err != nil {
 		return nil, fmt.Errorf("create genai client: %w", err)
 	}
-	return &GeminiWeaknessAnalyzer{models: client.Models, model: geminiExplainModel}, nil
+	return &GeminiWeaknessAnalyzer{models: client.Models, model: geminiModel}, nil
 }
 
 func (g *GeminiWeaknessAnalyzer) Analyze(ctx context.Context, mistakes []MistakeSentence, language string) (string, error) {
@@ -40,7 +41,7 @@ func (g *GeminiWeaknessAnalyzer) Analyze(ctx context.Context, mistakes []Mistake
 	prompt := buildWeaknessPrompt(mistakes, language)
 	contents := []*genai.Content{{Parts: []*genai.Part{{Text: prompt}}}}
 
-	config := &genai.GenerateContentConfig{MaxOutputTokens: maxInsightOutputTokens}
+	config := &genai.GenerateContentConfig{MaxOutputTokens: maxInsightOutputTokens, ThinkingConfig: lowThinking()}
 	resp, err := g.models.GenerateContent(ctx, g.model, contents, config)
 	if err != nil {
 		return "", fmt.Errorf("gemini generate content: %w", err)
