@@ -40,38 +40,20 @@ interface ReviewPanelProps {
   onAsk: (question: string) => void
 }
 
-// The question is bounded here the same way the server bounds it, so an
-// over-long one is stopped at the keyboard rather than by a 400.
 const MAX_QUESTION_LENGTH = 500
 
 const LABEL = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 const PANEL = 'rounded-lg border border-border bg-muted p-3 text-sm'
 
-// A wrong answer is marked by a red-tinted row and a leading ✕ rather than a
-// strikethrough: the text stays fully legible while the ✕ keeps the "this was
-// wrong" signal readable without relying on color alone. The right answer gets
-// the same row in green with a ✓, so the two sentences sit in identically
-// shaped rows and can be read against each other line by line.
-//
-// The icon is inline and the row hangs its wrapped lines past it (pl-7 is the
-// ✕/✓ plus its margin, -indent-5 pulls the icon back out into that padding), so
-// a long answer wraps under its own first word and the two rows stay aligned.
 const ROW = 'rounded-md border py-1 pr-2 pl-7 -indent-5'
 const ICON = 'mr-1.5 inline-block h-3.5 w-3.5 align-[-0.15em]'
 const WRONG = `${ROW} border-destructive-subtle-border bg-destructive-subtle text-destructive-subtle-foreground`
 const RIGHT = `${ROW} border-success-subtle-border bg-success-subtle text-success-subtle-foreground`
 
-// The words that differ are filled and bolded within the row. The weight
-// carries the emphasis on its own, so the marks stay visible to a reader who
-// cannot separate the red row from the green one. text-inherit overrides the
-// browser default for <mark>, which would otherwise repaint the word black.
 const CHANGED = 'rounded-sm px-0.5 font-bold text-inherit'
 const WRONG_WORD = `${CHANGED} bg-destructive-subtle-border`
 const RIGHT_WORD = `${CHANGED} bg-success-subtle-border`
 
-// Rendered without a wrapping element: the sentence stays one inline run of
-// text in its row, so it wraps like a sentence and the row still reads as a
-// single string rather than as a list of words.
 function DiffSentence({ words, wordClassName }: { words: DiffWord[]; wordClassName: string }) {
   return (
     <>
@@ -85,9 +67,6 @@ function DiffSentence({ words, wordClassName }: { words: DiffWord[]; wordClassNa
   )
 }
 
-// Explanations and follow-up answers are both Markdown from the model, and
-// both are rendered with links and images stripped: nothing the model writes
-// should be able to put a clickable destination in front of the learner.
 function ModelMarkdown({ children }: { children: string }) {
   return (
     <ReactMarkdown components={explanationMarkdownComponents} disallowedElements={['a', 'img']}>
@@ -96,11 +75,6 @@ function ModelMarkdown({ children }: { children: string }) {
   )
 }
 
-// The learner's own follow-up thread: every question they asked about the
-// explanation, the answers, and the box for the next one. The draft lives
-// here rather than in Translator — it is nobody else's business until it is
-// asked — and is cleared only once an answer comes back, so a failed request
-// leaves the question in the box to retry.
 function FollowUpThread({
   followUps,
   asking,
@@ -124,10 +98,6 @@ function FollowUpThread({
     <div className="mt-3 space-y-2 border-t border-border pt-3">
       {followUps.map((turn, index) => (
         <div key={index} className="space-y-2">
-          {/* The learner's own words get the bubble the discussion chat gives
-              them, so a question reads as theirs rather than as more of the
-              tutor's prose. The answer stays flowing text: it continues the
-              explanation above it, and boxing it would break that line. */}
           <div className="text-right">
             <span className="inline-block rounded-lg bg-indigo-600 px-3 py-2 text-left text-white">
               {turn.question}
@@ -184,8 +154,6 @@ export default function ReviewPanel({
   const correct = feedback === 'correct'
   const explainIdle = !explaining && !explainError && !explanation
   const diff = useMemo(() => diffWords(userAnswer, correctAnswer), [userAnswer, correctAnswer])
-  // Past attempts are compared against the same correct answer, so an earlier
-  // try shows what it got wrong without the reader diffing it by hand.
   const historyDiffs = useMemo(
     () =>
       histories.map(history => ({
@@ -209,9 +177,6 @@ export default function ReviewPanel({
           {correct ? 'Correct! Well done!' : 'Not quite right. Try again!'}
         </div>
 
-        {/* Wrong and right sit in one stack of matching rows, with only the
-            label between them, so the eye can run straight down from a word to
-            the word that replaces it. */}
         <div className={PANEL}>
           {!correct && (
             <>
@@ -225,7 +190,6 @@ export default function ReviewPanel({
           <div className={`${LABEL} mb-1 ${correct ? '' : 'mt-2'}`}>Correct</div>
           <p className={RIGHT}>
             <Check className={ICON} aria-hidden="true" />
-            {/* Nothing to compare a right answer against, so it stays plain. */}
             {correct ? (
               correctAnswer
             ) : (
@@ -251,8 +215,6 @@ export default function ReviewPanel({
                 </Button>
               </div>
             )}
-            {/* Questions only make sense once there is an explanation to ask
-                about, so the thread arrives with it. */}
             {!explaining && !explainError && explanation && (
               <div className="text-foreground">
                 <ModelMarkdown>{explanation}</ModelMarkdown>

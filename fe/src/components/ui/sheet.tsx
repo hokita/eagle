@@ -21,10 +21,6 @@ const FOCUSABLE_SELECTOR = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(', ')
 
-// Elements inside the panel that can take focus, in DOM order. Controls that
-// opt out of the tab order — Segmented's inactive tabs carry tabindex="-1" —
-// are excluded, while visually hidden but focusable ones, like the level
-// checkboxes the settings sheet renders at opacity 0, are included.
 function getFocusable(root: HTMLElement | null): HTMLElement[] {
   if (!root) return []
   return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
@@ -43,9 +39,6 @@ export function Sheet({ open, onClose, title, children, className }: SheetProps)
     return () => document.removeEventListener('keydown', closeOnEscape)
   }, [open, onClose])
 
-  // aria-modal="true" claims focus is confined to the dialog, so honour it:
-  // pull focus in on open, and hand it back to whatever opened the sheet on
-  // close. Without this the trigger keeps focus behind the overlay.
   React.useEffect(() => {
     if (!open) return
     restoreFocusRef.current = document.activeElement as HTMLElement | null

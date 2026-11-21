@@ -12,15 +12,8 @@ interface Props {
   sentenceId: number
 }
 
-// The same limit the server enforces, so an over-long entry is stopped at
-// the keyboard rather than by a 400.
 const MAX_PHRASE_LENGTH = 200
 
-// Shown once an answer has been checked: the learner types a useful phrase
-// from the sentence and saves it, and the AI writes its meaning and examples
-// on the way. Several phrases can be saved from one sentence; each one saved
-// is listed under the form with its meaning. The form is unmounted when the
-// next sentence loads, so nothing carries over.
 export default function SavePhraseForm({ sentenceId }: Props) {
   const [phrase, setPhrase] = useState('')
   const [saving, setSaving] = useState(false)
@@ -38,7 +31,6 @@ export default function SavePhraseForm({ sentenceId }: Props) {
       setSaved(prev => [...prev, result])
       setPhrase('')
     } catch (err) {
-      // The draft stays in the form so the learner can retry.
       setError(err instanceof Error ? err.message : 'Failed to save phrase')
     } finally {
       setSaving(false)

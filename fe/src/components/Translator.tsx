@@ -25,8 +25,6 @@ interface Props {
   user: User
 }
 
-// How many earlier turns of a follow-up thread ride along with a question —
-// the same number the server feeds to the model (maxFollowUpHistory).
 const MAX_FOLLOW_UP_HISTORY = 5
 
 export default function Translator({ user }: Props) {
@@ -77,10 +75,6 @@ export default function Translator({ user }: Props) {
     getRandomSentence(loadStoredLevels())
   }, [getRandomSentence])
 
-  // A thread belongs to the explanation it was asked about: whenever that
-  // explanation goes away — a new sentence, or a re-fetch in the other
-  // language — the questions asked about it go with it, and any answer still
-  // in flight is dropped rather than landing under a different explanation.
   const resetFollowUps = () => {
     askRequestId.current++
     setFollowUps([])
@@ -147,8 +141,6 @@ export default function Translator({ user }: Props) {
         userTranslation,
         language,
         explanation,
-        // The server only reads the most recent turns anyway, and a thread
-        // that grew for a while should not keep growing the request with it.
         followUps.slice(-MAX_FOLLOW_UP_HISTORY),
         question
       )

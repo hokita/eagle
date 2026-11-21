@@ -23,9 +23,6 @@ interface CardProps {
   onDeleted: (id: string) => void
 }
 
-// One saved phrase: the phrase, the AI's meaning and example sentences. Each
-// card keeps its own pending state, so asking for new examples on one phrase
-// or confirming a delete never locks the rest of the list.
 function PhraseCard({ phrase, onUpdated, onDeleted }: CardProps) {
   const [rewriting, setRewriting] = useState(false)
   const [confirming, setConfirming] = useState(false)

@@ -28,7 +28,6 @@ export function Segmented({ options, value, onChange, label, className }: Segmen
     const nextValue = options[next].value
     onChange(nextValue)
 
-    // Move DOM focus to the newly active button
     const nextButton = buttonRefs.current.get(nextValue)
     if (nextButton) {
       nextButton.focus()
