@@ -49,8 +49,6 @@ jobs:
 
       - name: Deploy to Cloud Run
         env:
-          # Cloud Run fails a deploy that references a missing secret, so the MCP
-          # token is added only once this repo variable names an existing secret.
           MCP_TOKEN_SECRET: ${{ vars.EAGLE_MCP_TOKEN_SECRET }}
           MCP_OWNER_UID: ${{ vars.EAGLE_MCP_OWNER_UID }}
         run: |

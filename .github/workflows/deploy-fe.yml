@@ -45,9 +45,6 @@ jobs:
       - name: Build
         working-directory: fe
         env:
-          # Firebase web config is public-facing by design — security is
-          # enforced by Firebase Security Rules / backend token verification,
-          # not by keeping these values secret. Matches corgi's frontend.yml.
           NEXT_PUBLIC_FIREBASE_API_KEY: AIzaSyDusVOo5OqqggZBWDc8tBZdEqMNLcBUDLM
           NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: eagle-473ac1.firebaseapp.com
           NEXT_PUBLIC_FIREBASE_PROJECT_ID: eagle-473ac1
