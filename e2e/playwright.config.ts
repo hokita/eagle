@@ -1,4 +1,5 @@
 import { defineConfig } from '@playwright/test'
+import { MCP_OWNER_UID, MCP_TOKEN } from './tests/helpers'
 
 const API_PORT = 8080
 const FRONTEND_PORT = 3000
@@ -24,6 +25,8 @@ export default defineConfig({
         ALLOWED_EMAILS: 'e2e-test@example.com',
         FRONTEND_URL: `http://localhost:${FRONTEND_PORT}`,
         PORT: String(API_PORT),
+        EAGLE_MCP_TOKEN: MCP_TOKEN,
+        MCP_OWNER_UID,
       },
     },
     {

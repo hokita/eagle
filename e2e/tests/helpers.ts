@@ -36,3 +36,6 @@ export async function signInAndGetSentence(page: Page): Promise<SentenceData> {
   await expect(page.getByRole('heading', { name: 'Eagle' })).toBeVisible()
   return response.json()
 }
+
+export const MCP_TOKEN = 'e2e-mcp-token-0123456789abcdef0123456789abcdef0123456789abcdef'
+export const MCP_OWNER_UID = 'e2e-mcp-owner'

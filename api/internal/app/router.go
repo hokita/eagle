@@ -1,10 +1,47 @@
 package app
 
-import "net/http"
+import (
+	"log"
+	"net/http"
+	"os"
+	"strings"
+	"time"
+)
+
+type MCPConfig struct {
+	Token    string
+	OwnerUID string
+}
+
+func MCPConfigFromEnv() MCPConfig {
+	return MCPConfig{
+		Token:    strings.TrimSpace(os.Getenv("EAGLE_MCP_TOKEN")),
+		OwnerUID: strings.TrimSpace(os.Getenv("MCP_OWNER_UID")),
+	}
+}
+
+func (c MCPConfig) ownerSet() bool {
+	return strings.TrimSpace(c.OwnerUID) != ""
+}
+
+func (c MCPConfig) Enabled() bool {
+	return len(c.Token) >= minMCPTokenLength && c.ownerSet()
+}
+
+func (c MCPConfig) LogStatus() {
+	switch {
+	case c.Enabled():
+		log.Printf("MCP enabled")
+	case !c.ownerSet():
+		log.Printf("MCP disabled: MCP_OWNER_UID is not set")
+	default:
+		log.Printf("MCP disabled: EAGLE_MCP_TOKEN is not set or too short")
+	}
+}
 
 // NewMux wires all HTTP routes with CORS and auth, matching the API's
 // public surface exactly.
-func NewMux(srv *Server, verifier TokenVerifier, allowedEmails []string, frontendURL string) *http.ServeMux {
+func NewMux(srv *Server, verifier TokenVerifier, allowedEmails []string, frontendURL string, mcpCfg MCPConfig) *http.ServeMux {
 	auth := func(h http.HandlerFunc) http.HandlerFunc {
 		return withCORS(frontendURL, requireAuth(verifier, allowedEmails, h))
 	}
@@ -25,5 +62,11 @@ func NewMux(srv *Server, verifier TokenVerifier, allowedEmails []string, fronten
 	mux.HandleFunc("/api/discussion/sessions", auth(srv.discussionSessions))
 	mux.HandleFunc("/api/discussion/sessions/", auth(srv.discussionSessions))
 	mux.HandleFunc("/api/liveness", livenessHandler)
+
+	matcher := NewMCPTokenMatcher(mcpCfg.Token)
+	if !mcpCfg.ownerSet() {
+		matcher = nil
+	}
+	mux.Handle("/mcp", requireMCPToken(matcher, newMCPHandler(srv, strings.TrimSpace(mcpCfg.OwnerUID), NewRateLimiter(120, time.Hour, time.Now))))
 	return mux
 }

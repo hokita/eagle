@@ -20,7 +20,8 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version-file: api/go.mod
+          cache-dependency-path: api/go.sum
 
       - name: Vet and test
         working-directory: api
@@ -47,7 +48,20 @@ jobs:
           tags: asia-northeast1-docker.pkg.dev/eagle-473ac1/eagle/api:latest
 
       - name: Deploy to Cloud Run
+        env:
+          # Cloud Run fails a deploy that references a missing secret, so the MCP
+          # token is added only once this repo variable names an existing secret.
+          MCP_TOKEN_SECRET: ${{ vars.EAGLE_MCP_TOKEN_SECRET }}
+          MCP_OWNER_UID: ${{ vars.EAGLE_MCP_OWNER_UID }}
         run: |
+          SECRETS="ALLOWED_EMAILS=ALLOWED_EMAIL:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest"
+          if [ -n "$MCP_TOKEN_SECRET" ]; then
+            SECRETS="$SECRETS,EAGLE_MCP_TOKEN=${MCP_TOKEN_SECRET}:latest"
+          fi
+          ENV_VARS="^@^GOOGLE_CLOUD_PROJECT=eagle-473ac1@FRONTEND_URL=https://eagle-473ac1.web.app,https://eagle-473ac1.firebaseapp.com"
+          if [ -n "$MCP_OWNER_UID" ]; then
+            ENV_VARS="$ENV_VARS@MCP_OWNER_UID=${MCP_OWNER_UID}"
+          fi
           gcloud run deploy eagle-api \
             --project=eagle-473ac1 \
             --image=asia-northeast1-docker.pkg.dev/eagle-473ac1/eagle/api:latest \
@@ -56,5 +70,5 @@ jobs:
             --allow-unauthenticated \
             --min-instances=0 \
             --max-instances=2 \
-            --set-env-vars="^@^GOOGLE_CLOUD_PROJECT=eagle-473ac1@FRONTEND_URL=https://eagle-473ac1.web.app,https://eagle-473ac1.firebaseapp.com" \
-            --set-secrets="ALLOWED_EMAILS=ALLOWED_EMAIL:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest"
+            --set-env-vars="$ENV_VARS" \
+            --set-secrets="$SECRETS"

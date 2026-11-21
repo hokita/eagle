@@ -123,7 +123,9 @@ func main() {
 		WithPhrases(repo, stubPhraseWriter{})
 
 	frontendURL := os.Getenv("FRONTEND_URL")
-	mux := app.NewMux(srv, verifier, allowedEmails, frontendURL)
+	mcpCfg := app.MCPConfigFromEnv()
+	mcpCfg.LogStatus()
+	mux := app.NewMux(srv, verifier, allowedEmails, frontendURL, mcpCfg)
 
 	port := os.Getenv("PORT")
 	if port == "" {
