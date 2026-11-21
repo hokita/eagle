@@ -83,15 +83,15 @@ It uses the Muse token above and accepts nothing else (no Firebase sign-in); a m
 | `list_mistakes`         | `limit` (1-50, default 10), `offset` (default 0)           | Past wrong answers, most recently missed first, with up to 3 latest wrong attempts each; read-only        |
 | `report_sentence`       | `sentence_id`                                              | Marks a sentence as broken so it is no longer given; no undo, marked destructive so the client asks first |
 
-No answer text from the REST API is exposed beyond what `check_answer` returns after an answer is submitted.
+The REST API is not exposed through MCP, and the correct English is revealed only by `check_answer` after an answer is submitted.
 
 **Rate limit:** MCP tool calls are limited to 120 an hour. Protocol requests (`initialize`, `tools/list`) aren't counted. Over the limit, a tool call returns a tool error `Rate limit reached: try again in <N> seconds` (HTTP status stays 200).
 
-**Muse setup** (after a deploy): add a custom connector with the URL above and the token as an `Authorization: Bearer <token>` header (read it with `gcloud secrets versions access latest --secret=eagle-mcp-token --project=eagle-473ac1`), then try each tool: get a sentence, answer it (it shows in the app's history, and on the Mistakes page if wrong), list mistakes, and report a throwaway sentence only if you mean it. If the connector can't send a custom `Authorization` header, it can't connect; OAuth isn't supported.
+**Muse setup** (after a deploy): add a custom connector with the URL above and the token as an `Authorization: Bearer <token>` header (read it with `gcloud secrets versions access latest --secret=eagle-mcp-token --project=eagle-473ac1`), then try each tool: get a sentence, answer it (it shows in the app's history, and on the Mistakes page if wrong), list mistakes, and report one only if you mean it (there is no undo). If the connector can't send a custom `Authorization` header, it can't connect; OAuth isn't supported.
 
 ## Environment variables (API)
 
 | Variable          | Description                                                                          |
 | ----------------- | ------------------------------------------------------------------------------------ |
-| `EAGLE_MCP_TOKEN` | Optional. Token Muse uses for `/mcp` (at least 43 chars); with `MCP_OWNER_UID` unset or this unset, `/mcp` is off |
+| `EAGLE_MCP_TOKEN` | Optional. Token Muse uses for `/mcp` (at least 43 chars); `/mcp` is off unless this and `MCP_OWNER_UID` are both set |
 | `MCP_OWNER_UID`   | Optional. Firebase uid of the owner account the MCP tools act as                      |
