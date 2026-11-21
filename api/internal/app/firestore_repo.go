@@ -319,5 +319,8 @@ func (r *firestoreRepo) RecordAnswer(ctx context.Context, uid string, id int, co
 func (r *firestoreRepo) Report(ctx context.Context, id int) error {
 	_, err := r.client.Collection("sentences").Doc(strconv.Itoa(id)).
 		Update(ctx, []firestore.Update{{Path: "is_reported", Value: true}})
+	if status.Code(err) == codes.NotFound {
+		return ErrNotFound
+	}
 	return err
 }

@@ -31,6 +31,7 @@ type fakeRepo struct {
 	histories        []AnswerHistory
 	recorded         []recordedAnswer
 	reported         []int
+	reportErr        error
 	mistakes         []MistakeSentence
 	mistakesErr      error
 
@@ -86,6 +87,9 @@ func (f *fakeRepo) RecordAnswer(_ context.Context, uid string, id int, correct b
 	return nil
 }
 func (f *fakeRepo) Report(_ context.Context, id int) error {
+	if f.reportErr != nil {
+		return f.reportErr
+	}
 	f.reported = append(f.reported, id)
 	return nil
 }
@@ -415,6 +419,56 @@ func TestReportSentence(t *testing.T) {
 	}
 	if len(repo.reported) != 1 || repo.reported[0] != 5 {
 		t.Fatalf("expected sentence 5 reported, got %+v", repo.reported)
+	}
+}
+
+func TestReportSentenceNotFound(t *testing.T) {
+	repo := &fakeRepo{reportErr: ErrNotFound}
+	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
+	req := authed(httptest.NewRequest(http.MethodPost, "/api/sentence/report", strings.NewReader(`{"sentence_id":999}`)), "u1")
+	rec := httptest.NewRecorder()
+	srv.reportSentence(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rec.Code)
+	}
+	if got := strings.TrimSpace(rec.Body.String()); got != "Sentence not found" {
+		t.Fatalf("unexpected body %q", got)
+	}
+}
+
+func TestCheckAndRecordGradesAndRecords(t *testing.T) {
+	repo := &fakeRepo{correct: "It's fine."}
+	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
+
+	res, err := srv.checkAndRecord(context.Background(), "u1", 3, "it’s fine")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !res.IsCorrect {
+		t.Fatalf("expected correct, got %+v", res)
+	}
+	res, err = srv.checkAndRecord(context.Background(), "u1", 3, "wrong")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.IsCorrect {
+		t.Fatalf("expected incorrect, got %+v", res)
+	}
+	want := []recordedAnswer{{"u1", 3, true, ""}, {"u1", 3, false, "wrong"}}
+	if len(repo.recorded) != 2 || repo.recorded[0] != want[0] || repo.recorded[1] != want[1] {
+		t.Fatalf("recorded %+v, want %+v", repo.recorded, want)
+	}
+}
+
+func TestCheckAndRecordUnknownSentence(t *testing.T) {
+	repo := &fakeRepo{correctErr: ErrNotFound}
+	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
+	_, err := srv.checkAndRecord(context.Background(), "u1", 999, "x")
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+	if len(repo.recorded) != 0 {
+		t.Fatalf("expected nothing recorded, got %+v", repo.recorded)
 	}
 }
 

@@ -159,35 +159,17 @@ func (s *Server) checkAnswer(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid user_answer", http.StatusBadRequest)
 		return
 	}
-	correct, err := s.repo.CorrectAnswer(r.Context(), req.SentenceID)
+	resp, err := s.checkAndRecord(r.Context(), uid, req.SentenceID, req.UserAnswer)
 	if errors.Is(err, ErrNotFound) {
 		http.Error(w, "Sentence not found", http.StatusNotFound)
 		return
 	}
 	if err != nil {
-		log.Printf("correct answer error: %v", err)
+		log.Printf("check answer error: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	histories, err := s.repo.ListIncorrectHistories(r.Context(), uid, req.SentenceID)
-	if err != nil {
-		log.Printf("list histories error: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-	isCorrect := strings.EqualFold(normalizeAnswer(req.UserAnswer), normalizeAnswer(correct))
-	answer := ""
-	if !isCorrect {
-		answer = req.UserAnswer
-	}
-	if err := s.repo.RecordAnswer(r.Context(), uid, req.SentenceID, isCorrect, answer); err != nil {
-		log.Printf("record answer error: %v", err)
-	}
-	writeJSON(w, CheckAnswerResponse{
-		IsCorrect:     isCorrect,
-		CorrectAnswer: correct,
-		Histories:     histories,
-	})
+	writeJSON(w, resp)
 }
 
 func (s *Server) getMistakes(w http.ResponseWriter, r *http.Request) {
@@ -254,6 +236,10 @@ func (s *Server) reportSentence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.repo.Report(r.Context(), req.SentenceID); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			http.Error(w, "Sentence not found", http.StatusNotFound)
+			return
+		}
 		log.Printf("report error: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return

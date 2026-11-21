@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -58,6 +59,14 @@ func seedSentence(t *testing.T, client *firestore.Client, id, page string, jp, e
 	})
 	if err != nil {
 		t.Fatalf("seed sentence %s: %v", id, err)
+	}
+}
+
+func TestFirestoreReportUnknownSentence(t *testing.T) {
+	client := newEmulatorClient(t)
+	repo := NewFirestoreRepo(client)
+	if err := repo.Report(context.Background(), 999999); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
 }
 
