@@ -11,8 +11,7 @@ vi.mock('firebase/auth', () => ({
     return () => {}
   }),
   GoogleAuthProvider: vi.fn(),
-  signInWithRedirect: vi.fn(),
-  getRedirectResult: vi.fn().mockResolvedValue(null),
+  signInWithPopup: vi.fn(),
 }))
 
 import AuthGate from './AuthGate'
