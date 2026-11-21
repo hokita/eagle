@@ -12,44 +12,13 @@ import (
 )
 
 const (
-	// maxExplainRequestBytes bounds the /api/answer/explain request body so
-	// an authenticated caller can't exhaust memory or inflate Gemini request
-	// size via an arbitrarily large payload.
-	maxExplainRequestBytes = 4096
-	// maxUserAnswerLength bounds the submitted translation attempt itself,
-	// independent of the overall body size limit. Enforced both when an
-	// answer is checked (so oversized text is never persisted to Firestore
-	// and later fanned into the weakness-insight prompt) and when it is
-	// explained.
-	maxUserAnswerLength = 2000
-	// maxInsightMistakes bounds how many recent mistakes are sent to the
-	// weakness analyzer, keeping prompt size and Gemini cost predictable as a
-	// learner's mistake history grows.
-	maxInsightMistakes = 50
-	// maxFollowUpRequestBytes bounds a /api/answer/followup body. It is larger
-	// than the explain cap because the request carries the whole thread back:
-	// the explanation, every earlier question and answer, and the new
-	// question. Sized from the multibyte worst case of the rune limits below —
-	// the explanation plus the maxFollowUpHistory turns a client sends, each
-	// answer at maxFollowUpAnswerLength, their questions, and the learner's
-	// translation, at up to 4 UTF-8 bytes per rune — so a thread whose every
-	// field passes its own validation is never rejected for the size of the
-	// body carrying it.
-	maxFollowUpRequestBytes = 192 * 1024
-	// maxFollowUpQuestionLength bounds one free-text question, in runes — the
-	// same unit the frontend textarea's maxLength approximates, so text the
-	// client accepts is never rejected server-side for its length.
+	maxExplainRequestBytes    = 4096
+	maxUserAnswerLength       = 2000
+	maxInsightMistakes        = 50
+	maxFollowUpRequestBytes   = 192 * 1024
 	maxFollowUpQuestionLength = 500
-	// maxFollowUpAnswerLength bounds the model's own text coming back from the
-	// client: the explanation being asked about and each earlier answer in the
-	// thread. Generously above what maxExplainOutputTokens can produce.
-	maxFollowUpAnswerLength = 4000
-	// maxFollowUpHistory caps how many earlier question/answer pairs are sent
-	// on to Gemini, bounding both prompt size and cost per question. Extra
-	// turns are dropped rather than rejected — a learner who keeps asking is
-	// using the feature, not abusing it, so the oldest questions fall out of
-	// the model's context while the thread they read stays whole.
-	maxFollowUpHistory = 5
+	maxFollowUpAnswerLength   = 4000
+	maxFollowUpHistory        = 5
 )
 
 type Server struct {
@@ -119,42 +88,25 @@ func uniqueLevels(levels []int) ([]int, bool) {
 	return out, true
 }
 
-// answerPunctuation folds the typographic punctuation that phone keyboards,
-// word processors and Japanese IMEs substitute for the ASCII characters on a
-// plain keyboard. A learner who types "It’s" with a curly apostrophe wrote the
-// same sentence as "It's" — the two are near-indistinguishable on screen, so
-// grading them apart reads as the app being broken rather than as a mistake to
-// learn from.
 var answerPunctuation = strings.NewReplacer(
-	"‘", "'", // ‘ left single quotation mark
-	"’", "'", // ’ right single quotation mark, the curly apostrophe
-	"ʼ", "'", // ʼ modifier letter apostrophe
-	"′", "'", // ′ prime
-	"＇", "'", // ＇ fullwidth apostrophe
-	"“", `"`, // “ left double quotation mark
-	"”", `"`, // ” right double quotation mark
-	"″", `"`, // ″ double prime
-	"＂", `"`, // ＂ fullwidth quotation mark
-	"‐", "-", // ‐ hyphen
-	"‑", "-", // ‑ non-breaking hyphen
-	"–", "-", // – en dash
-	"—", "-", // — em dash
-	"，", ",", // ， fullwidth comma
+	"‘", "'",
+	"’", "'",
+	"ʼ", "'",
+	"′", "'",
+	"＇", "'",
+	"“", `"`,
+	"”", `"`,
+	"″", `"`,
+	"＂", `"`,
+	"‐", "-",
+	"‑", "-",
+	"–", "-",
+	"—", "-",
+	"，", ",",
 )
 
-// terminalPunctuation is the sentence-ending punctuation dropped from the end
-// of both answers before they are compared, in the ASCII, fullwidth and
-// Japanese forms an IME can produce. English word order already carries the
-// difference between a question and a statement, so a final "." left off — or
-// a "。" left in — is a keyboard slip, not a translation mistake. Only the very
-// end of the answer is trimmed: punctuation inside the sentence still counts.
 const terminalPunctuation = ".!?…。．！？ "
 
-// normalizeAnswer puts an answer into the form the grader compares. Runs of
-// whitespace (including internal newlines from multi-line input) collapse to a
-// single space, typographic punctuation folds to its ASCII equivalent, and
-// sentence-ending punctuation is dropped, so answers that differ only in
-// formatting compare as equal.
 func normalizeAnswer(s string) string {
 	s = answerPunctuation.Replace(s)
 	s = strings.Join(strings.Fields(s), " ")
@@ -282,10 +234,6 @@ func (s *Server) explainAnswer(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid language", http.StatusBadRequest)
 		return
 	}
-	// The Japanese sentence and reference answer are always loaded
-	// server-side by sentence_id, never trusted from the client — otherwise
-	// an authenticated caller could submit arbitrary text for Gemini to
-	// process under this app's own API key.
 	japanese, correctAnswer, err := s.repo.GetSentence(r.Context(), req.SentenceID)
 	if errors.Is(err, ErrNotFound) {
 		http.Error(w, "Sentence not found", http.StatusNotFound)
@@ -305,12 +253,6 @@ func (s *Server) explainAnswer(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, ExplainResponse{Explanation: explanation})
 }
 
-// followUpAnswer answers one free-text question about an explanation the
-// learner was just shown. Nothing on the explain path is stored, so the
-// client sends the thread it has on screen back with each question; only the
-// Japanese sentence and the reference answer are loaded server-side by
-// sentence_id, exactly as explainAnswer loads them, so an authenticated
-// caller still cannot pass arbitrary text off as the sentence being studied.
 func (s *Server) followUpAnswer(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -345,7 +287,6 @@ func (s *Server) followUpAnswer(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	// The most recent turns are the ones the new question follows on from.
 	history := req.History
 	if len(history) > maxFollowUpHistory {
 		history = history[len(history)-maxFollowUpHistory:]
@@ -374,8 +315,6 @@ func (s *Server) followUpAnswer(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	// An empty answer has nothing to render, so it is reported as the failure
-	// it is rather than shown as a blank turn in the thread.
 	if strings.TrimSpace(answer) == "" {
 		log.Printf("follow-up answer was empty for sentence %d", req.SentenceID)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -384,8 +323,6 @@ func (s *Server) followUpAnswer(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, FollowUpResponse{Answer: answer})
 }
 
-// decodeBody bounds and strictly decodes a JSON request body, writing the 400
-// response itself and returning false when it cannot.
 func decodeBody(w http.ResponseWriter, r *http.Request, dst interface{}, maxBytes int64) bool {
 	r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
 	decoder := json.NewDecoder(r.Body)
@@ -397,10 +334,6 @@ func decodeBody(w http.ResponseWriter, r *http.Request, dst interface{}, maxByte
 	return true
 }
 
-// nonBlankWithin reports whether text is non-blank after trimming and within
-// limit. The limit is a rune count — the same unit the frontend textareas'
-// character-based maxLength approximates — so multibyte input the client
-// accepts is never rejected here for its length.
 func nonBlankWithin(text string, limit int) bool {
 	return strings.TrimSpace(text) != "" && utf8.RuneCountInString(text) <= limit
 }

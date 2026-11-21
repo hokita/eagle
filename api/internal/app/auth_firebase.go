@@ -11,8 +11,6 @@ type firebaseVerifier struct {
 	client *auth.Client
 }
 
-// NewFirebaseVerifier builds a TokenVerifier backed by the Firebase Admin SDK.
-// Honors FIREBASE_AUTH_EMULATOR_HOST for local development.
 func NewFirebaseVerifier(ctx context.Context, projectID string) (*firebaseVerifier, error) {
 	app, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: projectID})
 	if err != nil {

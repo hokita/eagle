@@ -7,9 +7,6 @@ import (
 	"strings"
 )
 
-// WithDiscussion attaches the discussion-practice dependencies. A chained
-// setter rather than new NewServer parameters so the existing constructor's
-// many call sites stay unchanged.
 func (s *Server) WithDiscussion(repo DiscussionRepository, coach DiscussionCoach) *Server {
 	s.discussions = repo
 	s.coach = coach
@@ -39,8 +36,6 @@ func (s *Server) getDiscussionQuestion(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, q)
 }
 
-// loadDiscussionQuestion fetches the question by id, writing the error
-// response itself when it fails (nil result means "already handled").
 func (s *Server) loadDiscussionQuestion(w http.ResponseWriter, r *http.Request, id int) *DiscussionQuestion {
 	q, err := s.discussions.GetQuestion(r.Context(), id)
 	if errors.Is(err, ErrNotFound) {
@@ -76,9 +71,6 @@ func (s *Server) discussionReply(w http.ResponseWriter, r *http.Request) {
 	if q == nil {
 		return
 	}
-	// Every session is exactly discussionFollowUps questions long, decided
-	// here rather than by the model: once they are answered the conversation
-	// is over and Gemini is never even called.
 	if countAITurns(req.Transcript) >= discussionFollowUps {
 		writeJSON(w, DiscussionReplyResponse{Done: true})
 		return
@@ -92,17 +84,11 @@ func (s *Server) discussionReply(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, DiscussionReplyResponse{Done: false, Message: reply.Message})
 }
 
-// DiscussionReplyResponse is the wire shape of a reply turn. "done" is the
-// server's decision (see discussionFollowUps), so it lives here rather than
-// on CoachReply; a done response carries no message.
 type DiscussionReplyResponse struct {
 	Done    bool   `json:"done"`
 	Message string `json:"message"`
 }
 
-// DiscussionCompleteRequest carries only what the learner produced. The
-// summary is generated here rather than sent up, so a client cannot decide
-// what gets stored as its own feedback.
 type DiscussionCompleteRequest struct {
 	QuestionID   int                 `json:"question_id"`
 	Transcript   []DiscussionMessage `json:"transcript"`
@@ -117,9 +103,6 @@ type DiscussionCompleteResponse struct {
 	Phrases          []Phrase `json:"phrases"`
 }
 
-// discussionComplete is the single closing step: it summarizes the session
-// and persists it in one round trip. There is nothing for the learner to do
-// between the two, so splitting them would only cost a request.
 func (s *Server) discussionComplete(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -134,7 +117,6 @@ func (s *Server) discussionComplete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid transcript", http.StatusBadRequest)
 		return
 	}
-	// The reflection cannot be skipped, so it is always present here.
 	if !nonBlankWithin(req.ReflectionJA, maxReflectionLength) {
 		http.Error(w, "Invalid reflection_ja", http.StatusBadRequest)
 		return
@@ -179,9 +161,6 @@ type DiscussionSessionsResponse struct {
 	Sessions []DiscussionSessionSummary `json:"sessions"`
 }
 
-// discussionSessions serves both the list (no path suffix) and the detail
-// (suffix = session id). One handler because ServeMux's trailing-slash
-// pattern would otherwise split them across two registrations anyway.
 func (s *Server) discussionSessions(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)

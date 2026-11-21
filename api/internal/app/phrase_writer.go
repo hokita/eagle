@@ -7,27 +7,19 @@ import (
 	"strings"
 )
 
-// phraseExampleCount is how many example sentences the AI writes for a
-// saved phrase.
 const phraseExampleCount = 3
 
-// PhraseSource is what the AI is given to write about a saved phrase: the
-// phrase, and the sentence the learner was practicing when they saved it,
-// so it can tell which sense of the phrase was meant.
 type PhraseSource struct {
 	Phrase   string
 	Japanese string
 	English  string
 }
 
-// PhraseContent is what the AI writes for a saved phrase: a short English
-// meaning and English example sentences that use it.
 type PhraseContent struct {
 	Meaning  string   `json:"meaning"`
 	Examples []string `json:"examples"`
 }
 
-// PhraseWriter has the AI write a saved phrase's meaning and examples.
 type PhraseWriter interface {
 	Write(ctx context.Context, src PhraseSource) (*PhraseContent, error)
 }
@@ -51,11 +43,6 @@ func buildPhrasePrompt(src PhraseSource) string {
 	return b.String()
 }
 
-// cleanPhraseContent checks what the AI wrote before it is stored. The
-// response schema only fixes the shape, so a blank meaning or an example that
-// does not use the phrase can still arrive; examples without the phrase are
-// dropped, extras are cut, and having no meaning or no examples left is an
-// error.
 func cleanPhraseContent(phrase string, content *PhraseContent) (*PhraseContent, error) {
 	if content == nil {
 		return nil, errors.New("phrase writer returned nothing")
@@ -82,8 +69,6 @@ func cleanPhraseContent(phrase string, content *PhraseContent) (*PhraseContent, 
 	return &PhraseContent{Meaning: meaning, Examples: examples}, nil
 }
 
-// phraseKey is the form a phrase is matched in: case, typographic quotes and
-// spacing are ignored, so "Don’t" in an example still matches "don't".
 func phraseKey(s string) string {
 	s = answerPunctuation.Replace(s)
 	return strings.ToLower(strings.Join(strings.Fields(s), " "))

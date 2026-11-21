@@ -5,17 +5,6 @@ import (
 	"strings"
 )
 
-// withCORS wraps a handler with CORS headers. allowedOrigins is a
-// comma-separated list of exact origins permitted to call the API (Firebase
-// Hosting serves the same site on both {project}.web.app and
-// {project}.firebaseapp.com, so both must be listed). If allowedOrigins is
-// empty (matching corgi's dev-only behavior when FRONTEND_URL is unset), any
-// origin is allowed. Otherwise, only a request whose Origin header exactly
-// matches one of the listed origins gets it reflected back — echoing a
-// fixed origin regardless of the request would make the browser reject the
-// real request after a seemingly-successful preflight.
-// OPTIONS preflight requests are answered directly without invoking next,
-// since a preflight has no Authorization header and must not hit auth.
 func withCORS(allowedOrigins string, next http.HandlerFunc) http.HandlerFunc {
 	if allowedOrigins == "" {
 		return func(w http.ResponseWriter, r *http.Request) {
@@ -36,11 +25,6 @@ func withCORS(allowedOrigins string, next http.HandlerFunc) http.HandlerFunc {
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		// The response varies on Origin whether or not it's allowed — an
-		// intermediary cache that stores a rejected-origin response
-		// without Vary could later replay it to a client with an allowed
-		// origin, withholding Access-Control-Allow-Origin from a
-		// legitimate request.
 		w.Header().Set("Vary", "Origin")
 		if origin := r.Header.Get("Origin"); allowed[origin] {
 			w.Header().Set("Access-Control-Allow-Origin", origin)

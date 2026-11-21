@@ -6,18 +6,11 @@ import (
 	"strings"
 )
 
-// Explainer generates a natural-language explanation comparing a learner's
-// English translation to a reference translation of a Japanese sentence, and
-// answers the learner's own free-text questions about that explanation.
 type Explainer interface {
 	Explain(ctx context.Context, japanese, correctAnswer, userAnswer, language string) (string, error)
 	AnswerFollowUp(ctx context.Context, in FollowUpInput) (string, error)
 }
 
-// FollowUpInput is everything the model needs to answer one free-text
-// question about an explanation it already gave: the sentence being
-// practiced, the learner's attempt, the explanation the question is about,
-// and the earlier questions in the same thread.
 type FollowUpInput struct {
 	Japanese      string
 	CorrectAnswer string
@@ -28,9 +21,6 @@ type FollowUpInput struct {
 	Language      string
 }
 
-// validExplainLanguages is the allow-list of languages an explanation can be
-// written in. Shared by request validation (handlers.go) and prompt
-// building (buildExplainPrompt) as a single source of truth.
 var validExplainLanguages = map[string]bool{
 	"en": true,
 	"ja": true,
@@ -59,13 +49,6 @@ func buildExplainPrompt(japanese, correctAnswer, userAnswer, language string) st
 	return b.String()
 }
 
-// buildFollowUpPrompt produces the prompt for one free-text question the
-// learner asks about an explanation they were just shown. The explanation and
-// the earlier turns come back from the client rather than from storage —
-// nothing on the explain path is persisted — so the prompt restates the
-// sentence and the reference answer, which are always loaded server-side, and
-// tells the model to treat everything the learner wrote as a question to
-// answer rather than as instructions to follow.
 func buildFollowUpPrompt(in FollowUpInput) string {
 	var b strings.Builder
 	b.WriteString("You are an English tutor helping a Japanese speaker learn English translation.\n")

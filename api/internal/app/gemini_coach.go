@@ -14,52 +14,16 @@ import (
 const (
 	discussionTimeout = 30 * time.Second
 
-	// Output bounds per call — the input side is bounded by transcript
-	// validation; these keep the response side predictable too. Each also
-	// leaves room for thinking (thinkingAllowanceTokens).
 	maxCoachReplyOutputTokens = 256 + thinkingAllowanceTokens
 
-	// The summary echoes roughly all of the learner's own text back as
-	// refinements, so its output budget is derived from the transcript it
-	// is given (see summaryOutputBudget) rather than fixed: a cap sized for
-	// a typical session truncates the JSON of a long but valid one, and its
-	// completion then fails on every retry.
-	//
-	// summaryBaseOutputTokens covers everything that does not scale with
-	// the transcript — the explanation, up to four phrases, JSON structure,
-	// and the model's thinking.
-	summaryBaseOutputTokens = 1024 + thinkingAllowanceTokens
-	// summaryTokensPerLearnerRune is the worst case for one rune of learner
-	// text echoed back. Validation bounds turns in runes and accepts any
-	// Unicode, so English's ~0.3 tokens per character is no bound; a rune
-	// outside the tokenizer's vocabulary falls back to one token per UTF-8
-	// byte, at most 4.
+	summaryBaseOutputTokens     = 1024 + thinkingAllowanceTokens
 	summaryTokensPerLearnerRune = 4
-	// geminiMaxOutputTokens is the model's own output ceiling, which the
-	// derived budget must stay under.
-	geminiMaxOutputTokens = 65536
+	geminiMaxOutputTokens       = 65536
 
-	// The summary's deadline scales with its output budget for the same
-	// reason the budget scales with the transcript: a fixed 30 seconds fits
-	// a typical session's few hundred tokens of refinements but not the
-	// tens of thousands the largest valid transcript may need, and a
-	// deadline that cannot be met fails every retry of a valid completion.
-	//
-	// summaryTokensPerSecond is a deliberately low generation rate — the
-	// model streams several times faster — so the allowance per token is
-	// generous. maxSummaryTimeout keeps the longest deadline under Cloud
-	// Run's 300-second default request timeout, which would otherwise cut
-	// the request off first with nothing to tell the client; the extreme
-	// end of the input space is bounded there rather than served.
 	summaryTokensPerSecond = 50
 	maxSummaryTimeout      = 240 * time.Second
 )
 
-// summaryOutputBudget is the MaxOutputTokens for a summary of transcript:
-// the worst-case token count of echoing every learner turn, plus a fixed
-// allowance for the rest. The largest transcript validation accepts
-// (maxTranscriptMessages/2 turns of maxDiscussionTurnLength runes) stays
-// under geminiMaxOutputTokens, so the clamp is a guard, not the usual path.
 func summaryOutputBudget(transcript []DiscussionMessage) int32 {
 	runes := 0
 	for _, m := range transcript {
@@ -74,9 +38,6 @@ func summaryOutputBudget(transcript []DiscussionMessage) int32 {
 	return int32(budget)
 }
 
-// summaryTimeout is the deadline for a summary call allowed budget output
-// tokens: the base discussion deadline plus time to generate the budget at
-// summaryTokensPerSecond, capped at maxSummaryTimeout.
 func summaryTimeout(budget int32) time.Duration {
 	timeout := discussionTimeout + time.Duration(budget)*time.Second/summaryTokensPerSecond
 	if timeout > maxSummaryTimeout {
@@ -112,8 +73,6 @@ var summarySchema = &genai.Schema{
 	Required: []string{"refined_messages", "naturalness_why_en", "naturalness_fix_en", "phrases"},
 }
 
-// GeminiCoach implements DiscussionCoach using the Gemini API, reusing the
-// same client configuration and model as GeminiExplainer.
 type GeminiCoach struct {
 	models contentGenerator
 	model  string
@@ -176,13 +135,6 @@ func (g *GeminiCoach) Summarize(ctx context.Context, q *DiscussionQuestion, tran
 	if err := json.Unmarshal([]byte(text), &summary); err != nil {
 		return nil, fmt.Errorf("parse summary: %w", err)
 	}
-	// The refinements are read zipped against the transcript's learner
-	// turns, so the list has to line up with them exactly: one too few and
-	// the last turn silently goes unrefined, one too many and every turn
-	// after the slip shows someone else's sentence. Either is the model
-	// failing to follow the prompt, which numbers the turns for it, and the
-	// session has no other step left to fall back on — so it is an error,
-	// and the client offers to try the summary again.
 	if want, got := countLearnerTurns(transcript), len(summary.RefinedMessages); got != want {
 		return nil, fmt.Errorf("summary refined %d messages for %d learner turns", got, want)
 	}
@@ -191,17 +143,9 @@ func (g *GeminiCoach) Summarize(ctx context.Context, q *DiscussionQuestion, tran
 			return nil, fmt.Errorf("summary produced an empty refinement for learner turn %d", i+1)
 		}
 	}
-	// Both halves of the explanation are required for the same reason: the
-	// prompt has an answer even for a learner who sounded natural, so a
-	// blank field is the model failing to follow it, not an empty result.
 	if strings.TrimSpace(summary.NaturalnessWhyEN) == "" || strings.TrimSpace(summary.NaturalnessFixEN) == "" {
 		return nil, fmt.Errorf("summary produced an incomplete naturalness explanation")
 	}
-	// Keep only well-formed phrases and truncate extras. The response schema
-	// only constrains field types, so a record can legally arrive with a
-	// blank gloss or example, which would render as an empty slot. Ending up
-	// with none is a valid outcome rather than an error: a learner who
-	// already said everything naturally has nothing worth picking up.
 	valid := make([]Phrase, 0, len(summary.Phrases))
 	for _, ph := range summary.Phrases {
 		if strings.TrimSpace(ph.Phrase) == "" ||

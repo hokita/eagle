@@ -20,7 +20,6 @@ func (s *Server) checkAndRecord(ctx context.Context, uid string, sentenceID int,
 	if !isCorrect {
 		recorded = answer
 	}
-	// Deliberately not returned: a failed write must not stop the learner being graded.
 	if err := s.repo.RecordAnswer(ctx, uid, sentenceID, isCorrect, recorded); err != nil {
 		log.Printf("record answer error: %v", err)
 	}

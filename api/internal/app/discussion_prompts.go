@@ -5,8 +5,6 @@ import (
 	"strings"
 )
 
-// renderTranscript renders the conversation with "Learner:"/"You:" labels —
-// "You" is the coach, so the model reads its own past turns correctly.
 func renderTranscript(transcript []DiscussionMessage) string {
 	var b strings.Builder
 	for _, m := range transcript {
@@ -19,11 +17,6 @@ func renderTranscript(transcript []DiscussionMessage) string {
 	return b.String()
 }
 
-// buildDiscussionReplyPrompt is a pure function (unit-testable without
-// network) producing the follow-up-question prompt. How many follow-ups a
-// session gets is the server's decision (discussionFollowUps), so this
-// prompt never offers the model a way to end the conversation — it always
-// asks exactly one more question.
 func buildDiscussionReplyPrompt(q *DiscussionQuestion, transcript []DiscussionMessage) string {
 	var b strings.Builder
 	b.WriteString("You are a friendly English conversation partner helping a Japanese learner ")
@@ -43,22 +36,6 @@ func buildDiscussionReplyPrompt(q *DiscussionQuestion, transcript []DiscussionMe
 	return b.String()
 }
 
-// buildSummaryPrompt produces the one analysis prompt a session runs, after
-// the conversation and the Japanese reflection are both in. It asks for
-// three things the learner reads back in English: each of their turns said
-// the way a native speaker would say it — one refinement per turn rather
-// than one merged passage, so the learner can hold their own sentence next
-// to the natural one and see exactly what changed — pitched at spoken
-// register, since a rewrite that is merely grammatical still reads like an
-// essay and gives the learner the wrong model to copy; an explanation of
-// why their own wording sounded unnatural and what to do about it; and a few
-// reusable phrases drawn first from the gap the reflection exposes — the
-// ideas the learner had but could not reach in English are the point of the
-// mode, so wording they already managed only fills what the gap leaves over.
-// The explanation is deliberately pitched at the pattern level rather than
-// as a per-sentence list — the refinements already show the shape they
-// should have used, so what is left to add is the habit behind the
-// difference.
 func buildSummaryPrompt(q *DiscussionQuestion, transcript []DiscussionMessage, reflectionJA string) string {
 	var b strings.Builder
 	b.WriteString("You are an English tutor. A Japanese learner discussed a question in English, ")
