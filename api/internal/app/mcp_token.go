@@ -15,7 +15,7 @@ func NewMCPTokenMatcher(configured string) func(token string) bool {
 		return nil
 	}
 	if len(configured) < minMCPTokenLength {
-		log.Printf("MCP_TOKEN is shorter than %d characters; MCP is disabled", minMCPTokenLength)
+		log.Printf("EAGLE_MCP_TOKEN is shorter than %d characters; MCP is disabled", minMCPTokenLength)
 		return nil
 	}
 	want := sha256.Sum256([]byte(configured))

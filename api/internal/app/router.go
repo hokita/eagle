@@ -14,7 +14,10 @@ type MCPConfig struct {
 }
 
 func MCPConfigFromEnv() MCPConfig {
-	return MCPConfig{Token: os.Getenv("EAGLE_MCP_TOKEN"), OwnerUID: os.Getenv("MCP_OWNER_UID")}
+	return MCPConfig{
+		Token:    strings.TrimSpace(os.Getenv("EAGLE_MCP_TOKEN")),
+		OwnerUID: strings.TrimSpace(os.Getenv("MCP_OWNER_UID")),
+	}
 }
 
 func (c MCPConfig) ownerSet() bool {
@@ -64,6 +67,6 @@ func NewMux(srv *Server, verifier TokenVerifier, allowedEmails []string, fronten
 	if !mcpCfg.ownerSet() {
 		matcher = nil
 	}
-	mux.Handle("/mcp", requireMCPToken(matcher, newMCPHandler(srv, mcpCfg.OwnerUID, NewRateLimiter(120, time.Hour, time.Now))))
+	mux.Handle("/mcp", requireMCPToken(matcher, newMCPHandler(srv, strings.TrimSpace(mcpCfg.OwnerUID), NewRateLimiter(120, time.Hour, time.Now))))
 	return mux
 }

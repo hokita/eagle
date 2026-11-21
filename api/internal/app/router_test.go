@@ -132,3 +132,33 @@ func TestMCPConfigEnabled(t *testing.T) {
 		}
 	}
 }
+
+func TestMCPConfigFromEnvTrims(t *testing.T) {
+	t.Setenv("EAGLE_MCP_TOKEN", strings.Repeat("a", 64)+"\n")
+	t.Setenv("MCP_OWNER_UID", " u \n")
+	cfg := MCPConfigFromEnv()
+	if cfg.OwnerUID != "u" {
+		t.Errorf("OwnerUID = %q, want %q", cfg.OwnerUID, "u")
+	}
+	if cfg.Token != strings.Repeat("a", 64) {
+		t.Errorf("Token still has surrounding whitespace: len %d", len(cfg.Token))
+	}
+	if !cfg.Enabled() {
+		t.Error("trimmed config should be enabled")
+	}
+}
+
+func TestMuxMCPTrimsOwnerUID(t *testing.T) {
+	tok := strings.Repeat("a", 64)
+	repo := &fakeRepo{random: &Sentence{ID: 1, Japanese: "犬", English: "dog", Level: 1}}
+	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
+	mux := NewMux(srv, tokenVerifier{}, []string{testAllowedEmail}, "http://localhost:3000", MCPConfig{Token: tok, OwnerUID: " owner-uid "})
+	body := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_practice_sentence","arguments":{}}}`
+	rec := doReq(mux, http.MethodPost, "/mcp", tok, body)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body %s", rec.Code, rec.Body.String())
+	}
+	if len(repo.randomUIDs) != 1 || repo.randomUIDs[0] != "owner-uid" {
+		t.Errorf("uids = %q, want [owner-uid]", repo.randomUIDs)
+	}
+}

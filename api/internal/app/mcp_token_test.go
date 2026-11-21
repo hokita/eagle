@@ -59,7 +59,9 @@ func TestRequireMCPToken(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			called := false
 			h := requireMCPToken(tt.matcher, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				called = true
 				w.WriteHeader(http.StatusOK)
 			}))
 			rec := httptest.NewRecorder()
@@ -73,6 +75,9 @@ func TestRequireMCPToken(t *testing.T) {
 			}
 			if tt.wantStatus != http.StatusUnauthorized {
 				return
+			}
+			if called {
+				t.Error("next handler was called on a rejected request")
 			}
 			if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
 				t.Errorf("Content-Type = %q", ct)
