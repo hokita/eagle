@@ -12,3 +12,4 @@ api/cmd/seed/seed
 .worktrees
 
 .superpowers
+.localcache/

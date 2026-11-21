@@ -2,6 +2,8 @@ module github.com/hokita/eagle
 
 go 1.25.0
 
+toolchain go1.27.4
+
 require (
 	cloud.google.com/go/firestore v1.23.0
 	google.golang.org/api v0.288.0
