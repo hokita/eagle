@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { GoogleAuthProvider, signInWithRedirect, getRedirectResult } from 'firebase/auth'
+import { useState } from 'react'
+import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import { Button } from '@/components/ui/button'
 import Image from 'next/image'
@@ -11,14 +11,10 @@ const SIGN_IN_ERROR = 'Sign-in failed. Please try again.'
 export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    getRedirectResult(auth).catch(() => setError(SIGN_IN_ERROR))
-  }, [])
-
   async function handleSignIn() {
     setError(null)
     try {
-      await signInWithRedirect(auth, new GoogleAuthProvider())
+      await signInWithPopup(auth, new GoogleAuthProvider())
     } catch {
       setError(SIGN_IN_ERROR)
     }

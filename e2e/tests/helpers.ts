@@ -15,22 +15,14 @@ export async function signInAndGetSentence(page: Page): Promise<SentenceData> {
     ),
     (async () => {
       await page.goto('/')
-      // signInWithRedirect navigates the tab itself rather than opening a
-      // popup, so pair the click with waitForURL instead of a 'popup' event.
-      await Promise.all([
-        page.waitForURL(/localhost:9099/),
+      const [popup] = await Promise.all([
+        page.waitForEvent('popup'),
         page.getByRole('button', { name: 'Sign in with Google' }).click(),
       ])
-      // Mirrors the old popup-flow race: the Auth emulator page's inline
-      // <script> needs to finish attaching its click handlers before we
-      // interact, or clicks land silently without effect.
-      await page.waitForLoadState('load')
-      await page.getByRole('button', { name: /add new account/i }).click()
-      await page.getByLabel(/email/i).fill(TEST_EMAIL)
-      await Promise.all([
-        page.waitForURL('/'),
-        page.getByRole('button', { name: /sign in/i }).click(),
-      ])
+      await popup.waitForLoadState('load')
+      await popup.getByRole('button', { name: /add new account/i }).click()
+      await popup.getByLabel(/email/i).fill(TEST_EMAIL)
+      await popup.getByRole('button', { name: /sign in/i }).click()
     })(),
   ])
   await expect(page.getByRole('heading', { name: 'Eagle' })).toBeVisible()

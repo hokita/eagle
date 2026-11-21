@@ -3,38 +3,33 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/firebase', () => ({ auth: {} }))
 
-const mockSignIn = vi.fn()
-const mockGetRedirectResult = vi.fn()
+const mockSignInWithPopup = vi.fn()
+const mockSignInWithRedirect = vi.fn()
 vi.mock('firebase/auth', () => ({
   GoogleAuthProvider: vi.fn(),
-  signInWithRedirect: (...args: unknown[]) => mockSignIn(...args),
-  getRedirectResult: (...args: unknown[]) => mockGetRedirectResult(...args),
+  signInWithPopup: (...args: unknown[]) => mockSignInWithPopup(...args),
+  signInWithRedirect: (...args: unknown[]) => mockSignInWithRedirect(...args),
 }))
 
 import LoginScreen from './LoginScreen'
 
 describe('LoginScreen', () => {
   beforeEach(() => {
-    mockSignIn.mockReset().mockResolvedValue(undefined)
-    mockGetRedirectResult.mockReset().mockResolvedValue(null)
+    mockSignInWithPopup.mockReset().mockResolvedValue(undefined)
+    mockSignInWithRedirect.mockReset().mockResolvedValue(undefined)
   })
 
-  it('calls signInWithRedirect when the sign-in button is clicked', () => {
+  it('signs in with a popup, not a redirect, so iOS Safari storage partitioning cannot drop the result', () => {
     render(<LoginScreen />)
     fireEvent.click(screen.getByRole('button', { name: /sign in with google/i }))
-    expect(mockSignIn).toHaveBeenCalledTimes(1)
+    expect(mockSignInWithPopup).toHaveBeenCalledTimes(1)
+    expect(mockSignInWithRedirect).not.toHaveBeenCalled()
   })
 
-  it('shows an error message when signInWithRedirect fails', async () => {
-    mockSignIn.mockRejectedValue(new Error('auth/missing-initial-state'))
+  it('shows an error message when the popup sign-in fails', async () => {
+    mockSignInWithPopup.mockRejectedValue(new Error('auth/popup-blocked'))
     render(<LoginScreen />)
     fireEvent.click(screen.getByRole('button', { name: /sign in with google/i }))
-    expect(await screen.findByText(/sign-in failed/i)).toBeInTheDocument()
-  })
-
-  it('shows an error message when returning from a failed redirect', async () => {
-    mockGetRedirectResult.mockRejectedValue(new Error('auth/missing-initial-state'))
-    render(<LoginScreen />)
     expect(await screen.findByText(/sign-in failed/i)).toBeInTheDocument()
   })
 })
