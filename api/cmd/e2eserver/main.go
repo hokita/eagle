@@ -12,26 +12,18 @@ import (
 	"github.com/hokita/eagle/internal/app"
 )
 
-// stubExplanation is asserted verbatim by e2e/tests/incorrect-explain.spec.ts.
 const stubExplanation = "This is a stub explanation for e2e tests."
 
-// stubExplainer avoids real Gemini calls in e2e tests, keeping every CI run
-// free, fast, and deterministic while still exercising the full HTTP/auth
-// wiring around the Explain endpoint.
 type stubExplainer struct{}
 
 func (stubExplainer) Explain(_ context.Context, _, _, _, _ string) (string, error) {
 	return stubExplanation, nil
 }
 
-// The follow-up answer echoes the question so the e2e test can tell one turn
-// in the thread from the next; the prefix is asserted by
-// e2e/tests/incorrect-explain.spec.ts.
 func (stubExplainer) AnswerFollowUp(_ context.Context, in app.FollowUpInput) (string, error) {
 	return fmt.Sprintf("Stub answer to: %s", in.Question), nil
 }
 
-// stubInsight is returned by stubAnalyzer so e2e runs never call real Gemini.
 const stubInsight = "This is a stub weakness insight for e2e tests."
 
 type stubAnalyzer struct{}
@@ -40,10 +32,6 @@ func (stubAnalyzer) Analyze(_ context.Context, _ []app.MistakeSentence, _ string
 	return stubInsight, nil
 }
 
-// stubCoach avoids real Gemini calls in e2e tests. Deterministic: a numbered
-// follow-up per turn (the server decides when the conversation ends) and a
-// fixed summary. The literals are asserted verbatim by
-// e2e/tests/discussion.spec.ts.
 type stubCoach struct{}
 
 func (stubCoach) Reply(_ context.Context, _ *app.DiscussionQuestion, transcript []app.DiscussionMessage) (*app.CoachReply, error) {
@@ -56,9 +44,6 @@ func (stubCoach) Reply(_ context.Context, _ *app.DiscussionQuestion, transcript 
 	return &app.CoachReply{Message: fmt.Sprintf("Stub follow-up %d: can you tell me more?", aiTurns+1)}, nil
 }
 
-// Summarize refines every learner turn with a numbered stub so the e2e test
-// can check each one sits under its own message — the real coach must return
-// exactly one refinement per learner turn, and the stub honors that too.
 func (stubCoach) Summarize(_ context.Context, _ *app.DiscussionQuestion, transcript []app.DiscussionMessage, _ string) (*app.Summary, error) {
 	var refined []string
 	for _, m := range transcript {
@@ -77,9 +62,6 @@ func (stubCoach) Summarize(_ context.Context, _ *app.DiscussionQuestion, transcr
 	}, nil
 }
 
-// stubPhraseWriter avoids real Gemini calls in e2e tests. The meaning and
-// examples are asserted by e2e/tests/phrases.spec.ts; each example contains
-// the phrase so it passes the server's check.
 type stubPhraseWriter struct{}
 
 func (stubPhraseWriter) Write(_ context.Context, src app.PhraseSource) (*app.PhraseContent, error) {

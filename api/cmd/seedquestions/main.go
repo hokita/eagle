@@ -24,8 +24,6 @@ type row struct {
 	IsActive     int      `json:"is_active"`
 }
 
-// toFirestoreFields builds the Firestore write payload for one NDJSON row,
-// validating the fields the app depends on.
 func toFirestoreFields(rw row, now string) (map[string]interface{}, error) {
 	if rw.Level < 1 || rw.Level > 5 {
 		return nil, fmt.Errorf("question %d: level must be 1-5, got %d", rw.ID, rw.Level)
@@ -51,8 +49,6 @@ func toFirestoreFields(rw row, now string) (map[string]interface{}, error) {
 }
 
 func main() {
-	// The command must run from api/ (the module root), so the default
-	// resolves the committed bank at the repository-level docs/ directory.
 	path := flag.String("file", "../docs/discussion_questions_seed.ndjson", "path to NDJSON file")
 	flag.Parse()
 

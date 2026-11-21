@@ -23,8 +23,6 @@ type row struct {
 	IsReported int         `json:"is_reported"`
 }
 
-// toFirestoreFields builds the Firestore write payload for one NDJSON row,
-// validating that level falls in the supported 1-5 difficulty range.
 func toFirestoreFields(rw row, now string) (map[string]interface{}, error) {
 	if rw.Level < 1 || rw.Level > 5 {
 		return nil, fmt.Errorf("sentence %d: level must be 1-5, got %d", rw.ID, rw.Level)
