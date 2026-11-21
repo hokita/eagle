@@ -39,17 +39,12 @@ describe('SessionSummary', () => {
     expect(screen.getByText('What makes you say that?')).toBeInTheDocument()
   })
 
-  // The phrases start from the ideas that stayed in Japanese, which is only
-  // checkable with the Japanese on the same screen.
   it('shows the Japanese reflection', () => {
     renderSummary()
     expect(screen.getByText('Reflection')).toBeInTheDocument()
     expect(screen.getByText('制度そのものを変えるべきだと思う。')).toBeInTheDocument()
   })
 
-  // Each refinement is only readable against the exact words it refines, so
-  // it sits directly under its own message inside the conversation — not in
-  // a section of its own, and not as one merged passage.
   it('shows each of your messages refined, directly under it', () => {
     renderSummary()
     expect(
@@ -65,10 +60,6 @@ describe('SessionSummary', () => {
     expect(screen.getAllByText('More natural')).toHaveLength(2)
   })
 
-  // The coach returns a turn unchanged when it already sounded natural.
-  // Repeating it would read as a correction that changed nothing, but leaving
-  // it bare next to neighbours that got rewrites reads as a turn the coach
-  // skipped — so it is marked approved instead.
   it('marks a message whose refinement is unchanged as already natural', () => {
     renderSummary({
       refinedMessages: ['I think companies are responsible.', 'Because they have the biggest impact.'],
@@ -97,9 +88,6 @@ describe('SessionSummary', () => {
     expect(screen.getByText('I want to live abroad in the future.')).toBeInTheDocument()
   })
 
-  // Sessions saved before the summary replaced the study/retry flow read back
-  // with these fields empty; a titled card holding nothing looks like a load
-  // that failed rather than a session that predates the feature.
   it('hides every card a session has nothing for, keeping the conversation', () => {
     renderSummary({
       reflectionJa: '',

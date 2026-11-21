@@ -243,8 +243,6 @@ describe('Mistakes', () => {
     expect(mockApi.getMistakesInsight).toHaveBeenCalledTimes(1)
     unmount()
 
-    // Simulates returning to /mistakes after recording a new wrong answer
-    // (a new history entry, id 2, sorted first) since the insight was cached.
     render(<Mistakes user={fakeUser} />)
     await screen.findByText('Updated insight after a new mistake.')
     expect(mockApi.getMistakesInsight).toHaveBeenCalledTimes(2)
@@ -316,20 +314,13 @@ describe('header and settings', () => {
     expect(screen.getByText('日本語の説明')).toBeInTheDocument()
   })
 
-  // Regression: a cache hit returns early, so it must clear the loading flag
-  // itself. The in-flight request it supersedes cannot do it — that request's
-  // id is stale by then, so its finally block is skipped and the card would
-  // otherwise sit on "Analyzing your mistakes..." forever, hiding an insight
-  // it already has in hand.
   it('clears the loading state when a cached insight supersedes an in-flight request', async () => {
     mockApi.listMistakes.mockResolvedValue(oneMistake)
 
-    // 1. English resolves and gets cached.
     mockApi.getMistakesInsight.mockResolvedValueOnce({ insight: 'English insight' })
     render(<Mistakes user={fakeUser} />)
     await screen.findByText('English insight')
 
-    // 2. Switch to Japanese and leave that request hanging.
     let resolveJapanese: (value: unknown) => void = () => {}
     mockApi.getMistakesInsight.mockImplementationOnce(
       () => new Promise(resolve => { resolveJapanese = resolve })
@@ -338,15 +329,11 @@ describe('header and settings', () => {
     fireEvent.click(screen.getByRole('tab', { name: '日本語' }))
     await screen.findByText(/analyzing your mistakes/i)
 
-    // 3. Switch back to English — served from cache, superseding the in-flight
-    //    Japanese request.
     fireEvent.click(screen.getByRole('tab', { name: 'English' }))
 
     expect(await screen.findByText('English insight')).toBeInTheDocument()
     expect(screen.queryByText(/analyzing your mistakes/i)).not.toBeInTheDocument()
 
-    // 4. The superseded response landing must not resurrect the loading state
-    //    or overwrite what the cache served.
     resolveJapanese({ insight: 'Japanese insight' })
 
     await waitFor(() =>

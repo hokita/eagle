@@ -69,8 +69,6 @@ describe('DiscussionSession', () => {
     expect(api.discussionReply).toHaveBeenCalledWith(16, [{ role: 'user', text: 'I think companies.' }])
   })
 
-  // A done reply carries no message: the server ends the conversation once
-  // both follow-ups are answered, so there is no closing line to render.
   it('moves to reflection when the server ends the conversation', async () => {
     vi.mocked(api.discussionReply).mockResolvedValue({ done: true, message: '' })
     await startSession()
@@ -91,7 +89,6 @@ describe('DiscussionSession', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Finish' }))
     await waitFor(() => expect(screen.getByText(summary.refined_messages[0])).toBeInTheDocument())
-    // The refinement sits under the message it refines.
     expect(screen.getByText(summary.refined_messages[0]).closest('.text-right')).toHaveTextContent(
       'I think companies.'
     )
@@ -105,9 +102,6 @@ describe('DiscussionSession', () => {
     )
   })
 
-  // The frontend and the API deploy independently, so a frontend that ships
-  // first can complete a session against an API that does not send
-  // refined_messages at all. The summary must still render.
   it('shows the summary when the API sends no refined_messages', async () => {
     vi.mocked(api.discussionReply).mockResolvedValue({ done: true, message: '' })
     const withoutRefinements = Object.fromEntries(
@@ -125,7 +119,6 @@ describe('DiscussionSession', () => {
     expect(screen.queryByText('More natural')).not.toBeInTheDocument()
   })
 
-  // The summary is terminal: the only way on is a fresh question.
   it('starts a new question from the summary', async () => {
     vi.mocked(api.discussionReply).mockResolvedValue({ done: true, message: '' })
     vi.mocked(api.discussionComplete).mockResolvedValue(summary)

@@ -73,10 +73,6 @@ describe('SessionHistory', () => {
     expect(screen.getByText(detail.naturalness_fix_en)).toBeInTheDocument()
   })
 
-  // A session read back later is the same session, so it is shown exactly as
-  // the summary showed it when it ended: the same titled cards, in the same
-  // order, with the lines that say what each one is for, and the question
-  // above the conversation.
   it('shows an opened session the way the summary screen shows it', async () => {
     vi.mocked(api.listDiscussionSessions).mockResolvedValue({ sessions: [summary] })
     vi.mocked(api.getDiscussionSession).mockResolvedValue(detail)
@@ -96,14 +92,10 @@ describe('SessionHistory', () => {
     expect(screen.getByText('More natural')).toBeInTheDocument()
     expect(screen.getByText('How to fix it')).toBeInTheDocument()
 
-    // The question is asked once, above the conversation, where the summary
-    // asks it — the list entry steps back to the topic and date rather than
-    // printing it a second time.
     expect(screen.getAllByText('Who is responsible?')).toHaveLength(1)
     expect(screen.getByText('Conversation').closest('.rounded-lg')).toHaveTextContent(
       'Who is responsible?'
     )
-    // The entry itself still says which session this is.
     expect(screen.getByText('environment')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Who is responsible?' })).toBeInTheDocument()
   })
@@ -117,9 +109,6 @@ describe('SessionHistory', () => {
     expect(await screen.findByText('Who is responsible?')).toBeInTheDocument()
   })
 
-  // Sessions saved before the summary replaced the study/retry flow carry
-  // none of these fields, and those saved before per-turn refinement carry
-  // no refinements; the card must still open rather than crash on them.
   it('renders a legacy session that has no summary', async () => {
     vi.mocked(api.listDiscussionSessions).mockResolvedValue({ sessions: [summary] })
     vi.mocked(api.getDiscussionSession).mockResolvedValue({
@@ -137,9 +126,6 @@ describe('SessionHistory', () => {
     expect(screen.queryByText('Why it sounded unnatural')).not.toBeInTheDocument()
   })
 
-  // The frontend and the API deploy independently, so a frontend that ships
-  // first can read a session from an API that does not send the field at
-  // all — not even as an empty list.
   it('renders a session from an API that does not send refined_messages', async () => {
     vi.mocked(api.listDiscussionSessions).mockResolvedValue({ sessions: [summary] })
     const withoutRefinements = Object.fromEntries(
@@ -154,8 +140,6 @@ describe('SessionHistory', () => {
     expect(screen.queryByText('More natural')).not.toBeInTheDocument()
   })
 
-  // A phrase without its gloss and example is a label, not something you can
-  // learn from later — history has to teach the same way the summary does.
   it('shows each phrase with its meaning and example', async () => {
     vi.mocked(api.listDiscussionSessions).mockResolvedValue({ sessions: [summary] })
     vi.mocked(api.getDiscussionSession).mockResolvedValue(detail)
@@ -193,12 +177,10 @@ describe('SessionHistory', () => {
     )
     render(<SessionHistory user={user} />)
 
-    // Open s1 (fetch stays pending), then switch to s2, which succeeds.
     fireEvent.click(await screen.findByRole('button', { name: 'Who is responsible?' }))
     fireEvent.click(screen.getByRole('button', { name: 'Second question?' }))
     await waitFor(() => expect(screen.getByText('Second summary!')).toBeInTheDocument())
 
-    // s1's late failure must not surface inside s2's open card.
     await act(async () => {
       rejectFirst(new Error('API error: 500'))
     })
@@ -219,12 +201,10 @@ describe('SessionHistory', () => {
     )
     render(<SessionHistory user={user} />)
 
-    // Open s1 (fetch stays pending), switch to s2, which fails immediately.
     fireEvent.click(await screen.findByRole('button', { name: 'Who is responsible?' }))
     fireEvent.click(screen.getByRole('button', { name: 'Second question?' }))
     expect(await screen.findByText('Failed to load the session.')).toBeInTheDocument()
 
-    // s1's late failure must not clear s2's error or its retry control.
     await act(async () => {
       rejectFirst(new Error('API error: 500'))
     })
@@ -246,14 +226,11 @@ describe('SessionHistory', () => {
     render(<SessionHistory user={user} />)
     const card = await screen.findByRole('button', { name: 'Who is responsible?' })
 
-    // Open (first fetch stays pending), close, reopen (second fetch succeeds).
     fireEvent.click(card)
     fireEvent.click(card)
     fireEvent.click(card)
     await waitFor(() => expect(screen.getByText(detail.refined_messages[0])).toBeInTheDocument())
 
-    // The stale first request's late failure must not add an error next to
-    // the successfully rendered detail.
     await act(async () => {
       rejectFirst(new Error('API error: 500'))
     })

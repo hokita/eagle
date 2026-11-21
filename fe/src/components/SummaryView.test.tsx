@@ -31,9 +31,6 @@ function renderView(overrides = {}) {
   return props
 }
 
-// The session itself is rendered by SessionSummary, which the history panel
-// shares — see its tests for each card. What is checked here is that the
-// summary screen shows the whole session and leads on from it.
 describe('SummaryView', () => {
   it('shows the finished session', () => {
     renderView()
@@ -52,8 +49,6 @@ describe('SummaryView', () => {
     expect(screen.getByText('in the future')).toBeInTheDocument()
   })
 
-  // A learner who already said everything naturally gets no phrases, and the
-  // screen still has to lead on to the next question.
   it('leads on to the next question even when there is nothing to pick up', () => {
     renderView({ phrases: [] })
     expect(screen.queryByText('Useful phrases')).not.toBeInTheDocument()

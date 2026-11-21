@@ -32,9 +32,6 @@ function renderPanel(overrides = {}) {
   return props
 }
 
-// Some of the follow-up behaviour is about what survives a re-render — the
-// question box is cleared by an answer arriving, not by the click that asked
-// for it — so those tests drive the panel through new props.
 function renderPanelForRerender(overrides = {}) {
   const props = panelProps(overrides)
   const view = render(<ReviewPanel {...props} />)
@@ -123,7 +120,6 @@ describe('answer section', () => {
 
     const wrong = answerRow('I have no time.')
     const right = answerRow("I don't have time.")
-    // Only the "Correct" label separates the two answers.
     expect(wrong.nextElementSibling?.textContent).toBe('Correct')
     expect(wrong.nextElementSibling?.nextElementSibling).toBe(right)
   })
