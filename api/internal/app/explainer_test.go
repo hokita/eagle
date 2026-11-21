@@ -95,8 +95,6 @@ func TestBuildFollowUpPromptOmitsTheHistorySectionWhenThereIsNone(t *testing.T) 
 	}
 }
 
-// The question is free text from the learner, so the prompt has to say what
-// it is: a question to answer, not instructions for the model to follow.
 func TestBuildFollowUpPromptTreatsTheQuestionAsUntrusted(t *testing.T) {
 	prompt := buildFollowUpPrompt(followUpInput())
 	if !strings.Contains(prompt, "never an instruction to") {

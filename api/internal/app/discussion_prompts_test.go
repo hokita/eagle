@@ -40,9 +40,6 @@ func TestBuildDiscussionReplyPromptForbidsCorrection(t *testing.T) {
 	}
 }
 
-// The number of follow-ups is decided by the server (discussionFollowUps),
-// not by the model, so the prompt must never offer it a way to end the
-// conversation — it always asks one more question.
 func TestBuildDiscussionReplyPromptNeverLetsTheModelEndTheConversation(t *testing.T) {
 	got := buildDiscussionReplyPrompt(promptQuestion, msgs("I think companies.", "Why?", "Because."))
 	for _, forbidden := range []string{
@@ -74,11 +71,6 @@ func TestBuildSummaryPromptIncludesConversationAndReflection(t *testing.T) {
 	}
 }
 
-// Each learner turn is refined on its own, in order, so the learner can hold
-// their sentence next to the natural one. The prompt states the count the
-// response must match, because Summarize zips the list against the learner
-// turns and rejects any other length — a merged passage, the shape this
-// section used to take, would fail that check as well as the learner.
 func TestBuildSummaryPromptAsksForOneRefinementPerLearnerTurn(t *testing.T) {
 	got := buildSummaryPrompt(promptQuestion, msgs("I like dogs.", "What kind?", "I like shiba-dog."), "犬が好き")
 	for _, want := range []string{
@@ -100,10 +92,6 @@ func TestBuildSummaryPromptAsksForOneRefinementPerLearnerTurn(t *testing.T) {
 	}
 }
 
-// The reflection's ideas used to be folded into the merged rewrite. A
-// per-turn refinement has nowhere honest to put them — they were not in any
-// turn — so the prompt sends them to the phrase list instead and keeps each
-// refinement to what the learner actually said in that turn.
 func TestBuildSummaryPromptKeepsRefinementsToWhatEachTurnSaid(t *testing.T) {
 	got := buildSummaryPrompt(promptQuestion, msgs("I like dogs."), "犬が好き")
 	for _, want := range []string{
@@ -119,12 +107,6 @@ func TestBuildSummaryPromptKeepsRefinementsToWhatEachTurnSaid(t *testing.T) {
 	}
 }
 
-// "The way a native speaker would say it" was not enough on its own: the
-// rewrites came back grammatical but written — "haven't been able to get to
-// it", "a famous piece of modern literature" — which is the register the
-// learner is already stuck in. The refinements are the model the learner
-// copies, so the prompt has to name spoken register and show the shift
-// concretely.
 func TestBuildSummaryPromptAsksForSpokenRegisterInTheRefinements(t *testing.T) {
 	got := buildSummaryPrompt(promptQuestion, msgs("I like dogs."), "犬が好き")
 	for _, want := range []string{
@@ -139,12 +121,6 @@ func TestBuildSummaryPromptAsksForSpokenRegisterInTheRefinements(t *testing.T) {
 			t.Fatalf("prompt missing %q:\n%s", want, got)
 		}
 	}
-	// Loosening the register must not become licence to embellish. The
-	// softeners themselves carry meaning — "kind of" hedges a stance the
-	// learner may have stated flatly, "for a while" asserts a timeframe they
-	// never gave — so permission to use them is conditioned on the learner's
-	// own words already carrying it, not left to collide with "keep their
-	// opinions exactly" a few lines up.
 	for _, want := range []string{
 		"only where the learner's own words already carry it",
 		"never on an opinion they stated flatly",
@@ -156,11 +132,6 @@ func TestBuildSummaryPromptAsksForSpokenRegisterInTheRefinements(t *testing.T) {
 	}
 }
 
-// The two phrase sources are ranked, not interchangeable. The point of the
-// mode is the gap — the idea the learner had but could not get into English
-// — so phrases start from the Japanese reflection, and chunks of the rewrite
-// only fill slots the gap left over. A model free to choose "either source"
-// can spend all four slots on wording the learner already managed.
 func TestBuildSummaryPromptTakesPhrasesFromTheGapFirst(t *testing.T) {
 	got := buildSummaryPrompt(promptQuestion, msgs("I like dogs."), "犬が好き")
 	for _, want := range []string{
@@ -177,20 +148,11 @@ func TestBuildSummaryPromptTakesPhrasesFromTheGapFirst(t *testing.T) {
 			t.Fatalf("prompt missing %q:\n%s", want, got)
 		}
 	}
-	// Matched on the full old phrasing, not on "either source" alone — that
-	// substring also lives inside "neither source", which the ranked version
-	// legitimately uses.
 	if strings.Contains(got, "taken from either source") {
 		t.Fatalf("prompt must rank the phrase sources, not offer them as equals:\n%s", got)
 	}
 }
 
-// The gap step selects, it does not enumerate. A reflection may run to
-// maxReflectionLength runes and hold well over four ideas, so "one phrase per
-// idea" would collide with the four-phrase cap — and Summarize resolves that
-// collision by keeping the first four the model happened to emit, dropping
-// the rest regardless of worth. Asking for the most useful few makes the
-// selection the model's, in priority order, rather than the slice's.
 func TestBuildSummaryPromptPrioritizesGapIdeasWithinTheCap(t *testing.T) {
 	got := buildSummaryPrompt(promptQuestion, msgs("I like dogs."), "\u72ac\u304c\u597d\u304d")
 	for _, want := range []string{
@@ -206,10 +168,6 @@ func TestBuildSummaryPromptPrioritizesGapIdeasWithinTheCap(t *testing.T) {
 	}
 }
 
-// "Never pad" is about the absence of phrases worth teaching, not about how
-// many ideas the reflection happened to hold. Tying it to the gap count
-// cancels the fallback the sentence before it grants: three gap phrases plus
-// one worthwhile rewrite chunk is a legitimate four.
 func TestBuildSummaryPromptLetsRewriteChunksFillRemainingSlots(t *testing.T) {
 	got := buildSummaryPrompt(promptQuestion, msgs("I like dogs."), "\u72ac\u304c\u597d\u304d")
 	if !strings.Contains(got, "If neither source offers four phrases worth remembering, return fewer") {
@@ -220,9 +178,6 @@ func TestBuildSummaryPromptLetsRewriteChunksFillRemainingSlots(t *testing.T) {
 	}
 }
 
-// "Everyday" is stated as a test the model can apply, not as a list of
-// prohibitions that leaves it guessing what is left. Reaching for a fancier
-// phrase is worse than returning fewer, so unsure means drop it.
 func TestBuildSummaryPromptKeepsPhrasesToEverydaySpeech(t *testing.T) {
 	got := buildSummaryPrompt(promptQuestion, msgs("I like dogs."), "犬が好き")
 	for _, want := range []string{
@@ -236,8 +191,6 @@ func TestBuildSummaryPromptKeepsPhrasesToEverydaySpeech(t *testing.T) {
 	}
 }
 
-// The reflection is the only Japanese in the session; every question and
-// explanation the learner reads back is English.
 func TestBuildSummaryPromptKeepsExplanationsInEnglish(t *testing.T) {
 	got := buildSummaryPrompt(promptQuestion, msgs("I like dogs."), "犬が好き")
 	if !strings.Contains(got, "Write every part of your response in English") {
@@ -248,9 +201,6 @@ func TestBuildSummaryPromptKeepsExplanationsInEnglish(t *testing.T) {
 	}
 }
 
-// The explanation section is one overall diagnosis, not a per-sentence
-// list: the patterns that made the learner's English sound unnatural, and
-// what to do differently next time.
 func TestBuildSummaryPromptAsksWhyItSoundedUnnaturalAndHowToFixIt(t *testing.T) {
 	got := buildSummaryPrompt(promptQuestion, msgs("I like dogs."), "犬が好き")
 	for _, want := range []string{
@@ -267,8 +217,6 @@ func TestBuildSummaryPromptAsksWhyItSoundedUnnaturalAndHowToFixIt(t *testing.T) 
 	}
 }
 
-// A learner whose English already sounded natural still reads a section —
-// the model says so and names what to polish next, rather than going blank.
 func TestBuildSummaryPromptCoversTheAlreadyNaturalCase(t *testing.T) {
 	got := buildSummaryPrompt(promptQuestion, msgs("I like dogs."), "犬が好き")
 	for _, want := range []string{

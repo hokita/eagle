@@ -69,12 +69,6 @@ func TestBuildWeaknessPromptKeepsMostRecentWrongAnswersWhenCapping(t *testing.T)
 	}
 }
 
-// TestBuildWeaknessPromptEnforcesTotalCharacterBudget is a regression test:
-// maxInsightMistakes and maxWrongAnswersPerSentence bound the *shape* of the
-// input (how many sentences, how many answers each), but not the size of
-// individual fields. A learner with many sentences each carrying long
-// wrong-answer text could still produce an enormous prompt. This asserts a
-// hard ceiling on the prompt's total size regardless of per-field content.
 func TestBuildWeaknessPromptEnforcesTotalCharacterBudget(t *testing.T) {
 	longAnswer := strings.Repeat("a", 2000)
 	var mistakes []MistakeSentence

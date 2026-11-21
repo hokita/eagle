@@ -88,21 +88,12 @@ func TestGeminiCoachSummarizeParsesAndValidates(t *testing.T) {
 	assertLowThinking(t, fake.gotConfig)
 }
 
-// The refinements echo the learner's text back, so the output budget has
-// to grow with the transcript — otherwise a long but valid session is
-// truncated mid-JSON and its completion fails on every retry. Validation
-// bounds turns in runes and accepts any Unicode, so the budget assumes the
-// tokenizer's byte-fallback worst case of 4 tokens per rune, counts only
-// the learner's turns (the coach's are not echoed), and must still fit the
-// model's own output ceiling for the largest transcript validation lets in.
 func TestSummaryOutputBudgetScalesWithLearnerText(t *testing.T) {
 	short := summaryOutputBudget(msgs("I like dogs."))
 	if short < int32(summaryBaseOutputTokens+summaryTokensPerLearnerRune*len("I like dogs.")) {
 		t.Fatalf("budget %d does not cover a short turn at the worst case", short)
 	}
 
-	// Multibyte throughout, so bytes far exceed runes: the budget must be
-	// a function of runes, as the input cap is.
 	ja := strings.Repeat("あ", maxDiscussionTurnLength)
 	texts := make([]string, maxTranscriptMessages)
 	for i := range texts {
@@ -117,23 +108,17 @@ func TestSummaryOutputBudgetScalesWithLearnerText(t *testing.T) {
 		t.Fatalf("budget %d exceeds the model's output ceiling %d", largest, geminiMaxOutputTokens)
 	}
 
-	// The coach's own turns are not echoed and must not inflate the budget.
 	withLongAITurn := summaryOutputBudget(msgs("I like dogs.", strings.Repeat("x", 500)))
 	if withLongAITurn != short {
 		t.Fatalf("coach turns must not count: got %d, want %d", withLongAITurn, short)
 	}
 }
 
-// A budget the deadline cannot spend is no fix: the deadline grows with the
-// budget, at a generation rate well below the model's so the allowance is
-// generous, and stays under Cloud Run's 300-second default request timeout
-// so the server's own deadline is the one the client hears about.
 func TestSummaryTimeoutScalesWithTheOutputBudget(t *testing.T) {
 	small := summaryTimeout(summaryOutputBudget(msgs("I like dogs.")))
 	if small < discussionTimeout {
 		t.Fatalf("summary deadline %v is below the base discussion deadline %v", small, discussionTimeout)
 	}
-	// A realistic long session: three learner turns of a few hundred runes.
 	turn := strings.Repeat("あ", 400)
 	medium := summaryTimeout(summaryOutputBudget(msgs(turn, "why?", turn, "and?", turn)))
 	if medium <= small {
@@ -151,7 +136,6 @@ func TestSummaryTimeoutScalesWithTheOutputBudget(t *testing.T) {
 	}
 }
 
-// The derived deadline has to reach the model call, not just be computed.
 func TestGeminiCoachSummarizeAppliesTheDerivedDeadline(t *testing.T) {
 	fake := &fakeContentGenerator{resp: textResp(`{"refined_messages":["ok"],"naturalness_why_en":"w","naturalness_fix_en":"f","phrases":[]}`)}
 	g := &GeminiCoach{models: fake, model: "gemini-test"}
@@ -164,8 +148,6 @@ func TestGeminiCoachSummarizeAppliesTheDerivedDeadline(t *testing.T) {
 	if want <= discussionTimeout {
 		t.Fatalf("test transcript must need more than the base deadline, got %v", want)
 	}
-	// Measured from before the call, so the distance can only overshoot by
-	// the call's own duration; the lower margin absorbs a slow test host.
 	got := fake.gotDeadline.Sub(before)
 	if fake.gotDeadline.IsZero() || got > want+time.Second || got < want-5*time.Second {
 		t.Fatalf("model call deadline was %v away, want about %v", got, want)
@@ -180,10 +162,6 @@ func TestGeminiCoachSummarizeRejectsMalformedJSON(t *testing.T) {
 	}
 }
 
-// The refinements are read zipped against the learner's turns, so a list
-// that does not line up with them one-to-one would put the wrong sentence
-// under a message (or none under the last). Unlike the phrase list, there is
-// no valid "fewer" here: the count is the transcript's, not the model's.
 func TestGeminiCoachSummarizeRejectsMisalignedRefinements(t *testing.T) {
 	for name, body := range map[string]string{
 		"too few":  `{"refined_messages":["one"],"naturalness_why_en":"w","naturalness_fix_en":"f","phrases":[]}`,
@@ -194,7 +172,6 @@ func TestGeminiCoachSummarizeRejectsMisalignedRefinements(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			fake := &fakeContentGenerator{resp: textResp(body)}
 			g := &GeminiCoach{models: fake, model: "gemini-test"}
-			// Two learner turns.
 			if _, err := g.Summarize(context.Background(), promptQuestion, msgs("a", "why?", "b"), "x"); err == nil {
 				t.Fatal("expected error for refinements that do not match the learner turns")
 			}
@@ -219,8 +196,6 @@ func TestGeminiCoachSummarizeTruncatesToFourPhrases(t *testing.T) {
 	}
 }
 
-// The response schema constrains field types, not emptiness, so a phrase can
-// legally arrive with a blank gloss and would render as an empty slot.
 func TestGeminiCoachSummarizeDropsIncompletePhrases(t *testing.T) {
 	fake := &fakeContentGenerator{resp: textResp(
 		`{"refined_messages":["ok"],"naturalness_why_en":"w","naturalness_fix_en":"f","phrases":[{"phrase":"  ","meaning_en":"","example_en":""},{"phrase":"in the future","meaning_en":"later","example_en":"See you in the future."}]}`)}
@@ -234,8 +209,6 @@ func TestGeminiCoachSummarizeDropsIncompletePhrases(t *testing.T) {
 	}
 }
 
-// A learner who already said everything naturally has nothing to pick up;
-// that is a valid summary, not an error, and must serialize as [] not null.
 func TestGeminiCoachSummarizeAllowsNoPhrases(t *testing.T) {
 	fake := &fakeContentGenerator{resp: textResp(`{"refined_messages":["ok"],"naturalness_why_en":"w","naturalness_fix_en":"f"}`)}
 	g := &GeminiCoach{models: fake, model: "gemini-test"}
@@ -256,9 +229,6 @@ func TestGeminiCoachPropagatesError(t *testing.T) {
 	}
 }
 
-// Both halves of the explanation are required: the card the learner reads
-// pairs why their English sounded unnatural with what to do about it, so
-// half a card is not a summary worth saving.
 func TestGeminiCoachSummarizeParsesNaturalnessExplanation(t *testing.T) {
 	fake := &fakeContentGenerator{resp: textResp(`{
 		"refined_messages":["I like dogs."],
