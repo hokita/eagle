@@ -23,6 +23,7 @@ type fakeRepo struct {
 	random           *Sentence
 	randomErr        error
 	randomLevelCalls [][]int
+	randomUIDs       []string
 	correct          string
 	correctErr       error
 	sentenceJapanese string
@@ -39,7 +40,8 @@ type fakeRepo struct {
 	listMistakesForInsightCalls int
 }
 
-func (f *fakeRepo) RandomCandidate(_ context.Context, _ string, levels []int) (*Sentence, error) {
+func (f *fakeRepo) RandomCandidate(_ context.Context, uid string, levels []int) (*Sentence, error) {
+	f.randomUIDs = append(f.randomUIDs, uid)
 	f.randomLevelCalls = append(f.randomLevelCalls, levels)
 	return f.random, f.randomErr
 }

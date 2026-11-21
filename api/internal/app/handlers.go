@@ -76,17 +76,19 @@ func (s *Server) getRandomSentence(w http.ResponseWriter, r *http.Request) {
 	uid, _ := uidFromContext(r.Context())
 	var levels []int
 	if raw := r.URL.Query().Get("levels"); raw != "" {
-		seen := map[int]bool{}
+		var parsed []int
 		for _, part := range strings.Split(raw, ",") {
 			n, err := strconv.Atoi(strings.TrimSpace(part))
-			if err != nil || n < 1 || n > 5 {
+			if err != nil {
 				http.Error(w, "Invalid levels parameter", http.StatusBadRequest)
 				return
 			}
-			if !seen[n] {
-				seen[n] = true
-				levels = append(levels, n)
-			}
+			parsed = append(parsed, n)
+		}
+		var ok bool
+		if levels, ok = uniqueLevels(parsed); !ok {
+			http.Error(w, "Invalid levels parameter", http.StatusBadRequest)
+			return
 		}
 	}
 	sentence, err := s.repo.RandomCandidate(r.Context(), uid, levels)
@@ -100,6 +102,21 @@ func (s *Server) getRandomSentence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, sentence)
+}
+
+func uniqueLevels(levels []int) ([]int, bool) {
+	var out []int
+	seen := map[int]bool{}
+	for _, n := range levels {
+		if n < 1 || n > 5 {
+			return nil, false
+		}
+		if !seen[n] {
+			seen[n] = true
+			out = append(out, n)
+		}
+	}
+	return out, true
 }
 
 // answerPunctuation folds the typographic punctuation that phone keyboards,
