@@ -19,7 +19,7 @@ export function loadStoredLevels(): number[] {
       return parsed
     }
   } catch {
-    // ignore malformed storage, fall back to default
+    return LEVELS
   }
   return LEVELS
 }
