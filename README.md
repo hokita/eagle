@@ -63,7 +63,7 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST $URL/mcp \
 unset TOKEN
 ```
 
-**Rotation.** Add a new secret version (`gcloud secrets versions add eagle-mcp-token --data-file=-`), redeploy, and update the token in the Muse connector.
+**Rotation.** Add a new secret version (`openssl rand -hex 32 | tr -d '\n' | gcloud secrets versions add eagle-mcp-token --project=eagle-473ac1 --data-file=-`), redeploy, and update the token in the Muse connector.
 
 ## MCP (Muse)
 
@@ -87,7 +87,7 @@ The REST API is not exposed through MCP, and the correct English is revealed onl
 
 **Rate limit:** MCP tool calls are limited to 120 an hour. Protocol requests (`initialize`, `tools/list`) aren't counted. Over the limit, a tool call returns a tool error `Rate limit reached: try again in <N> seconds` (HTTP status stays 200).
 
-**Muse setup** (after a deploy): add a custom connector with the URL above and the token as an `Authorization: Bearer <token>` header (read it with `gcloud secrets versions access latest --secret=eagle-mcp-token --project=eagle-473ac1`), then try each tool: get a sentence, answer it (it shows in the app's history, and on the Mistakes page if wrong), list mistakes, and report one only if you mean it (there is no undo). If the connector can't send a custom `Authorization` header, it can't connect; OAuth isn't supported.
+**Muse setup** (after a deploy): add a custom connector with the URL above and the token as an `Authorization: Bearer <token>` header (copy it with `gcloud secrets versions access latest --secret=eagle-mcp-token --project=eagle-473ac1 | pbcopy` on macOS, then paste it into the connector), then try each tool: get a sentence, answer it (it shows in the app's history, and on the Mistakes page if wrong), list mistakes, and report one only if you mean it (there is no undo). If the connector can't send a custom `Authorization` header, it can't connect; OAuth isn't supported.
 
 ## Environment variables (API)
 
