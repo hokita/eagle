@@ -1,10 +1,3 @@
-// speakJapanese reads text aloud with a Japanese voice.
-//
-// The two timeouts are Safari workarounds carried over from the original
-// inline implementation: voices load asynchronously (so we wait 100ms before
-// building the utterance), and Safari sometimes accepts speak() without ever
-// firing onstart/onend (so we re-check the queue after 500ms and clear the
-// speaking flag ourselves rather than leaving the button stuck disabled).
 export function speakJapanese(
   text: string,
   onSpeakingChange: (speaking: boolean) => void
