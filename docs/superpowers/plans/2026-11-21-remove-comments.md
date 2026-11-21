@@ -20,23 +20,23 @@
 - Add no code to replace a deleted warning. Real traps go in the PR body under "Traps that lost their comment".
 - Never merge. Post no GitHub comments. Commit no secrets. Report port clashes and leave other processes running.
 
-## Inventory (base 0880ab7)
+## Inventory (base da34eff, after rebasing on origin/main)
 
 | Area | Comments | Whole lines removed | Trailing (line stays) |
 |---|---|---|---|
 | api/cmd | 33 | 33 | 0 |
 | api/internal/app (source) | 475 | 461 | 14 |
 | api/internal/app (tests) | 251 | 240 | 11 |
-| fe/src/lib + fe/src/test-helpers.ts | 67 | 67 | 0 |
-| fe/src/components (source, includes 9 JSX comments) | 165 | 189 | 0 |
+| fe/src/lib + fe/src/test-helpers.ts | 68 | 68 | 0 |
+| fe/src/components (source, includes 9 JSX comments and 1 eslint-disable) | 166 | 190 | 0 |
 | fe/src/components (tests) | 90 | 90 | 0 |
-| e2e/tests | 34 | 34 | 0 |
+| e2e/tests | 29 | 29 | 0 |
 | config: `.github/workflows/deploy-{api,fe}.yml`, `fe/.gitignore` | 15 | 15 | 0 |
-| **Total** | **1130** | **1129** | **25** |
+| **Total** | **1127** | **1126** | **25** |
 
 The CSS, the other config files (`next.config.ts`, `vitest.config.ts`, `eslint.config.mjs`, `playwright.config.ts`, `firebase.json`, Dockerfile, `.env.example`, `ci.yml`, `e2e.yml`) and `api/main.go` contain no comments.
 
-Lint and type ignores: **none in the code.** There is no `eslint-disable*`, `@ts-ignore`, `@ts-expect-error`, `biome-ignore` or `//nolint`. `fe/eslint.config.mjs` only extends `next/core-web-vitals` and `next/typescript` and turns no rule off. The api has no golangci config. One comment exists only to keep a block non-empty: `fe/src/lib/useSettings.ts:21`, the empty `catch` in `loadStoredLevels` (Task 2).
+Lint and type ignores: **one**, `fe/src/components/Translator.tsx:80` `// eslint-disable-next-line react-hooks/exhaustive-deps` on the mount-only initial-load effect (Task 2b). The first inventory missed it because its collector skipped comments placed before closing tokens; the corrected collector walks every token and agrees line-for-line with a whole-line grep. There is no `@ts-ignore`, `@ts-expect-error`, `biome-ignore` or `//nolint`. `fe/eslint.config.mjs` only extends `next/core-web-vitals` and `next/typescript` and turns no rule off. The api has no golangci config. One comment exists only to keep a block non-empty: `fe/src/lib/useSettings.ts:21`, the empty `catch` in `loadStoredLevels` (Task 2).
 
 ## Review Focus
 
@@ -73,6 +73,15 @@ Lint and type ignores: **none in the code.** There is no `eslint-disable*`, `@ts
 - [ ] **Step 3:** Run the full check (see "Per-task verification"). Expected: all green.
 - [ ] **Step 4: Commit:** `refactor(fe): return the default from loadStoredLevels' catch instead of an empty block`
 
+### Task 2b: Remove the exhaustive-deps ignore in Translator (fix commit, test first)
+
+**Files:** Modify `fe/src/components/Translator.tsx:78-81`. Test: `fe/src/components/Translator.test.tsx`.
+
+- [ ] **Step 1: Failing test first:** add `it('loads one sentence on mount and does not refetch when the levels change')`. Assert `api.getRandomSentence` is called exactly once after mount, and still once after changing the level selection through the settings UI (the existing mount-only behaviour). Confirm the test goes red against the naive fix (adding the missing deps to the effect), then put the code back.
+- [ ] **Step 2:** Make the initial-load effect satisfy `react-hooks/exhaustive-deps` without a suppression, keeping mount-only behaviour. React is 19.1, where `useEffectEvent` is not stable, so don't use it. Use a structure the rule accepts, such as an effect that depends only on stable values or a `useCallback` chain that genuinely doesn't change.
+- [ ] **Step 3:** Run the per-task verification. `npm run lint` must report no `exhaustive-deps` warning for this file.
+- [ ] **Step 4: Commit:** `fix(fe): satisfy exhaustive-deps on Translator's initial load instead of disabling the rule`
+
 ### Tasks 3–10: Comments-only removal, one commit per area
 
 Run Task 1's `strip` over each area's files, then the per-task verification, then commit `chore(<area>): remove comments`.
@@ -90,7 +99,7 @@ Run Task 1's `strip` over each area's files, then the per-task verification, the
 
 After each task, `git grep` the task's files for `//`, `/*` and `#` (skipping matches in strings) to confirm nothing is left. While stripping, add any comment that guarded a real trap to the PR body list (candidates are below).
 
-### Per-task verification (every task from 2 to 10)
+### Per-task verification (every task from 2 to 10, including 2b)
 
 - `.superpowers/comment-tools/verify.sh HEAD~1 <area>` exits 0 (removal tasks only).
 - api: `cd api && gofmt -l . && go vet ./... && go test ./...`. Expected: no gofmt output, vet clean, tests ok.
@@ -102,7 +111,7 @@ After each task, `git grep` the task's files for `//`, `/*` and `#` (skipping ma
 - [ ] **Step 1:** Check that ports 9099, 8081, 8080 and 3000 are free (`lsof -iTCP -sTCP:LISTEN -P | grep -E ':(9099|8081|8080|3000)\b'`). If any is taken, report the pid and stop.
 - [ ] **Step 2:** Run `bash e2e/scripts/run.sh` from the repo root. Expected: every Playwright spec passes.
 - [ ] **Step 3:** `git grep` the whole tracked tree outside the exclusions. Expected: only the two shebangs remain.
-- [ ] **Step 4:** Push, then `gh pr create --title 'Remove narration comments'`. The body has: counts, verification, "Lint ignores removed" (none in code; the `useSettings.ts` empty-catch fix), "Traps that lost their comment", and it ends with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
+- [ ] **Step 4:** Push, then `gh pr create --title 'Remove narration comments'`. The body has: counts, verification, "Lint ignores removed" (the `Translator.tsx` exhaustive-deps disable and the `useSettings.ts` empty-catch fix), "Traps that lost their comment", and it ends with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
 
 ## Traps that will lose their comment (PR body candidates)
 
@@ -131,6 +140,5 @@ After each task, `git grep` the task's files for `//`, `/*` and `#` (skipping ma
 - `fe/src/components/Mistakes.tsx:15,71`: the insight cache key is scoped by user and language; a cache hit must clear the loading flag itself.
 - `fe/src/components/SessionHistory.tsx:54`, `Translator.tsx:83`: request generations drop stale in-flight responses.
 - `fe/src/components/ui/sheet.tsx:24,46`: the focus trap and its focusable selector include visually hidden checkboxes.
-- `e2e/tests/helpers.ts:18,24`: `signInWithRedirect` needs `waitForURL`; the emulator page must finish attaching its handlers before clicks.
 - `.github/workflows/deploy-api.yml:52`: the MCP token secret is mounted only once the repo variable names an existing secret (Cloud Run fails otherwise).
 - `.github/workflows/deploy-fe.yml:48`: the Firebase web config is public by design; don't move it into secrets.
