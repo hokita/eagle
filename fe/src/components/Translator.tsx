@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import type { User } from 'firebase/auth'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -55,14 +55,12 @@ export default function Translator({ user }: Props) {
   const explainRequestId = useRef(0)
   const askRequestId = useRef(0)
 
-  const getRandomSentence = async (levelsOverride?: number[]) => {
+  const getRandomSentence = useCallback(async (selectedLevels: number[]) => {
     const requestId = ++latestRequestId.current
     try {
       setLoading(true)
       setError(null)
-      const sentence = await api.getRandomSentence(
-        levelsForRequest(levelsOverride ?? levels)
-      )
+      const sentence = await api.getRandomSentence(levelsForRequest(selectedLevels))
       if (requestId !== latestRequestId.current) return
       setCurrentSentence(sentence)
       setCorrectCount(sentence.correct_count)
@@ -73,12 +71,11 @@ export default function Translator({ user }: Props) {
     } finally {
       if (requestId === latestRequestId.current) setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     getRandomSentence(loadStoredLevels())
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [getRandomSentence])
 
   // A thread belongs to the explanation it was asked about: whenever that
   // explanation goes away — a new sentence, or a re-fetch in the other
@@ -181,7 +178,7 @@ export default function Translator({ user }: Props) {
 
   const nextSentence = () => {
     resetQuestionState()
-    getRandomSentence()
+    getRandomSentence(levels)
   }
 
   const reportSentence = async (sentenceId: number) => {
@@ -209,7 +206,7 @@ export default function Translator({ user }: Props) {
           <Card>
             <CardContent className="p-5">
               <p className="mb-4 text-foreground">{error || 'Failed to load content'}</p>
-              <Button onClick={() => getRandomSentence()} className="w-full">
+              <Button onClick={() => getRandomSentence(levels)} className="w-full">
                 Try Again
               </Button>
             </CardContent>

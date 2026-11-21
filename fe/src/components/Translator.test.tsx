@@ -119,6 +119,20 @@ describe('answering phase', () => {
     expect(await screen.findByText(fakeSentence.japanese)).toBeInTheDocument()
   })
 
+  it('loads one sentence on mount and does not refetch when the levels change', async () => {
+    localStorage.setItem('eagle:selectedLevels', JSON.stringify([3]))
+    await renderAndLoad()
+    expect(mockApi.getRandomSentence).toHaveBeenCalledTimes(1)
+    expect(mockApi.getRandomSentence).toHaveBeenCalledWith([3])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Level 5' }))
+
+    await waitFor(() => expect(mockApi.getRandomSentence).toHaveBeenLastCalledWith([3, 5]))
+    await screen.findByText(fakeSentence.japanese)
+    expect(mockApi.getRandomSentence).toHaveBeenCalledTimes(2)
+  })
+
   it('ignores a stale sentence response that resolves after a newer request', async () => {
     await renderAndLoad()
 
