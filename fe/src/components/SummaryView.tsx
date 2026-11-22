@@ -17,8 +17,6 @@ interface Props {
   onRestart: () => void
 }
 
-// The end of a live session: the finished session itself, rendered by the
-// same component the history panel uses, plus the only two ways on from here.
 export default function SummaryView({
   question,
   transcript,

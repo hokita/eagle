@@ -7,21 +7,12 @@ import (
 	"testing"
 )
 
-// wantBankSize is the number of questions the committed bank must hold, so
-// the discussion mode has enough variety that a user rarely repeats one.
 const wantBankSize = 100
 
-// maxBankLevel keeps the bank everyday-conversation material. Levels 4-5 are
-// the abstract debate range the mode moved away from: they ask the learner to
-// argue policy rather than talk about their own life.
 const maxBankLevel = 3
 
-// minLevelOneQuestions ensures the easiest tier actually dominates. Without a
-// floor the bank drifts back toward level 3, which is what made the mode feel
-// difficult in the first place.
 const minLevelOneQuestions = 30
 
-// readBank parses the committed NDJSON bank the seeder loads by default.
 func readBank(t *testing.T) []row {
 	t.Helper()
 	f, err := os.Open("../../../docs/discussion_questions_seed.ndjson")

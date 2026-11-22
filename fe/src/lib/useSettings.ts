@@ -19,7 +19,7 @@ export function loadStoredLevels(): number[] {
       return parsed
     }
   } catch {
-    // ignore malformed storage, fall back to default
+    return LEVELS
   }
   return LEVELS
 }
@@ -29,8 +29,6 @@ export function loadStoredLanguage(): ExplainLanguage {
   return window.localStorage.getItem(EXPLAIN_LANGUAGE_STORAGE_KEY) === 'ja' ? 'ja' : 'en'
 }
 
-// levelsForRequest returns undefined when the selection carries no
-// information — every level and no level both mean "any level" to the API.
 export function levelsForRequest(levels: number[]): number[] | undefined {
   return levels.length === 0 || levels.length === LEVELS.length ? undefined : levels
 }

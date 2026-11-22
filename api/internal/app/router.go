@@ -39,8 +39,6 @@ func (c MCPConfig) LogStatus() {
 	}
 }
 
-// NewMux wires all HTTP routes with CORS and auth, matching the API's
-// public surface exactly.
 func NewMux(srv *Server, verifier TokenVerifier, allowedEmails []string, frontendURL string, mcpCfg MCPConfig) *http.ServeMux {
 	auth := func(h http.HandlerFunc) http.HandlerFunc {
 		return withCORS(frontendURL, requireAuth(verifier, allowedEmails, h))

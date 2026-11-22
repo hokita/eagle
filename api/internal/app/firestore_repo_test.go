@@ -15,10 +15,6 @@ import (
 
 const emulatorProjectID = "eagle-test"
 
-// clearFirestoreEmulator wipes all documents so each test starts from an
-// empty database. The emulator is a long-lived process shared across test
-// runs, so without this, documents from earlier runs (e.g. counters,
-// histories) leak into later assertions.
 func clearFirestoreEmulator(t *testing.T, host string) {
 	t.Helper()
 	url := fmt.Sprintf("http://%s/emulator/v1/projects/%s/databases/(default)/documents", host, emulatorProjectID)
@@ -78,9 +74,6 @@ func TestFirestoreCorrectAnswerNotFound(t *testing.T) {
 	}
 }
 
-// seedManyWrongAnswers records attempts incorrect attempts at the given
-// sentence for uid, one minute apart starting at base, and returns the
-// expected newest-first order of their IncorrectAnswer text.
 func seedManyWrongAnswers(t *testing.T, ctx context.Context, repo *firestoreRepo, uid string, sentenceID int, base time.Time, attempts int) []string {
 	t.Helper()
 	for i := 0; i < attempts; i++ {
@@ -93,20 +86,11 @@ func seedManyWrongAnswers(t *testing.T, ctx context.Context, repo *firestoreRepo
 	}
 	want := make([]string, attempts)
 	for i := 0; i < attempts; i++ {
-		want[i] = fmt.Sprintf("wrong-%d", attempts-1-i) // newest (highest i) first
+		want[i] = fmt.Sprintf("wrong-%d", attempts-1-i)
 	}
 	return want
 }
 
-// TestFirestoreListMistakesForInsightBoundedAtQueryLevel is a regression
-// test: without a Firestore-side limit, a learner who repeatedly submits
-// wrong answers to the same sentence forces an ever-larger read (and an
-// ever-larger weakness-insight prompt) on every request. The cap must live
-// in the query itself, not just be applied to the results in Go after
-// they've already been read — but only for the insight-specific path (see
-// TestFirestoreListIncorrectHistoriesRemainsUnboundedForCheckAnswer and
-// TestFirestoreListMistakesRemainsUnboundedForRawList below, which guard
-// against that cap leaking into the unrelated existing-history APIs).
 func TestFirestoreListMistakesForInsightBoundedAtQueryLevel(t *testing.T) {
 	ctx := context.Background()
 	client := newEmulatorClient(t)
@@ -129,7 +113,6 @@ func TestFirestoreListMistakesForInsightBoundedAtQueryLevel(t *testing.T) {
 	if len(hs) != maxWrongAnswersPerSentence {
 		t.Fatalf("expected the query itself to cap results at %d, got %d: %+v", maxWrongAnswersPerSentence, len(hs), hs)
 	}
-	// Newest first: want[0] is the most recently recorded attempt.
 	if hs[0].IncorrectAnswer != want[0] {
 		t.Fatalf("expected the most recent attempt to be kept, got %+v", hs[0])
 	}
@@ -140,13 +123,6 @@ func TestFirestoreListMistakesForInsightBoundedAtQueryLevel(t *testing.T) {
 	}
 }
 
-// TestFirestoreListMistakesForInsightBoundsSentenceScanAtQueryLevel is a
-// regression test: TestFirestoreListMistakesForInsightBoundedAtQueryLevel
-// above only caps wrong-answer history per sentence. Without a separate
-// cap on the outer sentence_stats scan, a learner who has ever missed many
-// distinct sentences still forces a read (stats doc + sentence doc per
-// mistake) that scales with their entire lifetime mistake count on every
-// insight request. The cap must live in the query itself.
 func TestFirestoreListMistakesForInsightBoundsSentenceScanAtQueryLevel(t *testing.T) {
 	ctx := context.Background()
 	client := newEmulatorClient(t)
@@ -176,13 +152,6 @@ func TestFirestoreListMistakesForInsightBoundsSentenceScanAtQueryLevel(t *testin
 	}
 }
 
-// TestFirestoreListMistakesForInsightSkipsCorrectOnlyDocsWhenScanning is a
-// regression test for a Codex review finding: the scan cap applied
-// Limit(scanLimit) to the raw doc scan before the IncorrectCount==0 filter,
-// so enough more-recently-touched correct-only sentences could crowd every
-// actual mistake out of the capped window — ListMistakesForInsight would
-// return empty (suppressing the insight entirely) even though the learner
-// has a real, older mistake still visible on the raw /api/mistakes list.
 func TestFirestoreListMistakesForInsightSkipsCorrectOnlyDocsWhenScanning(t *testing.T) {
 	ctx := context.Background()
 	client := newEmulatorClient(t)
@@ -196,8 +165,6 @@ func TestFirestoreListMistakesForInsightSkipsCorrectOnlyDocsWhenScanning(t *test
 		t.Fatal(err)
 	}
 
-	// More sentences than maxInsightStatsScan, all answered correctly and all
-	// touched more recently than the mistake above.
 	for i := 0; i < maxInsightStatsScan+10; i++ {
 		id := 3001 + i
 		seedSentence(t, client, strconv.Itoa(id), "1", fmt.Sprintf("正解%d", i), fmt.Sprintf("correct %d", i), 1, false)
@@ -221,10 +188,6 @@ func TestFirestoreListMistakesForInsightSkipsCorrectOnlyDocsWhenScanning(t *test
 	}
 }
 
-// TestFirestoreListMistakesSentenceScanRemainsUnboundedForRawList is a
-// regression test for the same bug: the insight-only scan cap must not leak
-// into ListMistakes, which backs the raw /api/mistakes list and has always
-// shown every sentence a learner has ever missed.
 func TestFirestoreListMistakesSentenceScanRemainsUnboundedForRawList(t *testing.T) {
 	ctx := context.Background()
 	client := newEmulatorClient(t)
@@ -254,12 +217,6 @@ func TestFirestoreListMistakesSentenceScanRemainsUnboundedForRawList(t *testing.
 	}
 }
 
-// TestFirestoreListIncorrectHistoriesRemainsUnboundedForCheckAnswer is a
-// regression test for a bug caught in PR review: the insight path's query
-// limit must not leak into ListIncorrectHistories, which backs the
-// "Previous Incorrect Answers" panel shown after checking an answer. That
-// panel has always shown a learner's complete history for the current
-// sentence, unrelated to weakness-insight's Gemini cost bound.
 func TestFirestoreListIncorrectHistoriesRemainsUnboundedForCheckAnswer(t *testing.T) {
 	ctx := context.Background()
 	client := newEmulatorClient(t)
@@ -285,10 +242,6 @@ func TestFirestoreListIncorrectHistoriesRemainsUnboundedForCheckAnswer(t *testin
 	}
 }
 
-// TestFirestoreListMistakesRemainsUnboundedForRawList is a regression test
-// for the same bug: ListMistakes backs the plain /api/mistakes list page,
-// which has always shown a learner's complete wrong-answer history per
-// sentence. Only the insight-specific ListMistakesForInsight bounds it.
 func TestFirestoreListMistakesRemainsUnboundedForRawList(t *testing.T) {
 	ctx := context.Background()
 	client := newEmulatorClient(t)
@@ -351,11 +304,10 @@ func TestFirestoreRandomExcludesMasteredAndReported(t *testing.T) {
 	client := newEmulatorClient(t)
 	repo := NewFirestoreRepo(client)
 	uid := "user-filter"
-	seedSentence(t, client, "301", "1", "A", "A", 1, false) // mastered below
-	seedSentence(t, client, "302", "1", "B", "B", 1, true)  // reported
-	seedSentence(t, client, "303", "1", "C", "C", 1, false) // remains a valid candidate
+	seedSentence(t, client, "301", "1", "A", "A", 1, false)
+	seedSentence(t, client, "302", "1", "B", "B", 1, true)
+	seedSentence(t, client, "303", "1", "C", "C", 1, false)
 
-	// Push 301 to net +2 (correct - incorrect >= 2) -> excluded.
 	if err := repo.RecordAnswer(ctx, uid, 301, true, ""); err != nil {
 		t.Fatal(err)
 	}
@@ -412,8 +364,6 @@ func TestFirestoreRandomCandidateLevelZeroIncludesUnleveledDocs(t *testing.T) {
 	client := newEmulatorClient(t)
 	repo := NewFirestoreRepo(client)
 	uid := "user-unleveled"
-	// Simulates a pre-backfill document seeded before the level field existed:
-	// no "level" key at all, not even a zero value.
 	_, err := client.Collection("sentences").Doc("501").Set(ctx, map[string]interface{}{
 		"japanese": "X", "english": "X", "page": "1", "is_reported": false,
 		"created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z",
@@ -443,7 +393,6 @@ func TestFirestoreRandomCandidateFiltersByMultipleLevels(t *testing.T) {
 	seedSentence(t, client, "601", "1", "A", "A", 1, false)
 	seedSentence(t, client, "602", "1", "B", "B", 3, false)
 	seedSentence(t, client, "603", "1", "C", "C", 5, false)
-	// Unleveled doc (pre-backfill) must not match an explicit multi-level subset.
 	_, err := client.Collection("sentences").Doc("604").Set(ctx, map[string]interface{}{
 		"japanese": "D", "english": "D", "page": "1", "is_reported": false,
 		"created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z",
@@ -491,7 +440,6 @@ func TestFirestoreListMistakesGroupsWrongAnswersMostRecentSentenceFirst(t *testi
 	if len(mistakes) != 2 {
 		t.Fatalf("expected 2 mistaken sentences, got %d: %+v", len(mistakes), mistakes)
 	}
-	// 701's most recent wrong answer (Jan 3) is newer than 702's (Jan 2), so 701 sorts first.
 	if mistakes[0].SentenceID != 701 {
 		t.Fatalf("expected sentence 701 first (most recent mistake), got %+v", mistakes)
 	}
@@ -533,10 +481,6 @@ func TestFirestoreListMistakesOrdersBySubSecondPrecisionWithinSameSecond(t *test
 	client := newEmulatorClient(t)
 	repo := NewFirestoreRepo(client)
 	uid := "user-subsecond"
-	// IDs chosen so ascending doc-ID order (Firestore's default iteration
-	// order for an unordered collection scan) is the OPPOSITE of the correct
-	// time-based order, so this test only passes if sub-second precision is
-	// actually preserved through storage and the sort, not by coincidence.
 	seedSentence(t, client, "1001", "1", "A", "A-en", 1, false)
 	seedSentence(t, client, "1002", "1", "B", "B-en", 1, false)
 
@@ -557,9 +501,6 @@ func TestFirestoreListMistakesOrdersBySubSecondPrecisionWithinSameSecond(t *test
 	if len(mistakes) != 2 {
 		t.Fatalf("expected 2 mistaken sentences, got %d: %+v", len(mistakes), mistakes)
 	}
-	// Both wrong answers land in the same wall-clock second (12:00:00), but
-	// 1002's is 800ms later. Sub-second precision must survive storage and
-	// the sort for 1002 to correctly rank first.
 	if mistakes[0].SentenceID != 1002 {
 		t.Fatalf("expected sentence 1002 first (later within the same second), got %+v", mistakes)
 	}
@@ -636,7 +577,6 @@ func TestFirestorePhrases(t *testing.T) {
 		t.Fatalf("unexpected after update: %+v", got)
 	}
 
-	// Another user's phrase is out of reach by id.
 	if _, err := repo.GetPhrase(ctx, "u2", first.ID); err != ErrNotFound {
 		t.Fatalf("expected ErrNotFound for another user's phrase, got %v", err)
 	}

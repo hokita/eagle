@@ -35,9 +35,6 @@ export interface ExplainResponse {
   explanation: string
 }
 
-// One question the learner asked about an explanation, and the answer they
-// got. The thread is not stored: it is sent back with the next question so
-// the answer can build on it.
 export interface FollowUpTurn {
   question: string
   answer: string
@@ -75,10 +72,6 @@ export interface Phrase {
   example_en: string
 }
 
-// A phrase the learner saved while answering a sentence, with the meaning
-// and English example sentences the AI wrote for it. meaning is empty and
-// examples is [] when the AI could not write them at save time; rewritePhrase
-// asks again.
 export interface SavedPhrase {
   id: string
   phrase: string
@@ -89,11 +82,6 @@ export interface SavedPhrase {
 
 export interface DiscussionCompleteResponse {
   session_id: string
-  // One entry per user message in the transcript, in order: that message
-  // the way a native speaker would say it. Optional because the frontend
-  // and the API deploy independently: a frontend that ships first talks to
-  // an API that does not send this field yet, and must render rather than
-  // crash. Consumers default it to [].
   refined_messages?: string[]
   naturalness_why_en: string
   naturalness_fix_en: string
@@ -114,11 +102,7 @@ export interface DiscussionSessionDetail {
   topic: string
   transcript: DiscussionMessage[]
   reflection_ja: string
-  // One entry per user message in the transcript, in order. Empty on
-  // sessions saved before per-turn refinement existed; absent from an API
-  // deployed before the field existed (see DiscussionCompleteResponse).
   refined_messages?: string[]
-  // Empty on sessions saved before the explanation existed.
   naturalness_why_en: string
   naturalness_fix_en: string
   phrases: Phrase[]
@@ -171,7 +155,6 @@ export const api = {
   deletePhrase: (id: string) =>
     request<void>(`/api/phrases/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
-  // Has the AI write the phrase's meaning and examples again.
   rewritePhrase: (id: string) =>
     request<SavedPhrase>(`/api/phrases/${encodeURIComponent(id)}/examples`, { method: 'POST' }),
 

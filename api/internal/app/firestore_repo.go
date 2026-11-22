@@ -146,12 +146,6 @@ func (r *firestoreRepo) GetSentence(ctx context.Context, id int) (string, string
 	return sd.Japanese, sd.English, nil
 }
 
-// incorrectHistories reads a sentence's wrong-answer history, newest first.
-// limit > 0 applies Limit(limit) at the query level, bounding the read
-// itself rather than just the slice returned to the caller; limit <= 0
-// leaves the read unbounded. Only the insight-specific path passes a limit
-// — ListIncorrectHistories and ListMistakes stay unbounded, since they back
-// UI that has always shown a learner's complete history.
 func (r *firestoreRepo) incorrectHistories(ctx context.Context, statsRef *firestore.DocumentRef, limit int) ([]AnswerHistory, error) {
 	q := statsRef.Collection("histories").
 		Where("is_correct", "==", false).
@@ -186,31 +180,10 @@ func (r *firestoreRepo) ListIncorrectHistories(ctx context.Context, uid string, 
 	return r.incorrectHistories(ctx, r.userStats(uid).Doc(strconv.Itoa(id)), 0)
 }
 
-// maxInsightStatsScan bounds how many *mistaken* sentences the insight path
-// collects while scanning a user's sentence_stats docs, most-recently-touched
-// first. "Most-recently-touched" (ordered by updated_at, which every
-// RecordAnswer call bumps whether the attempt was correct or not) is an
-// approximation of "most recently mistaken" — good enough for a weakness
-// summary, and avoids requiring a composite index the way filtering on
-// incorrect_count while ordering by updated_at would.
 const maxInsightStatsScan = 100
 
-// maxInsightStatsScanCeiling bounds, at the Firestore query level, the total
-// number of sentence_stats docs the insight path will examine while looking
-// for maxInsightStatsScan mistaken ones — a learner who mostly answers
-// correctly can have long runs of correct-only docs between mistakes, and
-// without this ceiling the scan for maxInsightStatsScan actual mistakes could
-// still degrade toward scanning their entire history.
 const maxInsightStatsScanCeiling = 500
 
-// listMistakes is the shared implementation behind ListMistakes and
-// ListMistakesForInsight; historyLimit is threaded straight into
-// incorrectHistories (see its doc comment for the limit<=0 convention).
-// scanLimit bounds the outer sentence_stats scan: the query itself is capped
-// at maxInsightStatsScanCeiling docs examined, and the loop stops early once
-// scanLimit *mistaken* sentences have been collected — so more-recently
-// -touched correct-only docs can't crowd real mistakes out of the result the
-// way a flat doc-count limit would. scanLimit<=0 leaves it unbounded.
 func (r *firestoreRepo) listMistakes(ctx context.Context, uid string, historyLimit, scanLimit int) ([]MistakeSentence, error) {
 	mistakes := make([]MistakeSentence, 0)
 	statsQuery := r.userStats(uid).Query
@@ -277,17 +250,10 @@ func (r *firestoreRepo) listMistakes(ctx context.Context, uid string, historyLim
 	return mistakes, nil
 }
 
-// ListMistakes returns every sentence the user has ever answered
-// incorrectly, with its complete wrong-answer history, most recently missed
-// sentence first. Backs the raw /api/mistakes list.
 func (r *firestoreRepo) ListMistakes(ctx context.Context, uid string) ([]MistakeSentence, error) {
 	return r.listMistakes(ctx, uid, 0, 0)
 }
 
-// ListMistakesForInsight is the same as ListMistakes but caps each
-// sentence's wrong-answer history to maxWrongAnswersPerSentence and the
-// outer sentence scan to maxInsightStatsScan, both at the query level.
-// Backs GET /api/mistakes/insight only.
 func (r *firestoreRepo) ListMistakesForInsight(ctx context.Context, uid string) ([]MistakeSentence, error) {
 	return r.listMistakes(ctx, uid, maxWrongAnswersPerSentence, maxInsightStatsScan)
 }

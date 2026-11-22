@@ -154,13 +154,9 @@ func TestDiscussionReplyOK(t *testing.T) {
 	}
 }
 
-// Every session is exactly discussionFollowUps follow-ups long, and that is
-// the server's arithmetic — not something the model can shorten or stretch.
 func TestDiscussionReplyEndsAfterTheFixedFollowUpsWithoutCallingCoach(t *testing.T) {
 	coach := &fakeCoach{reply: &CoachReply{Message: "should not be used"}}
 	srv := discussionServer(&fakeDiscussionRepo{question: testQuestion}, coach)
-	// 5 messages = 3 user + 2 ai turns, ending with the user: both
-	// follow-ups have been asked and answered.
 	rec := httptest.NewRecorder()
 	srv.discussionReply(rec, postJSON(t, "/api/discussion/reply", DiscussionReplyRequest{
 		QuestionID: 1, Transcript: msgs("a", "b", "c", "d", "e"),
@@ -204,7 +200,7 @@ func TestDiscussionReplyRejectsBadTranscripts(t *testing.T) {
 	cases := []DiscussionReplyRequest{
 		{QuestionID: 1, Transcript: nil},
 		{QuestionID: 1, Transcript: []DiscussionMessage{{Role: "ai", Text: "hi"}}},
-		{QuestionID: 1, Transcript: msgs("a", "b")}, // ends with ai, not user
+		{QuestionID: 1, Transcript: msgs("a", "b")},
 	}
 	for i, req := range cases {
 		rec := httptest.NewRecorder()
@@ -302,8 +298,6 @@ func TestDiscussionCompleteOKSavesSession(t *testing.T) {
 	}
 }
 
-// A learner with nothing more to add still reaches the summary, and a
-// summary with nothing worth teaching is a success, not an error.
 func TestDiscussionCompleteAllowsNoPhrases(t *testing.T) {
 	dRepo := &fakeDiscussionRepo{question: testQuestion, savedID: "sess-2"}
 	srv := discussionServer(dRepo, &fakeCoach{summary: &Summary{
@@ -326,7 +320,6 @@ func TestDiscussionCompleteAllowsNoPhrases(t *testing.T) {
 func TestDiscussionCompleteRejectsBadInput(t *testing.T) {
 	srv := discussionServer(&fakeDiscussionRepo{question: testQuestion}, &fakeCoach{summary: testSummary()})
 	cases := []DiscussionCompleteRequest{
-		// The reflection is not skippable, so a blank one is invalid.
 		{QuestionID: 1, Transcript: msgs("a"), ReflectionJA: ""},
 		{QuestionID: 1, Transcript: msgs("a"), ReflectionJA: "   "},
 		{QuestionID: 1, Transcript: msgs("a"), ReflectionJA: strings.Repeat("あ", maxReflectionLength+1)},
@@ -341,16 +334,9 @@ func TestDiscussionCompleteRejectsBadInput(t *testing.T) {
 	}
 }
 
-// TestDiscussionCompleteAcceptsMaximalValidSession pins the completion body
-// cap above the sum of every field's individually accepted maximum — a
-// session whose parts all passed earlier validation must never 400 at the
-// final save step.
 func TestDiscussionCompleteAcceptsMaximalValidSession(t *testing.T) {
 	dRepo := &fakeDiscussionRepo{question: testQuestion, savedID: "sess-max"}
 	srv := discussionServer(dRepo, &fakeCoach{summary: testSummary()})
-	// Multibyte throughout: every field at its rune limit, so the JSON body
-	// is far larger in bytes than in characters — exactly the payload the
-	// old byte-sized caps rejected.
 	long := strings.Repeat("あ", maxDiscussionTurnLength)
 	texts := make([]string, maxTranscriptMessages)
 	for i := range texts {

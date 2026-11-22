@@ -9,8 +9,6 @@ function renderPrompt(overrides = {}) {
 }
 
 describe('ReflectionPrompt', () => {
-  // The question is English even though the answer is Japanese: every
-  // question and explanation in the app is in English.
   it('asks the reflection question in English', () => {
     renderPrompt()
     expect(screen.getByText('What else did you want to say? (in Japanese)')).toBeInTheDocument()
@@ -35,8 +33,6 @@ describe('ReflectionPrompt', () => {
     expect(screen.getByRole('button', { name: 'Finish' })).toBeDisabled()
   })
 
-  // The reflection is what the summary is built from, so it is a required
-  // step rather than an optional one.
   it('cannot be skipped', () => {
     renderPrompt()
     expect(screen.queryByRole('button', { name: 'Nothing to add — skip' })).not.toBeInTheDocument()

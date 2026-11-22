@@ -80,9 +80,6 @@ describe('Sheet', () => {
   })
 })
 
-// aria-modal="true" is a promise that focus is confined to the dialog. Without
-// these, a keyboard user opening the sheet keeps focus on the trigger behind
-// the overlay and can Tab straight into the obscured page underneath.
 describe('Sheet focus management', () => {
   function Harness({ initialOpen = false }: { initialOpen?: boolean }) {
     const [open, setOpen] = React.useState(initialOpen)

@@ -119,6 +119,20 @@ describe('answering phase', () => {
     expect(await screen.findByText(fakeSentence.japanese)).toBeInTheDocument()
   })
 
+  it('loads one sentence on mount and does not refetch when the levels change', async () => {
+    localStorage.setItem('eagle:selectedLevels', JSON.stringify([3]))
+    await renderAndLoad()
+    expect(mockApi.getRandomSentence).toHaveBeenCalledTimes(1)
+    expect(mockApi.getRandomSentence).toHaveBeenCalledWith([3])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Level 5' }))
+
+    await waitFor(() => expect(mockApi.getRandomSentence).toHaveBeenLastCalledWith([3, 5]))
+    await screen.findByText(fakeSentence.japanese)
+    expect(mockApi.getRandomSentence).toHaveBeenCalledTimes(2)
+  })
+
   it('ignores a stale sentence response that resolves after a newer request', async () => {
     await renderAndLoad()
 
@@ -174,8 +188,6 @@ describe('settings', () => {
 
     await waitFor(() => expect(mockApi.getRandomSentence).toHaveBeenLastCalledWith([1, 2, 3, 4]))
     expect(localStorage.getItem('eagle:selectedLevels')).toBe('[1,2,3,4]')
-    // The refetch is still in flight when the call assertion above passes, so
-    // wait for the card to come back rather than reading it straight away.
     expect(await screen.findByText('Level: 1, 2, 3, 4')).toBeInTheDocument()
   })
 
@@ -214,10 +226,6 @@ describe('settings', () => {
     await waitFor(() =>
       expect(screen.queryByText('Not quite right. Try again!')).not.toBeInTheDocument(),
     )
-    // Toggling a level refetches, and the input is gone while that is in
-    // flight. The review panel clears before the fetch resolves, so wait for
-    // the input to come back rather than assuming it already has: on a loaded
-    // machine the refetch has not landed by the time the panel disappears.
     expect(await screen.findByLabelText('Your English translation')).toHaveValue('')
   })
 })
@@ -431,7 +439,6 @@ describe('review phase', () => {
       histories: [],
     })
 
-    // Sentence 1: answer incorrectly, open Explain — the fetch is left in flight.
     await renderAndLoad()
     fireEvent.change(screen.getByLabelText('Your English translation'), {
       target: { value: 'I have no time.' },
@@ -441,8 +448,6 @@ describe('review phase', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Explain' }))
     await waitFor(() => expect(mockApi.explainAnswer).toHaveBeenCalledTimes(1))
 
-    // Move to sentence 2 and answer it incorrectly too, all while sentence 1's
-    // explain request is still pending.
     mockApi.getRandomSentence.mockResolvedValueOnce(secondSentence)
     fireEvent.click(screen.getByRole('button', { name: 'Next Sentence' }))
     await screen.findByText(secondSentence.japanese)
@@ -453,16 +458,12 @@ describe('review phase', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Check Translation' }))
     await screen.findByText('Not quite right. Try again!')
 
-    // Now sentence 1's stale request resolves, after we've already moved on.
     mockApi.explainAnswer.mockResolvedValue({ explanation: 'Second sentence explanation' })
     await act(async () => {
       resolveFirstExplain({ explanation: 'Stale explanation from sentence one' })
       await Promise.resolve()
     })
 
-    // Pressing Explain on sentence 2 must still fetch — not be skipped because
-    // a stale explanation value leaked into state — and must never show sentence
-    // 1's text.
     fireEvent.click(screen.getByRole('button', { name: 'Explain' }))
 
     await waitFor(() =>
@@ -527,7 +528,6 @@ describe('saving a phrase', () => {
       "don't have time",
     )
 
-    // The next sentence starts with an empty form.
     fireEvent.click(screen.getByRole('button', { name: 'Next Sentence' }))
     await screen.findByLabelText('Your English translation')
     expect(screen.queryByRole('list', { name: 'Saved phrases' })).not.toBeInTheDocument()
@@ -617,7 +617,6 @@ describe('follow-up questions', () => {
     const sentHistory = mockApi.askFollowUp.mock.calls[6][4]
     expect(sentHistory).toHaveLength(5)
     expect(sentHistory[0]).toEqual({ question: 'Question 2?', answer: 'Answer 2.' })
-    // The whole thread still reads back on screen.
     expect(await screen.findByText('Answer 1.')).toBeInTheDocument()
   })
 
@@ -654,8 +653,6 @@ describe('follow-up questions', () => {
     expect(await screen.findByText('Recovered.')).toBeInTheDocument()
   })
 
-  // The thread is about one explanation: re-explaining in the other language
-  // replaces it, so the questions asked about the old text go with it.
   it('clears the thread when the explanation is re-fetched in the other language', async () => {
     await explain()
     mockApi.askFollowUp.mockResolvedValue({ answer: 'English answer.' })

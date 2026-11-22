@@ -10,12 +10,7 @@ import (
 )
 
 const (
-	// phraseWriterTimeout is shorter than the explanation's because saving a
-	// phrase waits on it: past this, the phrase is saved without a meaning.
-	phraseWriterTimeout = 15 * time.Second
-	// maxPhraseWriterOutputTokens bounds the reply: a one-line meaning and
-	// three short sentences fit in a few hundred tokens, plus room for
-	// thinking (thinkingAllowanceTokens).
+	phraseWriterTimeout         = 15 * time.Second
 	maxPhraseWriterOutputTokens = 1024 + thinkingAllowanceTokens
 )
 
@@ -28,8 +23,6 @@ var phraseContentSchema = &genai.Schema{
 	Required: []string{"meaning", "examples"},
 }
 
-// GeminiPhraseWriter implements PhraseWriter using the Gemini API, with the
-// same model as the other AI features (geminiModel).
 type GeminiPhraseWriter struct {
 	models contentGenerator
 	model  string
@@ -61,15 +54,11 @@ func (g *GeminiPhraseWriter) Write(ctx context.Context, src PhraseSource) (*Phra
 	}
 	var content PhraseContent
 	if err := json.Unmarshal([]byte(resp.Text()), &content); err != nil {
-		// The finish reason tells a cut-off reply (MAX_TOKENS) apart from a
-		// blocked or malformed one, which the logged error otherwise hides.
 		return nil, fmt.Errorf("parse phrase content (finish reason %q): %w", finishReason(resp), err)
 	}
 	return &content, nil
 }
 
-// finishReason is why the model stopped writing its first candidate, or ""
-// when the response has none.
 func finishReason(resp *genai.GenerateContentResponse) genai.FinishReason {
 	if resp == nil || len(resp.Candidates) == 0 || resp.Candidates[0] == nil {
 		return ""

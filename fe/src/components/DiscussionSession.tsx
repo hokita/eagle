@@ -31,10 +31,6 @@ export default function DiscussionSession({ user }: Props) {
   const [phase, setPhase] = useState<Phase>('loading')
   const [question, setQuestion] = useState<DiscussionQuestion | null>(null)
   const [transcript, setTranscript] = useState<DiscussionMessage[]>([])
-  // Kept past the reflection phase because the summary shows it back: the
-  // phrases start from the ideas the learner could only write in Japanese,
-  // so the Japanese has to be on screen for them to be checkable against it
-  // — the same reason the transcript is shown there.
   const [reflection, setReflection] = useState('')
   const [result, setResult] = useState<DiscussionCompleteResponse | null>(null)
   const [busy, setBusy] = useState(false)
@@ -66,8 +62,6 @@ export default function DiscussionSession({ user }: Props) {
     setError(null)
     try {
       const reply = await api.discussionReply(question.id, current)
-      // A done reply carries no message — the server ends the conversation
-      // once both follow-ups are answered, so there is nothing to append.
       if (reply.done) {
         setPhase('reflection')
       } else {
@@ -81,11 +75,6 @@ export default function DiscussionSession({ user }: Props) {
   }
 
   const sendMessage = (text: string) => {
-    // A previous reply may have failed after the user's turn was already
-    // appended, leaving the transcript ending in an unanswered "user"
-    // message. Sending again must replace that pending turn rather than
-    // appending a second consecutive user message, which the server
-    // rejects (and would brick the session on every later call).
     const last = transcript[transcript.length - 1]
     const next: DiscussionMessage[] =
       last && last.role === 'user'
@@ -95,9 +84,6 @@ export default function DiscussionSession({ user }: Props) {
     requestReply(next)
   }
 
-  // The reflection is the last thing the learner writes: submitting it
-  // summarizes and saves the session in one call, so there is no step left
-  // between here and the summary screen.
   const submitReflection = async (text: string) => {
     if (!question) return
     setBusy(true)
@@ -122,10 +108,6 @@ export default function DiscussionSession({ user }: Props) {
     loadQuestion()
   }
 
-  // The conversation error is the only one whose input (the sent message) is
-  // already consumed — recover by re-requesting a reply for the transcript
-  // as it stands. The reflection keeps its draft, so plain resubmission
-  // covers that one.
   const canRetryReply =
     phase === 'conversation' &&
     transcript.length > 0 &&

@@ -19,8 +19,6 @@ type savedPhraseDoc struct {
 	CreatedAt  time.Time `firestore:"created_at"`
 }
 
-// savedPhrases lives under the user's own document, so every read and write
-// below is confined to that user's phrases by its path.
 func (r *firestoreRepo) savedPhrases(uid string) *firestore.CollectionRef {
 	return r.client.Collection("users").Doc(uid).Collection("saved_phrases")
 }

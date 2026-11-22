@@ -54,8 +54,6 @@ describe('ChatTranscript', () => {
     expect(props.onSend).not.toHaveBeenCalled()
   })
 
-  // Every session is a fixed two follow-ups and the learner answers all of
-  // them — there is deliberately no way out of the conversation.
   it('offers no way to leave the conversation early', () => {
     renderChat()
     expect(screen.queryByRole('button', { name: 'Finish conversation' })).not.toBeInTheDocument()

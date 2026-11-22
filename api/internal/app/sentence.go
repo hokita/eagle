@@ -63,20 +63,15 @@ type ExplainResponse struct {
 	Explanation string `json:"explanation"`
 }
 
-// FollowUpTurn is one question the learner asked about an explanation and the
-// answer they got back. Threads are not persisted: the client sends the ones
-// it has on screen so the next answer can build on them.
 type FollowUpTurn struct {
 	Question string `json:"question"`
 	Answer   string `json:"answer"`
 }
 
 type FollowUpRequest struct {
-	SentenceID int    `json:"sentence_id"`
-	UserAnswer string `json:"user_answer"`
-	Language   string `json:"language"`
-	// Explanation is the explanation the question is about, echoed back from
-	// the client — the explain path stores nothing server-side.
+	SentenceID  int            `json:"sentence_id"`
+	UserAnswer  string         `json:"user_answer"`
+	Language    string         `json:"language"`
 	Explanation string         `json:"explanation"`
 	History     []FollowUpTurn `json:"history"`
 	Question    string         `json:"question"`
@@ -86,32 +81,16 @@ type FollowUpResponse struct {
 	Answer string `json:"answer"`
 }
 
-// ErrNotFound is returned when a sentence document does not exist.
 var ErrNotFound = errors.New("sentence not found")
 
-// ErrNoCandidate is returned when no sentence passes the random filter.
 var ErrNoCandidate = errors.New("no candidate sentence")
 
-// SentenceRepository is the data-access seam behind the HTTP handlers.
 type SentenceRepository interface {
-	// RandomCandidate returns a random non-mastered, non-reported sentence.
-	// levels restricts candidates to sentences whose Level is in the set;
-	// an empty levels means "any level" (no filtering), including sentences
-	// with no level set.
 	RandomCandidate(ctx context.Context, uid string, levels []int) (*Sentence, error)
 	CorrectAnswer(ctx context.Context, id int) (string, error)
 	GetSentence(ctx context.Context, id int) (japanese, english string, err error)
 	ListIncorrectHistories(ctx context.Context, uid string, id int) ([]AnswerHistory, error)
-	// ListMistakes returns every sentence the user has ever answered
-	// incorrectly, most recently missed sentence first.
 	ListMistakes(ctx context.Context, uid string) ([]MistakeSentence, error)
-	// ListMistakesForInsight returns the same shape as ListMistakes but caps
-	// each sentence's wrong-answer history to maxWrongAnswersPerSentence at
-	// the query level, bounding Firestore read cost for the weakness-insight
-	// path. ListMistakes and ListIncorrectHistories stay unbounded — they
-	// back the raw mistakes list and the "Previous Incorrect Answers" panel,
-	// which have always shown a learner's complete history and are unrelated
-	// to Gemini's cost bound.
 	ListMistakesForInsight(ctx context.Context, uid string) ([]MistakeSentence, error)
 	RecordAnswer(ctx context.Context, uid string, id int, correct bool, answer string) error
 	Report(ctx context.Context, id int) error

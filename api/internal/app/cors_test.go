@@ -30,11 +30,6 @@ func TestWithCORSReflectsMatchingOrigin(t *testing.T) {
 	}
 }
 
-// Firebase Hosting serves the same site on both {project}.web.app and
-// {project}.firebaseapp.com, so a single allowed origin isn't enough — a
-// visitor reaching the app via the second domain would have their preflight
-// answered with the wrong Access-Control-Allow-Origin, and the browser
-// would silently refuse to send the real request afterward.
 func TestWithCORSAllowsAnyOfMultipleConfiguredOrigins(t *testing.T) {
 	h := withCORS("https://eagle.web.app,https://eagle.firebaseapp.com", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -61,11 +56,6 @@ func TestWithCORSOmitsHeaderForUnrecognizedOrigin(t *testing.T) {
 	}
 }
 
-// Even when the origin is rejected, the response still varied on the
-// Origin request header (that's why it was rejected) — a shared cache that
-// stores this response without Vary could later replay it to a client with
-// an allowed origin, silently withholding Access-Control-Allow-Origin from
-// a legitimate request.
 func TestWithCORSSetsVaryEvenForUnrecognizedOrigin(t *testing.T) {
 	h := withCORS("https://eagle.example.com", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -79,10 +69,6 @@ func TestWithCORSSetsVaryEvenForUnrecognizedOrigin(t *testing.T) {
 	}
 }
 
-// Reproduces the exact shape of the production failure: a preflight
-// OPTIONS request against a second configured origin (Firebase Hosting's
-// firebaseapp.com domain) must be answered with 204, the matching origin
-// reflected, and next never invoked.
 func TestWithCORSHandlesPreflightForSecondConfiguredOrigin(t *testing.T) {
 	called := false
 	h := withCORS("https://eagle.web.app,https://eagle.firebaseapp.com", func(w http.ResponseWriter, r *http.Request) {

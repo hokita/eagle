@@ -22,10 +22,6 @@ export default function SessionHistory({ user }: Props) {
   const [details, setDetails] = useState<Record<string, DiscussionSessionDetail>>({})
   const [openId, setOpenId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  // Failed detail fetches, keyed by session id. A map (not a single shared
-  // value) so overlapping requests stay independent: a slow failure from one
-  // card can never surface in, clear, or overwrite the error of another
-  // card — even when two failures are in flight at once.
   const [detailErrors, setDetailErrors] = useState<Record<string, true>>({})
 
   const clearDetailError = (id: string) => {
@@ -51,10 +47,6 @@ export default function SessionHistory({ user }: Props) {
     loadSessions()
   }, [])
 
-  // Monotonic per-session request generation. Closing and reopening a card
-  // while its fetch is in flight starts a second request for the same id;
-  // only the latest generation may write state, so a superseded response —
-  // success or failure — can never contradict the one the user is seeing.
   const detailRequestSeq = useRef<Record<string, number>>({})
 
   const fetchDetail = async (id: string) => {
@@ -110,9 +102,6 @@ export default function SessionHistory({ user }: Props) {
             </CardContent>
           </Card>
         ) : (
-          // Sessions are spaced further apart than the cards inside an open
-          // one, so an expanded session reads as one group rather than as
-          // more list entries.
           <div className="space-y-6">
             {sessions.map(session => {
               const open = openId === session.id
@@ -126,17 +115,6 @@ export default function SessionHistory({ user }: Props) {
               )
               return (
                 <div key={session.id} className="space-y-3">
-                  {/* This is the list entry and, most of the time, the only
-                      thing naming the session. It steps back to the topic and
-                      date exactly when the loaded session is on screen below
-                      it: the conversation card asks the question there, where
-                      the summary screen asks it, so an open session is that
-                      screen exactly rather than that screen with its question
-                      printed twice. While the detail is still loading or
-                      failed, nothing else names the session, so the question
-                      stays here. The label is the question either way, so the
-                      control reads the same to a screen reader in both
-                      states. */}
                   {detail ? (
                     <button
                       type="button"
@@ -171,8 +149,6 @@ export default function SessionHistory({ user }: Props) {
                       </CardContent>
                     </Card>
                   )}
-                  {/* The same card stack, in the same order, that the learner
-                      saw when the session ended — see SessionSummary. */}
                   {detail && (
                     <SessionSummary
                       question={detail.question_en}

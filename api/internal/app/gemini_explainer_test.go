@@ -9,8 +9,6 @@ import (
 	"google.golang.org/genai"
 )
 
-// fakeContentGenerator substitutes for *genai.Models in tests, so no test
-// makes a real network call to Gemini.
 type fakeContentGenerator struct {
 	resp *genai.GenerateContentResponse
 	err  error
@@ -18,8 +16,6 @@ type fakeContentGenerator struct {
 	gotModel    string
 	gotContents []*genai.Content
 	gotConfig   *genai.GenerateContentConfig
-	// The deadline on the context the call was made with, zero if none —
-	// how far away a caller's timeout was when it reached the model.
 	gotDeadline time.Time
 }
 
@@ -82,8 +78,6 @@ func TestGeminiExplainerCapsMaxOutputTokens(t *testing.T) {
 	assertLowThinking(t, fake.gotConfig)
 }
 
-// assertLowThinking checks a call asked for low thinking: the model's default
-// spends output tokens the caps are not sized for.
 func assertLowThinking(t *testing.T, config *genai.GenerateContentConfig) {
 	t.Helper()
 	if config == nil || config.ThinkingConfig == nil || config.ThinkingConfig.ThinkingLevel != genai.ThinkingLevelLow {

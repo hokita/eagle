@@ -68,12 +68,6 @@ func (f *fakeRepo) ListMistakes(_ context.Context, _ string) ([]MistakeSentence,
 	return f.mistakes, nil
 }
 
-// ListMistakesForInsight shares fakeRepo's mistakes/mistakesErr fixtures
-// with ListMistakes — the query-level Limit() that distinguishes the two in
-// the real Firestore implementation is covered by the emulator tests in
-// firestore_repo_test.go, not by this fake. The separate call counters let
-// handler tests assert getMistakesInsight calls this method specifically,
-// not ListMistakes (see TestGetMistakesInsightOK).
 func (f *fakeRepo) ListMistakesForInsight(_ context.Context, _ string) ([]MistakeSentence, error) {
 	f.listMistakesForInsightCalls++
 	if f.mistakesErr != nil {
@@ -285,10 +279,6 @@ func TestCheckAnswerCorrectDespiteInternalWhitespaceDifference(t *testing.T) {
 	}
 }
 
-// TestCheckAnswerCorrectDespitePunctuationDifference covers the punctuation a
-// learner cannot control from their keyboard or does not think of as part of
-// the translation: the curly apostrophe a phone or IME substitutes for "'",
-// and the sentence-ending mark at the very end of the answer.
 func TestCheckAnswerCorrectDespitePunctuationDifference(t *testing.T) {
 	for name, tc := range map[string]struct{ correct, user string }{
 		"curly apostrophe for straight":  {"It's always warm in the country.", "It’s always warm in the country."},
@@ -324,9 +314,6 @@ func TestCheckAnswerCorrectDespitePunctuationDifference(t *testing.T) {
 	}
 }
 
-// TestCheckAnswerIncorrectDespitePunctuationNormalization pins the other side
-// of the rule: only the answer's final punctuation is forgiven, so a wrong
-// word or wrong punctuation inside the sentence still grades wrong.
 func TestCheckAnswerIncorrectDespitePunctuationNormalization(t *testing.T) {
 	for name, tc := range map[string]struct{ correct, user string }{
 		"missing internal comma":     {"Yes, you do.", "Yes you do."},
@@ -375,10 +362,6 @@ func TestCheckAnswerIncorrectRecordsAnswer(t *testing.T) {
 	}
 }
 
-// TestCheckAnswerUserAnswerTooLong is a regression test: without a length
-// bound, an authenticated caller could persist arbitrarily large answer text
-// via RecordAnswer, which later flows unbounded into the weakness-insight
-// Gemini prompt (see buildWeaknessPrompt).
 func TestCheckAnswerUserAnswerTooLong(t *testing.T) {
 	repo := &fakeRepo{correct: "It's hot today."}
 	srv := NewServer(repo, &fakeExplainer{}, &fakeAnalyzer{})
@@ -510,12 +493,6 @@ func TestExplainAnswerOK(t *testing.T) {
 	}
 }
 
-// TestExplainAnswerIgnoresClientSuppliedSentenceData is a regression test for
-// a security finding: the japanese/correct_answer fields used to come
-// straight from the client and were sent to Gemini unverified. The server
-// now looks these up from the repository by sentence_id, and any client
-// still sending the old japanese/correct_answer fields is rejected outright
-// (DisallowUnknownFields) rather than having them silently ignored.
 func TestExplainAnswerIgnoresClientSuppliedSentenceData(t *testing.T) {
 	explainer := &fakeExplainer{explanation: "explanation"}
 	repo := &fakeRepo{sentenceJapanese: "本物の文", sentenceEnglish: "the real sentence"}
@@ -601,8 +578,6 @@ func TestExplainAnswerBodyTooLarge(t *testing.T) {
 	}
 }
 
-// followUpBody builds a valid follow-up request body with the given fields
-// overridden, so each test states only what it is about.
 func followUpBody(t *testing.T, overrides map[string]any) *bytes.Reader {
 	t.Helper()
 	body := map[string]any{
@@ -652,8 +627,6 @@ func TestFollowUpAnswerOK(t *testing.T) {
 		t.Fatalf("expected AnswerFollowUp called once, got %d", len(explainer.followUpCalls))
 	}
 	in := explainer.followUpCalls[0]
-	// The sentence and the reference answer come from the repository, never
-	// from the request — the same rule the explain endpoint follows.
 	if in.Japanese != "時間がありません。" || in.CorrectAnswer != "I don't have time." {
 		t.Fatalf("expected sentence loaded from the repository, got %+v", in)
 	}
@@ -721,8 +694,6 @@ func TestFollowUpAnswerInvalidRequests(t *testing.T) {
 	}
 }
 
-// A long thread keeps working: the oldest turns fall out of the prompt
-// rather than failing the request the learner just made.
 func TestFollowUpAnswerKeepsOnlyTheMostRecentHistory(t *testing.T) {
 	explainer := &fakeExplainer{followUpAnswer: "answer"}
 	repo := &fakeRepo{sentenceJapanese: "x", sentenceEnglish: "y"}
@@ -771,8 +742,6 @@ func TestFollowUpAnswerExplainerError(t *testing.T) {
 	}
 }
 
-// An empty answer would render as a blank turn in the thread, so it is
-// reported as the failure it is instead.
 func TestFollowUpAnswerEmptyAnswer(t *testing.T) {
 	repo := &fakeRepo{sentenceJapanese: "x", sentenceEnglish: "y"}
 	srv := NewServer(repo, &fakeExplainer{followUpAnswer: "   "}, &fakeAnalyzer{})
@@ -908,8 +877,6 @@ func TestGetMistakesOK(t *testing.T) {
 	if len(resp.Mistakes[0].WrongAnswers) != 1 || resp.Mistakes[0].WrongAnswers[0].IncorrectAnswer != "I have no time." {
 		t.Fatalf("unexpected wrong answers: %+v", resp.Mistakes[0])
 	}
-	// Regression guard: the raw list must use the unbounded ListMistakes,
-	// never the insight-specific, query-bounded ListMistakesForInsight.
 	if repo.listMistakesCalls != 1 || repo.listMistakesForInsightCalls != 0 {
 		t.Fatalf("expected ListMistakes called once and ListMistakesForInsight not called, got ListMistakes=%d, ForInsight=%d",
 			repo.listMistakesCalls, repo.listMistakesForInsightCalls)
@@ -974,10 +941,6 @@ func TestGetMistakesInsightOK(t *testing.T) {
 	if len(analyzer.calledWith) != 1 || analyzer.calledWith[0].language != "en" {
 		t.Fatalf("expected Analyze called once with language=en, got %+v", analyzer.calledWith)
 	}
-	// Regression guard: getMistakesInsight must use the query-bounded
-	// ListMistakesForInsight, not the unbounded ListMistakes the raw
-	// /api/mistakes list uses (see firestore_repo_test.go for why the two
-	// must stay distinct).
 	if repo.listMistakesForInsightCalls != 1 || repo.listMistakesCalls != 0 {
 		t.Fatalf("expected ListMistakesForInsight called once and ListMistakes not called, got ForInsight=%d, ListMistakes=%d",
 			repo.listMistakesForInsightCalls, repo.listMistakesCalls)
@@ -1040,13 +1003,6 @@ func TestGetMistakesInsightAnalyzerError(t *testing.T) {
 	}
 }
 
-// TestGetMistakesInsightEmptyAnalyzerResultIsTreatedAsError is a regression
-// test: Gemini can return a successful response with no text (e.g. content
-// filtered by safety settings), which the analyzer passes through as ("",
-// nil). Without this check that empty-but-successful result is
-// indistinguishable on the wire from the "no mistakes" response, so the
-// frontend silently renders nothing even though mistakes exist and a real
-// Gemini call was made.
 func TestGetMistakesInsightEmptyAnalyzerResultIsTreatedAsError(t *testing.T) {
 	repo := &fakeRepo{mistakes: []MistakeSentence{{SentenceID: 1, Japanese: "x", CorrectAnswer: "y", WrongAnswers: []AnswerHistory{{IncorrectAnswer: "z"}}}}}
 	analyzer := &fakeAnalyzer{insight: ""}
@@ -1061,11 +1017,6 @@ func TestGetMistakesInsightEmptyAnalyzerResultIsTreatedAsError(t *testing.T) {
 	}
 }
 
-// TestGetMistakesInsightWhitespaceOnlyAnalyzerResultIsTreatedAsError is a
-// regression test: the emptiness guard above must not be satisfied only by
-// the exact empty string. A whitespace-only response ("\n\n") is just as
-// empty from the user's perspective — it renders as a blank card with no
-// error and no retry option — but `insight == ""` alone doesn't catch it.
 func TestGetMistakesInsightWhitespaceOnlyAnalyzerResultIsTreatedAsError(t *testing.T) {
 	repo := &fakeRepo{mistakes: []MistakeSentence{{SentenceID: 1, Japanese: "x", CorrectAnswer: "y", WrongAnswers: []AnswerHistory{{IncorrectAnswer: "z"}}}}}
 	analyzer := &fakeAnalyzer{insight: "\n\n "}

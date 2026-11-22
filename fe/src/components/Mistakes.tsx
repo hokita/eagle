@@ -12,15 +12,6 @@ import { api, type Mistake } from '@/lib/api'
 import { auth } from '@/lib/firebase'
 import { useSettings, loadStoredLanguage } from '@/lib/useSettings'
 
-// insightCacheKey scopes the cached insight to the viewing user, the
-// language it was generated in (so switching accounts or explain-language on
-// a shared browser never serves someone else's, or the wrong language's,
-// cached analysis), and a fingerprint of the mistake history. Mistakes only
-// ever accumulate (a sentence's IncorrectCount never resets), and the list is
-// sorted most-recently-missed first, so the most recent wrong answer's id
-// (a strictly increasing timestamp) changes the instant a new mistake is
-// recorded — any change to it naturally misses the old cache entry instead
-// of serving a stale insight generated before that mistake happened.
 function insightCacheKey(language: string, mistakes: Mistake[]): string | null {
   const uid = auth.currentUser?.uid
   if (!uid) return null
@@ -68,9 +59,6 @@ export default function Mistakes({ user }: Props) {
       if (cached !== null) {
         if (requestId !== insightRequestId.current) return
         setInsight(cached)
-        // A cache hit can supersede a request that is still in flight. That
-        // request's finally block is guarded by the same request id, so by the
-        // time it lands it will not clear this flag — the early return has to.
         setInsightLoading(false)
         return
       }
@@ -179,8 +167,6 @@ export default function Mistakes({ user }: Props) {
                     {mistake.wrong_answers.map(wrong => (
                       <span
                         key={wrong.id}
-                        // Red tint plus a leading ✕ marks the wrong answers, so
-                        // they stay as legible as the correct one above.
                         className="inline-flex items-start gap-1.5 rounded-md border border-destructive-subtle-border bg-destructive-subtle px-2 py-1 text-sm text-destructive-subtle-foreground"
                       >
                         <X className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />

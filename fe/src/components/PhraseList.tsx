@@ -4,14 +4,6 @@ interface Props {
   phrases: Phrase[]
 }
 
-// Shared by the post-session summary and the history detail panel so the two
-// cannot drift apart again: history used to render only phrase.phrase as a
-// chip, dropping the gloss and example the summary showed, which left a past
-// session listing labels the learner could no longer learn from.
-//
-// Type sizes are inherited, not set here. The summary renders this at base
-// size and the history panel inside a text-sm block, so each screen keeps the
-// density it wants without this component knowing which one it is in.
 export default function PhraseList({ phrases }: Props) {
   return (
     <div className="space-y-3">

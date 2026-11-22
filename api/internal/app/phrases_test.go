@@ -133,7 +133,6 @@ func TestSavePhraseWritesMeaningAndExamples(t *testing.T) {
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
 	}
-	// The AI is given the phrase and the sentence, loaded server-side.
 	want := PhraseSource{Phrase: "to a minimum", Japanese: "損失は最小限に抑えられる。", English: "We can minimize the loss."}
 	if len(f.writer.got) != 1 || f.writer.got[0] != want {
 		t.Fatalf("unexpected writer input: %+v", f.writer.got)
@@ -147,7 +146,6 @@ func TestSavePhraseWritesMeaningAndExamples(t *testing.T) {
 	if got["id"] != "phrase-1" || got["meaning"] != "as little as possible" || len(got["examples"].([]interface{})) != 3 {
 		t.Fatalf("unexpected body: %v", got)
 	}
-	// The source sentence is kept for the AI but never sent to the page.
 	for _, key := range []string{"japanese", "english", "sentence_id", "note"} {
 		if _, ok := got[key]; ok {
 			t.Fatalf("response should not include %q: %v", key, got)
@@ -283,7 +281,6 @@ func TestDeletePhrase(t *testing.T) {
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("expected 204, got %d", rec.Code)
 	}
-	// Deletes are scoped to the signed-in user's own phrases.
 	if len(f.phrases.deleted) != 1 || f.phrases.deleted[0] != "abc123" || f.phrases.uids[0] != "u1" {
 		t.Fatalf("unexpected delete: %v by %v", f.phrases.deleted, f.phrases.uids)
 	}
@@ -376,12 +373,12 @@ func TestCleanPhraseContent(t *testing.T) {
 	got, err := cleanPhraseContent("don't have time", &PhraseContent{
 		Meaning: "  not   free to do something ",
 		Examples: []string{
-			"Sorry, I don’t have time right now.", // curly apostrophe still matches
-			"I DON'T HAVE TIME for this.",         // case is ignored
-			"She doesn't have time.",              // does not use the phrase: dropped
-			"  ",                                  // blank: dropped
-			"We don't have time to cook tonight.", // kept
-			"They don't have time on weekends.",   // over the limit: cut
+			"Sorry, I don’t have time right now.",
+			"I DON'T HAVE TIME for this.",
+			"She doesn't have time.",
+			"  ",
+			"We don't have time to cook tonight.",
+			"They don't have time on weekends.",
 		},
 	})
 	if err != nil {

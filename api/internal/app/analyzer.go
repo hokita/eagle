@@ -6,32 +6,14 @@ import (
 	"strings"
 )
 
-// WeaknessAnalyzer produces a natural-language summary of a learner's
-// recurring weaknesses from the set of sentences they have gotten wrong.
 type WeaknessAnalyzer interface {
 	Analyze(ctx context.Context, mistakes []MistakeSentence, language string) (string, error)
 }
 
-// maxWrongAnswersPerSentence bounds how many of a sentence's most recent
-// wrong answers are included in the weakness-analysis prompt, so a single
-// sentence missed many times doesn't blow up prompt size on its own.
 const maxWrongAnswersPerSentence = 5
 
-// maxPromptChars bounds the total size of the mistakes section of the
-// weakness-analysis prompt. maxInsightMistakes and maxWrongAnswersPerSentence
-// bound the *shape* of the input (how many sentences, how many answers
-// each), but not the length of individual fields — a learner's stored
-// answers can each be up to maxUserAnswerLength long, so a full 50 sentences
-// x 5 answers could still be very large. This is the final backstop: whole
-// mistake blocks are dropped, oldest (least recent) first, once adding the
-// next one would exceed the budget, so the request sent to Gemini has a
-// predictable upper bound regardless of per-field content.
 const maxPromptChars = 20000
 
-// buildWeaknessPrompt is a pure function (kept separate from the Gemini
-// client so it is unit-testable without network access) that renders the
-// learner's mistakes into an analysis prompt. It reuses validExplainLanguages
-// semantics: "ja" produces a Japanese analysis, anything else English.
 func buildWeaknessPrompt(mistakes []MistakeSentence, language string) string {
 	var header strings.Builder
 	header.WriteString("You are an English tutor analyzing the mistakes a Japanese learner has made ")
