@@ -1,15 +1,32 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-dir="${1:?usage: check-action-pins.sh <workflows-dir>}"
+usage() {
+  echo "usage: check-action-pins.sh <workflows-dir>" >&2
+  exit 2
+}
 
-sha_re='^[^@[:space:]]+@[0-9a-f]{40}$'
-docker_re='^docker://[^[:space:]]+@sha256:[0-9a-f]{64}$'
+[ "$#" -eq 1 ] || usage
+dir="$1"
+[ -d "$dir" ] || usage
+
+shopt -s nullglob
+files=("$dir"/*.yml "$dir"/*.yaml)
+if [ "${#files[@]}" -eq 0 ]; then
+  echo "check-action-pins.sh: no .yml or .yaml files in $dir" >&2
+  exit 2
+fi
+
+sha_re='^[^@/:[:space:]]+/[^@/:[:space:]]+(/[^@[:space:]]+)?@[0-9a-f]{40}$'
+docker_re='^docker://[^@[:space:]]+@sha256:[0-9a-f]{64}$'
 local_re='^\./'
 
 status=0
-for file in "$dir"/*.yml "$dir"/*.yaml; do
-  [ -f "$file" ] || continue
+for file in "${files[@]}"; do
+  grep_status=0
+  hits="$(grep -nE '^[[:space:]]*(-[[:space:]]+)?uses:' "$file")" || grep_status=$?
+  [ "$grep_status" -le 1 ] || exit 2
+  [ -n "$hits" ] || continue
   while IFS= read -r hit; do
     line="${hit%%:*}"
     value="${hit#*:}"
@@ -23,6 +40,6 @@ for file in "$dir"/*.yml "$dir"/*.yaml; do
     fi
     echo "$file:$line: $value"
     status=1
-  done < <(grep -nE '^[[:space:]]*(-[[:space:]]+)?uses:' "$file" || true)
+  done <<<"$hits"
 done
 exit "$status"
