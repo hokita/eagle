@@ -31,7 +31,7 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
-          node-version: '24.22.3'
+          node-version: '26.13.1'
           cache: npm
           cache-dependency-path: fe/package-lock.json
 
@@ -59,7 +59,7 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
-          node-version: '24.22.3'
+          node-version: '26.13.1'
 
       - name: Audit production dependencies
         working-directory: fe

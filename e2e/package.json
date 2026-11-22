@@ -6,9 +6,10 @@
     "test:e2e": "bash scripts/run.sh"
   },
   "devDependencies": {
-    "@playwright/test": "^1.48.0"
+    "@playwright/test": "^1.48.0",
+    "@types/node": "^26"
   },
   "volta": {
-    "node": "24.22.3"
+    "node": "26.13.1"
   }
 }
