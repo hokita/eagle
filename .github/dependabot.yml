@@ -23,6 +23,7 @@ updates:
     ignore:
       - dependency-name: golang
         update-types:
+          - version-update:semver-minor
           - version-update:semver-major
       - dependency-name: alpine
         update-types:
