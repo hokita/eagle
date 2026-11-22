@@ -1,7 +1,0 @@
-jobs:
-  b:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo uses actions/checkout@v4
-      - name: plain
-        uses: actions/setup-node@0123456789abcdef0123456789abcdef01234567

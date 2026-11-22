@@ -124,5 +124,13 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
-      - name: Check every action is pinned to a commit SHA
-        run: bash .github/scripts/check-action-pins.test.sh && bash .github/scripts/check-action-pins.sh .github/workflows
+      - name: Install PyYAML (hash-pinned)
+        run: |
+          python3 -m venv "$RUNNER_TEMP/pins"
+          "$RUNNER_TEMP/pins/bin/pip" install --require-hashes --only-binary=:all: --no-deps -r .github/scripts/requirements-pins.txt
+
+      - name: Test the pin checker
+        run: '"$RUNNER_TEMP/pins/bin/python" -m unittest discover -s .github/scripts -p "test_*.py"'
+
+      - name: Check action pins
+        run: '"$RUNNER_TEMP/pins/bin/python" .github/scripts/check_action_pins.py .github/workflows'
