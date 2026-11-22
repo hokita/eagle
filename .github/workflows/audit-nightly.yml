@@ -18,7 +18,7 @@ jobs:
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: '24.22.3'
+          node-version: '26.13.1'
 
       - name: Audit production dependencies
         working-directory: fe
@@ -32,7 +32,7 @@ jobs:
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: '24.22.3'
+          node-version: '26.13.1'
 
       - name: Audit all dependencies
         working-directory: fe
@@ -46,7 +46,7 @@ jobs:
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: '24.22.3'
+          node-version: '26.13.1'
 
       - name: Audit all dependencies
         working-directory: e2e
