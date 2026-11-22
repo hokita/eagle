@@ -20,6 +20,13 @@ updates:
       - /api
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: golang
+        update-types:
+          - version-update:semver-major
+      - dependency-name: alpine
+        update-types:
+          - version-update:semver-major
     groups:
       docker:
         patterns:
