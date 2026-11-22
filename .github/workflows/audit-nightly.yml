@@ -1,0 +1,128 @@
+name: Audit nightly
+
+on:
+  schedule:
+    - cron: '10 18 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  fe-prod:
+    name: 'Nightly: fe prod deps'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.22.3'
+
+      - name: Audit production dependencies
+        working-directory: fe
+        run: npm audit --omit=dev --audit-level=high
+
+  fe-all:
+    name: 'Nightly: fe all deps'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.22.3'
+
+      - name: Audit all dependencies
+        working-directory: fe
+        run: npm audit --audit-level=high
+
+  e2e-all:
+    name: 'Nightly: e2e all deps'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.22.3'
+
+      - name: Audit all dependencies
+        working-directory: e2e
+        run: npm audit --audit-level=high
+
+  go:
+    name: 'Nightly: Go (govulncheck)'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version-file: api/go.mod
+          cache-dependency-path: api/go.sum
+
+      - name: Install govulncheck with the module's toolchain
+        working-directory: api
+        run: GOTOOLCHAIN="$(go env GOVERSION)" go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+
+      - name: Run govulncheck
+        working-directory: api
+        run: govulncheck -show verbose ./...
+
+  deployed-image:
+    name: 'Nightly: deployed API image'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker asia-northeast1-docker.pkg.dev --quiet
+
+      - name: Resolve the deployed image digest
+        run: |
+          set -euo pipefail
+          REV="$(gcloud run services describe eagle-api --project=eagle-473ac1 --region=asia-northeast1 --format='value(status.latestReadyRevisionName)')"
+          if [ -z "$REV" ]; then
+            echo "eagle-api has no latestReadyRevisionName" >&2
+            exit 1
+          fi
+          DIGEST="$(gcloud run revisions describe "$REV" --project=eagle-473ac1 --region=asia-northeast1 --format='value(status.imageDigest)')"
+          if [ -z "$DIGEST" ]; then
+            echo "revision $REV has no status.imageDigest" >&2
+            exit 1
+          fi
+          echo "Deployed revision: $REV"
+          echo "Deployed image: $DIGEST"
+          {
+            echo "Deployed revision: \`$REV\`"
+            echo
+            echo "Deployed image: \`$DIGEST\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "DIGEST=$DIGEST" >> "$GITHUB_ENV"
+
+      - name: Pull deployed image
+        run: docker pull "$DIGEST"
+
+      - name: Scan deployed image
+        run: >-
+          docker run --rm
+          -v /var/run/docker.sock:/var/run/docker.sock
+          aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
+          image --scanners vuln --severity HIGH,CRITICAL --exit-code 1 "$DIGEST"
+
+  action-pins:
+    name: 'Nightly: Actions pins'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Check every action is pinned to a commit SHA
+        run: bash .github/scripts/check-action-pins.test.sh && bash .github/scripts/check-action-pins.sh .github/workflows
