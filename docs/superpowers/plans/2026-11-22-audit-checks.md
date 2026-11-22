@@ -31,6 +31,12 @@
 - Images: `golang:1.27.4-alpine@sha256:70bd7ddea8b6cbe5d6943cde279d6b67feb10cc924fb9100d1d8757c1575b280`, `alpine:3.24.4@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf`.
 - GitHub: Dependabot alerts off (404), security updates off, secret scanning + push protection on. Ruleset "Protect main" id `19733348` has no required checks. Existing PR check names: `API`, `Frontend`, `E2E`.
 
+### Draft PR #46 findings (rollout step 1)
+
+- Trivy on the built image: alpine 3.24.4 OS packages 0 high+; Go binary stdlib 0; 9 HIGH in Go modules, all with fixes: go-jose 4.1.6, x/crypto 0.55.0, x/net 0.62.0, x/text 0.41.0, grpc 1.83.2.
+- govulncheck v1.9.0 (once it was built with the module's toolchain via `GOTOOLCHAIN="$(go env GOVERSION)"`; built with go1.26 it can't load the 1.27.4 stdlib): 9 called vulnerabilities, all with fixes. x/net GO-2026-6617/6612/6611/6610/6603 (0.60.0), otel/sdk GO-2026-6505 (1.45.0), grpc GO-2026-6348 (1.83.1) and GO-2026-6061 (1.82.1), x/text GO-2026-5970 (0.39.0). Plus 9 imported or required but not called.
+- No finding without a fixed version. Task 1's target versions cover all of them.
+
 ## Review Focus
 
 1. A Dependabot docker PR bumping `alpine`/`golang` must keep the digest pin. Expect it to update both the tag and the digest, never fall back to an unpinned tag.
