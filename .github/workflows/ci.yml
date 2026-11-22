@@ -99,3 +99,12 @@ jobs:
           -v /var/run/docker.sock:/var/run/docker.sock
           aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
           image --scanners vuln --severity HIGH,CRITICAL --exit-code 1 eagle-api:ci
+
+  audit-action-pins:
+    name: 'Audit: Actions pins'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check every action is pinned to a commit SHA
+        run: bash .github/scripts/check-action-pins.test.sh && bash .github/scripts/check-action-pins.sh .github/workflows

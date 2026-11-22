@@ -1,0 +1,10 @@
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@main
+      - name: short
+        uses: 'actions/cache@0123456'
+      - uses: "docker://alpine:3"
+      - uses: actions/setup-node@0123456789abcdef0123456789abcdef01234567
