@@ -8,9 +8,9 @@ jobs:
     name: API
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
         with:
           go-version-file: api/go.mod
           cache-dependency-path: api/go.sum
@@ -27,9 +27,9 @@ jobs:
     name: Frontend
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '24.22.3'
           cache: npm
@@ -55,9 +55,9 @@ jobs:
     name: 'Audit: fe prod deps'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '24.22.3'
 
@@ -69,9 +69,9 @@ jobs:
     name: 'Audit: Go (govulncheck)'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
         with:
           go-version-file: api/go.mod
           cache-dependency-path: api/go.sum
@@ -88,7 +88,7 @@ jobs:
     name: 'Audit: API image'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Build image
         run: docker build -t eagle-api:ci api
@@ -104,7 +104,7 @@ jobs:
     name: 'Audit: Actions pins'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Check every action is pinned to a commit SHA
         run: bash .github/scripts/check-action-pins.test.sh && bash .github/scripts/check-action-pins.sh .github/workflows
