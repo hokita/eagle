@@ -50,3 +50,51 @@ jobs:
       - name: Test
         working-directory: fe
         run: npm test
+
+  audit-fe-prod:
+    name: 'Audit: fe prod deps'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.3'
+
+      - name: Audit production dependencies
+        working-directory: fe
+        run: npm audit --omit=dev --audit-level=high
+
+  audit-go:
+    name: 'Audit: Go (govulncheck)'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: api/go.mod
+          cache-dependency-path: api/go.sum
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+
+      - name: Run govulncheck
+        working-directory: api
+        run: govulncheck ./...
+
+  audit-api-image:
+    name: 'Audit: API image'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t eagle-api:ci api
+
+      - name: Scan image
+        run: >-
+          docker run --rm
+          -v /var/run/docker.sock:/var/run/docker.sock
+          aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
+          image --scanners vuln --severity HIGH,CRITICAL --exit-code 1 eagle-api:ci
